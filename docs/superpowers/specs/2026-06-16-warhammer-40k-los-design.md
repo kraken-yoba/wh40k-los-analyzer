@@ -98,7 +98,7 @@ Public repository workflows must not assume the official PDF binaries can be red
 
 ## Canonical Data Model
 
-Each extracted layout should be stored as versioned canonical JSON with sorted keys, fixed float precision, explicit units, required status enums, and `schema_version`. The backend must generate JSON Schema from Pydantic models. The browser UI consumes JSON directly from FastAPI endpoints and does not require a separate generated frontend schema package.
+Each extracted layout should be stored as versioned canonical JSON with sorted keys, fixed float precision, explicit units, required status enums, and `schema_version`. The backend must generate JSON Schema from Pydantic models. The browser UI consumes JSON directly from FastAPI endpoints and does not require a separate generated browser schema package.
 
 Canonical layout hashes must exclude timestamps, absolute local paths, and machine-specific metadata. Those volatile values belong in `run_metadata`, not in the canonical layout object.
 
@@ -113,7 +113,7 @@ Canonical JSON should include these top-level areas:
 - `run_metadata`: local cache path, extraction timestamp, machine-specific paths, and runtime environment details excluded from canonical hashes.
 - `rules_assumptions`: 2D LOS assumptions, base-size assumptions, terrain-blocking assumptions, unsupported rules interactions, and future 3D extension notes.
 
-Coordinates are normalized to board inches. The board should use one consistent origin, documented in the JSON schema and frontend renderer.
+Coordinates are normalized to board inches. The board should use one consistent origin, documented in the JSON schema and browser renderer.
 
 Each feature, footprint, wall segment, deployment polygon, and deployment edge must include feature-level provenance:
 
@@ -414,7 +414,7 @@ The implementation plan should start from these defaults unless a concrete block
 - Local GUI: FastAPI templates with CSS and vanilla JavaScript served from the Python app.
 - Browser schema handling: consume backend JSON directly; keep Pydantic-generated JSON Schema as the source of truth.
 - Rendering: SVG for editable overlays and Canvas2D for dense heatmaps.
-- Heatmaps: computed server-side first, returned as arrays or raster tiles for frontend display.
+- Heatmaps: computed server-side first, returned as arrays or raster tiles for browser display.
 - Sampling density: 2 inch preview grid, 1 inch default grid, 0.5 inch high-resolution grid.
 - Rendering determinism: fixed PyMuPDF version, colorspace, alpha/background, render DPI profiles, antialiasing assumptions, threshold values, morphology kernels, contour approximation mode, and golden rendered-image hashes.
 - Measurement tolerances: separate tolerance classes for board bounds, footprint vertices, wall endpoints, wall thickness, deployment distances, text-stated measurements, and raster overlay residuals. Store both inch and pixel residuals.

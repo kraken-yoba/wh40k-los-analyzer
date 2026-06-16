@@ -4,7 +4,7 @@ Local Python tooling for deterministic visual analysis of Warhammer 40k table la
 
 ## Status
 
-This repository is in infrastructure setup. The extraction and LOS engines are planned but not implemented yet.
+This repository is in infrastructure setup. The next implementation milestone is the deterministic data spine: source manifests, canonical geometry schemas, synthetic fixtures, validation records, and stable exports.
 
 ## Source Policy
 
@@ -19,7 +19,16 @@ Official Warhammer PDFs and rules text are third-party source material and are n
 ## Development Commands
 
 ```powershell
-.\scripts\verify.ps1
+.\scripts\verify.cmd
+.\scripts\dev.cmd
 ```
 
-The full official-PDF regression gate requires a local pinned PDF cache and is intentionally separate from public-safe CI.
+Additional gates are split so public CI stays copyright-safe:
+
+```powershell
+.\scripts\verify-public.cmd
+.\scripts\verify-gui.cmd
+.\scripts\verify-full-local.cmd
+```
+
+The full official-PDF regression gate requires a local pinned PDF cache and is intentionally separate from public-safe CI. Use `verify-full-local.cmd -RequireOfficialPdfRegression` once the official-cache regression harness exists.

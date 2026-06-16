@@ -14,7 +14,7 @@ body {
   padding: 24px;
 }
 
-.board-placeholder {
+.board-frame {
   border: 1px solid #79756d;
   background: #fffdf7;
   max-width: 440px;

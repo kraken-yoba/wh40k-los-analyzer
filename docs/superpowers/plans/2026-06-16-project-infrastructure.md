@@ -139,7 +139,7 @@ Local Python tooling for deterministic visual analysis of Warhammer 40k table la
 
 ## Status
 
-This repository is in infrastructure setup. The extraction and LOS engines are planned but not implemented yet.
+This repository is in infrastructure setup. The next implementation milestone is the deterministic data spine: source manifests, canonical geometry schemas, synthetic fixtures, validation records, and stable exports.
 
 ## Source Policy
 
@@ -154,10 +154,19 @@ Official Warhammer PDFs and rules text are third-party source material and are n
 ## Development Commands
 
 ```powershell
-.\scripts\verify.ps1
+.\scripts\verify.cmd
+.\scripts\dev.cmd
 ```
 
-The full official-PDF regression gate requires a local pinned PDF cache and is intentionally separate from public-safe CI.
+Additional gates are split so public CI stays copyright-safe:
+
+```powershell
+.\scripts\verify-public.cmd
+.\scripts\verify-gui.cmd
+.\scripts\verify-full-local.cmd
+```
+
+The full official-PDF regression gate requires a local pinned PDF cache and is intentionally separate from public-safe CI. Use `verify-full-local.cmd -RequireOfficialPdfRegression` once the official-cache regression harness exists.
 ```
 
 Create `LICENSE`:
@@ -373,7 +382,7 @@ Create `backend/fortyk_los_backend/templates/index.html`:
     <main class="app-shell">
       <h1>Warhammer 40k LOS Analyzer</h1>
       <p id="status">Infrastructure ready</p>
-      <section class="board-placeholder" aria-label="Board analysis canvas">
+      <section class="board-frame" aria-label="Board analysis canvas">
         <canvas id="board-canvas" width="880" height="1200"></canvas>
       </section>
     </main>
@@ -401,7 +410,7 @@ body {
   padding: 24px;
 }
 
-.board-placeholder {
+.board-frame {
   border: 1px solid #79756d;
   background: #fffdf7;
   max-width: 440px;
@@ -557,7 +566,7 @@ jobs:
 Run:
 
 ```powershell
-.\scripts\verify.ps1
+.\scripts\verify.cmd
 ```
 
 Expected: Ruff, mypy, and pytest pass.
