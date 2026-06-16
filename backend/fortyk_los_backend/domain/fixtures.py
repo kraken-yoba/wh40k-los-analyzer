@@ -17,6 +17,10 @@ from fortyk_los_backend.domain.manifest import (
     SourceManifest,
 )
 from fortyk_los_backend.domain.models import CanonicalLayout, ReviewStatus, ValidationSeverity
+from fortyk_los_backend.domain.rules import (
+    RULES_TERRAIN_SEMANTICS_METHOD,
+    extract_rules_terrain_semantics,
+)
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 from fortyk_los_backend.domain.source_underlay import render_event_companion_board_underlay
 from fortyk_los_backend.domain.visual_sanity import (
@@ -216,6 +220,39 @@ class FixtureRepository:
             "outlines": [],
         }
 
+    def rules_terrain_semantics_evidence(self) -> dict[str, object]:
+        document_statuses = self._source_document_statuses(SourceKind.RULES)
+        if not document_statuses:
+            return _unavailable_rules_terrain_semantics(
+                source_document_id=None,
+                cache_status=None,
+            )
+        if len(document_statuses) > 1:
+            return _unavailable_rules_terrain_semantics(
+                source_document_id=None,
+                cache_status=None,
+                backing_status="source_ambiguous",
+            )
+
+        document, status = document_statuses[0]
+        if status.status != CacheStatus.HASH_MATCH:
+            return _unavailable_rules_terrain_semantics(
+                source_document_id=document.document_id,
+                cache_status=status,
+            )
+
+        extraction = extract_rules_terrain_semantics(
+            (self._repo_root / document.cache_path).resolve()
+        )
+        return {
+            "source_document_id": document.document_id,
+            "cache_status": status,
+            "extraction_method": extraction.extraction_method,
+            "backing_status": extraction.backing_status,
+            "rules": extraction.rules,
+            "missing_anchor_codes": extraction.missing_anchor_codes,
+        }
+
     def load_layout_by_path(self, layout_path: Path) -> CanonicalLayout:
         return CanonicalLayout.model_validate_json(layout_path.read_text(encoding="utf-8"))
 
@@ -253,15 +290,25 @@ class FixtureRepository:
         self,
         kind: SourceKind,
     ) -> tuple[SourceDocument, SourceCacheStatus] | None:
+        document_statuses = self._source_document_statuses(kind)
+        if not document_statuses:
+            return None
+        return document_statuses[0]
+
+    def _source_document_statuses(
+        self,
+        kind: SourceKind,
+    ) -> tuple[tuple[SourceDocument, SourceCacheStatus], ...]:
         manifest = self.source_manifest()
         statuses = {
             status.document_id: status
             for status in manifest.cache_statuses(repo_root=self._repo_root)
         }
-        for document in manifest.documents:
-            if document.kind == kind:
-                return document, statuses[document.document_id]
-        return None
+        return tuple(
+            (document, statuses[document.document_id])
+            for document in manifest.documents
+            if document.kind == kind
+        )
 
     def _apply_accepted_validation_records(self, layout: CanonicalLayout) -> CanonicalLayout:
         accepted_codes = self._accepted_validation_records.get(
@@ -309,4 +356,20 @@ def _unavailable_visual_sanity(layout: CanonicalLayout) -> dict[str, object]:
             "reason": "Visual sanity checks require a hash-matched Event Companion PDF layout.",
             "input": "none",
         },
+    }
+
+
+def _unavailable_rules_terrain_semantics(
+    *,
+    source_document_id: str | None,
+    cache_status: SourceCacheStatus | None,
+    backing_status: str = "source_unavailable",
+) -> dict[str, object]:
+    return {
+        "source_document_id": source_document_id,
+        "cache_status": cache_status,
+        "extraction_method": RULES_TERRAIN_SEMANTICS_METHOD,
+        "backing_status": backing_status,
+        "rules": [],
+        "missing_anchor_codes": [],
     }

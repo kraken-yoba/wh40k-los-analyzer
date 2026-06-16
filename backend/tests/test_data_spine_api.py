@@ -82,6 +82,133 @@ def test_source_manifest_api_returns_public_safe_documents() -> None:
     assert "assets.warhammer-community.com" in documents["core-rules-2026-06-01"]["url"]
 
 
+def test_rules_terrain_semantics_api_returns_hash_backed_rules_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_rules_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/rules/terrain-semantics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source_document_id"] == "core-rules-2026-06-01"
+    assert payload["cache_status"]["status"] == "hash_match"
+    assert payload["extraction_method"] == "core-rules-terrain-semantics-v1"
+    assert payload["backing_status"] == "backed"
+    rules_by_code = {rule["code"]: rule for rule in payload["rules"]}
+    assert set(rules_by_code) == {
+        "visibility_line_of_sight",
+        "terrain_categories",
+        "dense_solid_blocks_2d_los",
+        "light_exposed_not_opaque_blockers",
+        "future_3d_rules_scope",
+    }
+    assert rules_by_code["dense_solid_blocks_2d_los"]["source_sections"] == [
+        "Terrain and Visibility 13.07",
+        "Solid 13.11",
+    ]
+    assert rules_by_code["dense_solid_blocks_2d_los"]["source_pages"] == [50]
+    assert rules_by_code["dense_solid_blocks_2d_los"]["engine_implication"] == (
+        "Matched Dense footprint fragments are the only official-layout wall candidates "
+        "used by the current 2D LOS engine."
+    )
+    assert rules_by_code["light_exposed_not_opaque_blockers"]["engine_implication"] == (
+        "Light and Exposed features remain visible terrain context and are not emitted as "
+        "opaque LOS blocker segments."
+    )
+
+
+def test_rules_terrain_semantics_api_rejects_toc_only_anchor_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_path = tmp_path / "data" / "pdfs" / "core_rules.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    _write_toc_only_rules_pdf(pdf_path)
+    _write_rules_manifest(
+        tmp_path,
+        expected_sha256=sha256(pdf_path.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/rules/terrain-semantics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "hash_match"
+    assert payload["backing_status"] == "missing_anchor"
+    assert payload["rules"] == []
+    assert set(payload["missing_anchor_codes"]) == {
+        "visibility_line_of_sight",
+        "terrain_categories",
+        "dense_solid_blocks_2d_los",
+        "light_exposed_not_opaque_blockers",
+        "future_3d_rules_scope",
+    }
+
+
+def test_rules_terrain_semantics_api_does_not_parse_missing_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_rules_manifest(tmp_path, expected_sha256="0" * 64)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_rules_terrain_semantics", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/rules/terrain-semantics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "missing"
+    assert payload["backing_status"] == "source_unavailable"
+    assert payload["rules"] == []
+
+
+def test_rules_terrain_semantics_api_does_not_parse_hash_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_path = tmp_path / "data" / "pdfs" / "core_rules.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    _write_synthetic_rules_pdf(pdf_path)
+    _write_rules_manifest(tmp_path, expected_sha256="0" * 64)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_rules_terrain_semantics", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/rules/terrain-semantics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "hash_mismatch"
+    assert payload["backing_status"] == "source_unavailable"
+    assert payload["rules"] == []
+
+
+def test_rules_terrain_semantics_api_rejects_multiple_rules_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_duplicate_rules_manifest(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_rules_terrain_semantics", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/rules/terrain-semantics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source_document_id"] is None
+    assert payload["cache_status"] is None
+    assert payload["backing_status"] == "source_ambiguous"
+    assert payload["rules"] == []
+
+
 def test_layout_api_includes_extracted_event_companion_layout_when_cache_matches(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -620,6 +747,68 @@ def _write_temp_terrain_footprint_repo(repo_root: Path) -> None:
     )
 
 
+def _write_temp_rules_repo(repo_root: Path) -> None:
+    pdf_path = repo_root / "data" / "pdfs" / "core_rules.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    _write_synthetic_rules_pdf(pdf_path)
+    _write_rules_manifest(
+        repo_root,
+        expected_sha256=sha256(pdf_path.read_bytes()).hexdigest(),
+    )
+
+
+def _write_rules_manifest(repo_root: Path, *, expected_sha256: str) -> None:
+    manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "cache_path": "data/pdfs/core_rules.pdf",
+                        "document_id": "core-rules-2026-06-01",
+                        "expected_sha256": expected_sha256,
+                        "kind": "rules",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-rules.pdf",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_duplicate_rules_manifest(repo_root: Path) -> None:
+    manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "cache_path": "data/pdfs/core_rules.pdf",
+                        "document_id": "core-rules-2026-06-01",
+                        "expected_sha256": "0" * 64,
+                        "kind": "rules",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-rules.pdf",
+                    },
+                    {
+                        "cache_path": "data/pdfs/core_rules_updated.pdf",
+                        "document_id": "core-rules-2026-06-02",
+                        "expected_sha256": "1" * 64,
+                        "kind": "rules",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-rules-2.pdf",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_terrain_footprint_manifest(repo_root: Path, *, expected_sha256: str) -> None:
     manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
     manifest_path.parent.mkdir(parents=True)
@@ -667,4 +856,60 @@ def _write_synthetic_terrain_footprint_pdf(pdf_path: Path) -> None:
         color=(0.0, 0.66, 0.31),
         width=2.0,
     )
+    document.save(pdf_path)
+
+
+def _write_synthetic_rules_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    for page_number in range(1, 51):
+        page = document.new_page(width=500, height=700)
+        if page_number == 24:
+            page.insert_text((72, 72), "VISIBILITY 06.01")
+            page.insert_text(
+                (72, 96),
+                "Line of sight fixture anchor.",
+            )
+            page.insert_text((72, 120), "observing model fixture anchor.")
+        if page_number == 46:
+            page.insert_text((72, 72), "TERRAIN CATEGORIES 13.02")
+            page.insert_text((72, 96), "EXPOSED 13.03")
+            page.insert_text((72, 120), "LIGHT 13.04")
+            page.insert_text((72, 144), "DENSE 13.05")
+            page.insert_text((72, 168), "movement and visibility fixture anchor.")
+        if page_number == 48:
+            page.insert_text((72, 72), "TERRAIN AND MOVEMENT 13.06")
+            page.insert_text((72, 96), "Exposed/Light")
+            page.insert_text((72, 120), "vertically fixture anchor.")
+        if page_number == 50:
+            page.insert_text((72, 72), "TERRAIN AND VISIBILITY 13.07")
+            page.insert_text((72, 84), "Terrain can affect visibility")
+            page.insert_text((72, 90), "depending on whether fixture anchor.")
+            page.insert_text((72, 96), "OBSCURING 13.10")
+            page.insert_text((72, 120), "SOLID 13.11")
+            page.insert_text((72, 144), "Dense terrain features fixture anchor.")
+            page.insert_text((72, 168), "ground level fixture anchor.")
+    document.save(pdf_path)
+
+
+def _write_toc_only_rules_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=500, height=700)
+    for index, label in enumerate(
+        [
+            "VISIBILITY 06.01",
+            "Line of sight",
+            "TERRAIN CATEGORIES 13.02",
+            "EXPOSED 13.03",
+            "LIGHT 13.04",
+            "DENSE 13.05",
+            "TERRAIN AND MOVEMENT 13.06",
+            "Exposed/Light",
+            "TERRAIN AND VISIBILITY 13.07",
+            "Terrain can affect visibility",
+            "OBSCURING 13.10",
+            "SOLID 13.11",
+            "Dense terrain features",
+        ]
+    ):
+        page.insert_text((72, 72 + index * 20), label)
     document.save(pdf_path)

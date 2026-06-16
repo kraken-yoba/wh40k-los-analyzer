@@ -223,6 +223,11 @@ def terrain_footprint_evidence() -> dict[str, object]:
     return dict(jsonable_encoder(fixtures.terrain_footprint_evidence()))
 
 
+@app.get("/api/rules/terrain-semantics")
+def rules_terrain_semantics_evidence() -> dict[str, object]:
+    return dict(jsonable_encoder(fixtures.rules_terrain_semantics_evidence()))
+
+
 @app.get("/api/layouts/{layout_id}/footprint-matches")
 def footprint_match_evidence(layout_id: str) -> dict[str, object]:
     evidence = fixtures.footprint_match_evidence(layout_id)

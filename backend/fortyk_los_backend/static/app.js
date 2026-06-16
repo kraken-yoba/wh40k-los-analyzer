@@ -5,6 +5,7 @@ const loadLayoutButton = document.querySelector("#load-layout-button");
 const interactionMode = document.querySelector("#interaction-mode");
 const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
+const rulesEvidence = document.querySelector("#rules-evidence");
 const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
 const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
@@ -19,6 +20,7 @@ const sourceUnderlayToggle = document.querySelector("#source-underlay-toggle");
 const sourceUnderlayStatus = document.querySelector("#source-underlay-status");
 const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
 const FOOTPRINT_MATCH_METHOD = "terrain-footprint-match-v1";
+const RULES_TERRAIN_SEMANTICS_METHOD = "core-rules-terrain-semantics-v1";
 
 const state = {
   layout: null,
@@ -296,6 +298,52 @@ function renderSources(payload) {
   }
 }
 
+function ruleLabel(code) {
+  switch (code) {
+    case "dense_solid_blocks_2d_los":
+      return "Dense/Solid";
+    case "light_exposed_not_opaque_blockers":
+      return "Light/Exposed";
+    case "future_3d_rules_scope":
+      return "future 3D-aware LOS";
+    default:
+      return code;
+  }
+}
+
+function renderRulesEvidence(payload) {
+  rulesEvidence.replaceChildren();
+  const cacheStatus = payload.cache_status ? payload.cache_status.status : "unavailable";
+  appendDenseItem(rulesEvidence, "Status", cacheStatus);
+  appendDenseItem(
+    rulesEvidence,
+    "Method",
+    payload.extraction_method || RULES_TERRAIN_SEMANTICS_METHOD,
+  );
+  appendDenseItem(rulesEvidence, "Backing", payload.backing_status || "source_unavailable");
+  for (const rule of payload.rules || []) {
+    const pages = (rule.source_pages || []).map((page) => `p${page}`).join(",");
+    appendDenseItem(
+      rulesEvidence,
+      ruleLabel(rule.code),
+      `${pages} ${rule.engine_implication}`,
+    );
+  }
+  for (const code of payload.missing_anchor_codes || []) {
+    appendDenseItem(rulesEvidence, "Missing anchor", code);
+  }
+}
+
+async function loadRulesEvidence() {
+  rulesEvidence.textContent = "Loading rules evidence.";
+  try {
+    const payload = await getJson("/api/rules/terrain-semantics");
+    renderRulesEvidence(payload);
+  } catch (error) {
+    renderError(rulesEvidence, error);
+  }
+}
+
 function renderFootprintEvidence(payload) {
   footprintEvidence.replaceChildren();
   const cacheStatus = payload.cache_status ? payload.cache_status.status : "unavailable";
@@ -548,6 +596,7 @@ async function initialize() {
   ]);
   renderSources(sources);
   renderFootprintEvidence(footprints);
+  void loadRulesEvidence();
   layoutSelect.replaceChildren();
   for (const layout of layouts.layouts) {
     const option = window.document.createElement("option");

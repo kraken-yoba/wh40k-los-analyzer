@@ -125,6 +125,19 @@ Consequences:
 - Cubic Bezier fragment commands are tessellated into deterministic path samples rather than treating control points as wall vertices.
 - Official extracted layouts keep `terrain_footprint_blocker_review_required` warnings, so LOS/heatmap/exposure endpoints still fail closed until the review workflow accepts the geometry.
 
+## 2026-06-16: Rules Semantics Are Source-Anchored Evidence, Not A Rules Engine
+
+Decision: Use the hash-matched Core Rules PDF to verify short section anchors for LOS-relevant terrain semantics, then expose only paraphrased engine implications in the API and GUI.
+
+Reasoning: The app needs to explain why Dense/Solid terrain receives provisional wall candidates while Light and Exposed terrain do not. The public repo must not redistribute official rules text, and the first release is not attempting a full Warhammer rules engine.
+
+Consequences:
+
+- `/api/rules/terrain-semantics` returns unavailable evidence for missing or hash-mismatched rules PDFs.
+- Hash-matched rules evidence verifies section anchors for visibility, terrain categories, movement, terrain visibility, Obscuring, and Solid without embedding long copied rule text.
+- The GUI Rules panel distinguishes Dense/Solid wall relevance from Light/Exposed terrain context and records that full 3D-aware LOS remains future scope.
+- Rules evidence supports review and user understanding, but it does not itself unblock provisional official geometry.
+
 ## 2026-06-16: Visual Sanity Is Deterministic CV First
 
 Decision: Add an advisory Event Companion visual sanity report that renders the PDF page, segments raster evidence for board, deployment zones, and terrain features, and compares those shapes against canonical extraction geometry in board-inch residuals. Live vision-model review is a later advisory consumer of this deterministic report, not a source of canonical geometry.

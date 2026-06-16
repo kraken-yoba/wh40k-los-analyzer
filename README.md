@@ -13,6 +13,7 @@ Implemented now:
 - Base-aware 2D LOS using deterministic disk sampling.
 - Event Companion vector extraction for board, deployment zones, terrain placement candidates, and terrain category markers.
 - Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional Dense/Solid wall/blocker segments from matched footprint fragments.
+- Core Rules terrain-semantics evidence that hash-checks the rules PDF, verifies short section anchors, and surfaces paraphrased LOS implications for Dense/Solid, Light/Exposed, and future 3D scope.
 - Deterministic raster/CV sanity reports that compare extracted Event Companion geometry against rendered PDF page shapes and expose advisory vision-review status.
 - Official extracted layouts remain warning-state by default; the local GUI can explicitly accept warnings for auditable degraded analysis without marking the geometry as clean.
 

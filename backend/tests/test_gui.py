@@ -34,6 +34,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="source-underlay-status"',
         'id="board-canvas"',
         'id="source-status"',
+        'id="rules-evidence"',
         'id="footprint-evidence"',
         'id="footprint-match-evidence"',
         'id="visual-sanity-evidence"',
@@ -118,6 +119,36 @@ def test_client_script_renders_terrain_footprint_evidence() -> None:
     assert "function renderFootprintEvidence" in script
     assert "/api/extraction/terrain-footprints" in script
     assert "terrain-footprint-vector-v1" in script
+
+
+def test_client_script_renders_rules_terrain_semantics_evidence() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const rulesEvidence" in script
+    assert "function renderRulesEvidence" in script
+    assert "/api/rules/terrain-semantics" in script
+    assert "core-rules-terrain-semantics-v1" in script
+    assert "Dense/Solid" in script
+    assert "Light/Exposed" in script
+    assert "future 3D-aware LOS" in script
+
+
+def test_client_script_keeps_rules_fetch_out_of_layout_load_barrier() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    initialize_body = script.split("async function initialize()", 1)[1].split(
+        "function formatLayoutOption",
+        1,
+    )[0]
+    initialize_barrier = initialize_body.split("]);", 1)[0]
+
+    assert "/api/rules/terrain-semantics" not in initialize_barrier
+    assert "async function loadRulesEvidence()" in script
+    assert "void loadRulesEvidence();" in initialize_body
+    assert "renderError(rulesEvidence" in script
 
 
 def test_client_script_renders_footprint_match_evidence() -> None:
