@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -5,8 +6,6 @@ from typing import Any
 import fitz
 
 from fortyk_los_backend.domain.models import (
-    Blocker,
-    BlockerKind,
     Board,
     CanonicalLayout,
     DeploymentZone,
@@ -27,6 +26,7 @@ ATTACKER_FILL = (0.618, 0.040, 0.056)
 DEFENDER_FILL = (0.000, 0.241, 0.408)
 TERRAIN_FILL = (0.820, 0.826, 0.832)
 COLOR_TOLERANCE = 0.035
+INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,35 @@ class BoardTransform:
         return PolygonGeometry(points=(bottom_left, bottom_right, top_right, top_left))
 
 
+@dataclass(frozen=True)
+class EventCompanionLayoutPage:
+    layout_id: str
+    name: str
+    page_number: int
+
+
+def list_event_companion_layout_pages(pdf_path: Path) -> tuple[EventCompanionLayoutPage, ...]:
+    pages: list[EventCompanionLayoutPage] = []
+    with fitz.open(pdf_path) as document:
+        for page_index, page in enumerate(document, start=1):
+            words = list(page.get_text("words"))
+            name = _layout_name(words, fallback="")
+            if not name:
+                continue
+            try:
+                _find_board_rect(list(page.get_drawings()))
+            except ValueError:
+                continue
+            pages.append(
+                EventCompanionLayoutPage(
+                    layout_id=f"event-companion-page-{page_index}",
+                    name=name,
+                    page_number=page_index,
+                )
+            )
+    return tuple(pages)
+
+
 def extract_event_companion_layout(
     pdf_path: Path,
     *,
@@ -122,53 +151,39 @@ def extract_event_companion_layout(
     transform = BoardTransform(board_rect)
     terrain_rects = _find_terrain_rects(drawings, board_rect)
     terrain_features = _terrain_features_from_rects(terrain_rects, transform, words)
+    deployments = (
+        _deployment_zone(
+            drawings,
+            board_rect,
+            transform,
+            fill=ATTACKER_FILL,
+            zone_id="attacker",
+            label="Attacker",
+        ),
+        _deployment_zone(
+            drawings,
+            board_rect,
+            transform,
+            fill=DEFENDER_FILL,
+            zone_id="defender",
+            label="Defender",
+        ),
+    )
+    validation_records = _validation_records(terrain_features, deployments, words)
 
     return CanonicalLayout(
         layout_id=f"event-companion-page-{page_number}",
         name=_layout_name(words, fallback=f"Event Companion Page {page_number}"),
         board=Board(width=BOARD_WIDTH_INCHES, height=BOARD_HEIGHT_INCHES),
         terrain_features=terrain_features,
-        blockers=_footprint_perimeter_blockers(terrain_features),
-        deployments=(
-            _deployment_zone(
-                drawings,
-                board_rect,
-                transform,
-                fill=ATTACKER_FILL,
-                zone_id="attacker",
-                label="Attacker",
-            ),
-            _deployment_zone(
-                drawings,
-                board_rect,
-                transform,
-                fill=DEFENDER_FILL,
-                zone_id="defender",
-                label="Defender",
-            ),
-        ),
+        blockers=(),
+        deployments=deployments,
         provenance=LayoutProvenance(
             source_document_id=source_document_id,
             source_page=page_number,
             extraction_method="event-companion-vector-v1",
         ),
-        validation_records=(
-            ValidationRecord(
-                code="event_companion_vector_extraction",
-                severity=ValidationSeverity.INFO,
-                message=(
-                    "Board, deployment zones, and terrain placements extracted from PDF vectors."
-                ),
-            ),
-            ValidationRecord(
-                code="footprint_perimeter_los_proxy",
-                severity=ValidationSeverity.WARNING,
-                message=(
-                    "Internal wall enrichment from the terrain footprint sheet is pending; "
-                    "LOS blockers currently follow extracted terrain footprint perimeters."
-                ),
-            ),
-        ),
+        validation_records=validation_records,
         validation_status=ValidationStatus.WARNING,
     )
 
@@ -249,28 +264,6 @@ def _terrain_features_from_rects(
     return tuple(features)
 
 
-def _footprint_perimeter_blockers(
-    terrain_features: tuple[TerrainFeature, ...],
-) -> tuple[Blocker, ...]:
-    blockers: list[Blocker] = []
-    for feature in terrain_features:
-        points = feature.footprint.points
-        for index, (start, end) in enumerate(
-            zip(points, (*points[1:], points[0]), strict=True),
-            start=1,
-        ):
-            blockers.append(
-                Blocker(
-                    blocker_id=f"{feature.feature_id}-perimeter-{index}",
-                    feature_id=feature.feature_id,
-                    kind=BlockerKind.WALL,
-                    start=start,
-                    end=end,
-                )
-            )
-    return tuple(blockers)
-
-
 def _layout_name(words: list[tuple[Any, ...]], *, fallback: str) -> str:
     for index, word in enumerate(words):
         text = str(word[4]).upper()
@@ -305,6 +298,92 @@ def _dedupe_rects(rects: list[PdfRect]) -> list[PdfRect]:
         if all(rect.iou(existing) < 0.85 for existing in kept):
             kept.append(rect)
     return kept
+
+
+def _validation_records(
+    terrain_features: tuple[TerrainFeature, ...],
+    deployments: tuple[DeploymentZone, ...],
+    words: list[tuple[Any, ...]],
+) -> tuple[ValidationRecord, ...]:
+    records: list[ValidationRecord] = [
+        ValidationRecord(
+            code="event_companion_vector_extraction",
+            severity=ValidationSeverity.INFO,
+            message="Board, deployment zones, and terrain placements extracted from PDF vectors.",
+        ),
+        ValidationRecord(
+            code="placement_proxy_not_los_ready",
+            severity=ValidationSeverity.WARNING,
+            message=(
+                "Extracted terrain polygons are placement proxies from the Event Companion map; "
+                "official footprint outlines and internal walls are not yet validated, so LOS "
+                "analysis must remain blocked for this layout."
+            ),
+        ),
+        ValidationRecord(
+            code="terrain_measurement_crosscheck_pending",
+            severity=ValidationSeverity.WARNING,
+            message=(
+                "Printed terrain offset annotations are not fully cross-checked against extracted "
+                "terrain placement coordinates yet."
+            ),
+        ),
+    ]
+
+    inch_annotations = _inch_annotations(words)
+    deployment_depths = tuple(_deployment_depth(deployment) for deployment in deployments)
+    if all(_has_matching_annotation(depth, inch_annotations) for depth in deployment_depths):
+        records.append(
+            ValidationRecord(
+                code="deployment_depth_measurement_crosscheck",
+                severity=ValidationSeverity.INFO,
+                message="Deployment-zone depths match printed inch annotations within tolerance.",
+            )
+        )
+    else:
+        records.append(
+            ValidationRecord(
+                code="deployment_depth_measurement_crosscheck_failed",
+                severity=ValidationSeverity.WARNING,
+                message="Deployment-zone depths did not match printed inch annotations.",
+            )
+        )
+
+    low_confidence_labels = [
+        feature.label
+        for feature in terrain_features
+        if feature.label.startswith("Terrain ") or "/" in feature.label
+    ]
+    if low_confidence_labels:
+        records.append(
+            ValidationRecord(
+                code="terrain_label_review_required",
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    f"{len(low_confidence_labels)} terrain labels are fallback or ambiguous and "
+                    "require review before relying on feature labels."
+                ),
+            )
+        )
+    return tuple(records)
+
+
+def _inch_annotations(words: list[tuple[Any, ...]]) -> tuple[float, ...]:
+    annotations: list[float] = []
+    for word in words:
+        match = INCH_ANNOTATION_RE.match(str(word[4]))
+        if match is not None:
+            annotations.append(float(match.group("value")))
+    return tuple(annotations)
+
+
+def _deployment_depth(deployment: DeploymentZone) -> float:
+    y_values = [point.y for point in deployment.area.points]
+    return max(y_values) - min(y_values)
+
+
+def _has_matching_annotation(value: float, annotations: tuple[float, ...]) -> bool:
+    return any(abs(value - annotation) <= 0.25 for annotation in annotations)
 
 
 def _pdf_rect(rect: Any) -> PdfRect:

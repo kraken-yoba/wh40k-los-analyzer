@@ -26,7 +26,13 @@ from fortyk_los_backend.domain.los import (
     compute_base_aware_los,
     compute_point_los,
 )
-from fortyk_los_backend.domain.models import CanonicalBaseModel, CanonicalLayout, Point
+from fortyk_los_backend.domain.models import (
+    CanonicalBaseModel,
+    CanonicalLayout,
+    Point,
+    ReviewStatus,
+    ValidationSeverity,
+)
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -99,6 +105,7 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
     layout = fixtures.get_layout(layout_id)
     if layout is None:
         raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    _ensure_layout_ready_for_analysis(layout)
 
     los_request = LineOfSightRequest(source=request.source, target=request.target)
     if request.source_base_diameter is not None or request.target_base_diameter is not None:
@@ -135,6 +142,7 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
 @app.post("/api/layouts/{layout_id}/heatmap")
 def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
+    _ensure_layout_ready_for_analysis(layout)
     result = generate_firing_lane_heatmap(
         layout,
         source_region=request.source_region,
@@ -147,6 +155,7 @@ def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str,
 @app.post("/api/layouts/{layout_id}/exposure")
 def deployment_exposure(layout_id: str, request: MovementExposureRequest) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
+    _ensure_layout_ready_for_analysis(layout)
     try:
         result = measure_deployment_exposure(layout, request)
     except ValueError as exc:
@@ -161,6 +170,7 @@ def terrain_coverage(
     request: TerrainCoverageApiRequest,
 ) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
+    _ensure_layout_ready_for_analysis(layout)
     try:
         result = measure_terrain_coverage(
             layout,
@@ -194,6 +204,25 @@ def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
     if layout is None:
         raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
     return layout
+
+
+def _ensure_layout_ready_for_analysis(layout: CanonicalLayout) -> None:
+    blocking_records = [
+        record
+        for record in layout.validation_records
+        if record.severity == ValidationSeverity.WARNING
+        and record.review_status != ReviewStatus.ACCEPTED
+    ]
+    if not blocking_records:
+        return
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "status": "blocked",
+            "message": "Layout has unresolved validation warnings.",
+            "record_codes": [record.code for record in blocking_records],
+        },
+    )
 
 
 def _sanitize_validation_errors(errors: Sequence[object]) -> list[dict[str, object]]:
