@@ -7,6 +7,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import Field
 
+from fortyk_los_backend.domain.analysis import (
+    GridSpec,
+    MovementExposureRequest,
+    Region,
+    TerrainCoverageRequest,
+    generate_firing_lane_heatmap,
+    measure_deployment_exposure,
+    measure_terrain_coverage,
+)
 from fortyk_los_backend.domain.fixtures import FixtureRepository
 from fortyk_los_backend.domain.los import (
     BaseProfile,
@@ -15,7 +24,7 @@ from fortyk_los_backend.domain.los import (
     compute_base_aware_los,
     compute_point_los,
 )
-from fortyk_los_backend.domain.models import CanonicalBaseModel, Point
+from fortyk_los_backend.domain.models import CanonicalBaseModel, CanonicalLayout, Point
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -32,6 +41,16 @@ class LineOfSightApiRequest(CanonicalBaseModel):
     target: Point
     source_base_diameter: float | None = Field(default=None, gt=0)
     target_base_diameter: float | None = Field(default=None, gt=0)
+
+
+class HeatmapApiRequest(CanonicalBaseModel):
+    source_region: Region
+    target_grid: GridSpec
+
+
+class TerrainCoverageApiRequest(CanonicalBaseModel):
+    source_region: Region
+    target_grid: GridSpec
 
 
 @app.get("/health")
@@ -84,6 +103,41 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
     return dict(jsonable_encoder(result))
 
 
+@app.post("/api/layouts/{layout_id}/heatmap")
+def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    result = generate_firing_lane_heatmap(
+        layout,
+        source_region=request.source_region,
+        target_grid=request.target_grid,
+    )
+    return dict(jsonable_encoder(result))
+
+
+@app.post("/api/layouts/{layout_id}/exposure")
+def deployment_exposure(layout_id: str, request: MovementExposureRequest) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    return dict(jsonable_encoder(measure_deployment_exposure(layout, request)))
+
+
+@app.post("/api/layouts/{layout_id}/terrain/{feature_id}/coverage")
+def terrain_coverage(
+    layout_id: str,
+    feature_id: str,
+    request: TerrainCoverageApiRequest,
+) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    result = measure_terrain_coverage(
+        layout,
+        TerrainCoverageRequest(
+            feature_id=feature_id,
+            source_region=request.source_region,
+            target_grid=request.target_grid,
+        ),
+    )
+    return dict(jsonable_encoder(result))
+
+
 @app.get("/api/sources")
 def source_status() -> dict[str, list[dict[str, object]]]:
     manifest = fixtures.source_manifest()
@@ -96,3 +150,10 @@ def source_status() -> dict[str, list[dict[str, object]]]:
         document_payload["cache_status"] = jsonable_encoder(statuses[document.document_id])
         documents.append(document_payload)
     return {"documents": documents}
+
+
+def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return layout

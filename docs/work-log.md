@@ -17,3 +17,5 @@
 - Fixed the accepted data-spine review findings with regression tests. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 42 pytest tests passed.
 - Implemented the first LOS slice: point LOS blocker intersection, base-center legality, deterministic disk-sampled base-aware LOS, and `/api/layouts/{layout_id}/los`.
 - Verified the LOS checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 54 pytest tests passed.
+- Implemented point-sampled firing-lane heatmaps, movement exposure, terrain coverage delta metrics, and FastAPI endpoints for `/heatmap`, `/exposure`, and `/terrain/{feature_id}/coverage`.
+- Verified the analysis checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 60 pytest tests passed.
