@@ -73,3 +73,16 @@ Consequences:
 - Source PDF cache paths must stay relative under `data/pdfs`.
 - Official source URLs are restricted to HTTPS assets from `assets.warhammer-community.com`.
 - Schema files must be regenerated whenever Pydantic model contracts change.
+
+## 2026-06-16: Event Companion Vector Extraction First
+
+Decision: Use the Event Companion layout pages as the first official automatic extraction source for board geometry, deployment zones, layout page inventory, terrain placement, and measurement annotations.
+
+Reasoning: The Event Companion map pages expose board outlines, deployment areas, grid lines, terrain footprints, markers, and measurement text as extractable PDF vectors/text. The terrain footprint PDF mostly contains image cutouts plus green outline paths and no useful text. Event Companion vectors therefore provide the most deterministic path into canonical board-inch geometry before adding raster/CV matching against the detailed terrain footprint sheet.
+
+Consequences:
+
+- First official extraction should parse Event Companion pages into canonical layouts and validation records.
+- Terrain features can be extracted from gray vector footprints on the map pages, with coordinates calibrated from the board rectangle.
+- Detailed internal wall semantics from the terrain footprint sheet remain a follow-on extraction layer, not a replacement for Event Companion layout extraction.
+- Browser and reviewer evidence must distinguish vector-extracted official map geometry from later detailed wall-shape enrichment.
