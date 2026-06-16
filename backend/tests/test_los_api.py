@@ -76,6 +76,23 @@ def test_los_api_rejects_invalid_base_sampling() -> None:
     assert response.status_code == 422
 
 
+def test_los_api_rejects_non_finite_base_diameter_without_500() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/los",
+        content=(
+            '{"source":{"x":2.0,"y":20.0},'
+            '"target":{"x":42.0,"y":20.0},'
+            '"source_base_diameter":Infinity,'
+            '"target_base_diameter":1.26}'
+        ),
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
 def test_los_api_returns_404_for_unknown_layout() -> None:
     client = TestClient(app)
 

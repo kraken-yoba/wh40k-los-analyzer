@@ -50,6 +50,23 @@ def test_heatmap_api_rejects_invalid_grid_step() -> None:
     assert response.status_code == 422
 
 
+def test_heatmap_api_rejects_non_finite_source_step_without_500() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/heatmap",
+        content=(
+            '{"source_region":{"x_min":2.0,"y_min":20.0,"x_max":42.0,"y_max":20.0},'
+            '"source_step":Infinity,'
+            '"target_grid":{"x_min":2.0,"y_min":20.0,"x_max":42.0,"y_max":20.0,'
+            '"step":20.0}}'
+        ),
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
 def test_exposure_api_returns_reachable_and_exposed_counts() -> None:
     client = TestClient(app)
 
@@ -85,6 +102,23 @@ def test_exposure_api_returns_404_for_missing_deployment() -> None:
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Deployment zone not found: missing"
+
+
+def test_exposure_api_rejects_non_finite_movement_without_500() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/exposure",
+        content=(
+            '{"deployment_zone_id":"attacker",'
+            '"movement_distance":Infinity,'
+            '"threat_region":{"x_min":42.0,"y_min":20.0,"x_max":42.0,"y_max":20.0},'
+            '"sample_step":10.0}'
+        ),
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_terrain_coverage_api_returns_feature_delta() -> None:

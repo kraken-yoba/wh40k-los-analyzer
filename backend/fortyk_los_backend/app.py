@@ -1,11 +1,13 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import Field
+from pydantic import Field, FiniteFloat, ValidationError
 
 from fortyk_los_backend.domain.analysis import (
     GridSpec,
@@ -36,18 +38,29 @@ templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 fixtures = FixtureRepository(REPO_ROOT)
 
 
+@app.exception_handler(RequestValidationError)
+def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": _sanitize_validation_errors(exc.errors())},
+    )
+
+
 class LineOfSightApiRequest(CanonicalBaseModel):
     source: Point
     target: Point
-    source_base_diameter: float | None = Field(default=None, gt=0)
-    target_base_diameter: float | None = Field(default=None, gt=0)
+    source_base_diameter: FiniteFloat | None = Field(default=None, gt=0)
+    target_base_diameter: FiniteFloat | None = Field(default=None, gt=0)
     boundary_sample_count: int = Field(default=16, ge=8, le=128)
 
 
 class HeatmapApiRequest(CanonicalBaseModel):
     source_region: Region
     target_grid: GridSpec
-    source_step: float | None = Field(default=None, gt=0)
+    source_step: FiniteFloat | None = Field(default=None, gt=0)
 
 
 class TerrainCoverageApiRequest(CanonicalBaseModel):
@@ -93,18 +106,24 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
         target_diameter = request.target_base_diameter or request.source_base_diameter
         if source_diameter is None or target_diameter is None:
             raise HTTPException(status_code=422, detail="Base diameter is required")
-        result: LineOfSightResult = compute_base_aware_los(
-            layout,
-            los_request,
-            source_base=BaseProfile(
-                diameter=source_diameter,
-                boundary_sample_count=request.boundary_sample_count,
-            ),
-            target_base=BaseProfile(
-                diameter=target_diameter,
-                boundary_sample_count=request.boundary_sample_count,
-            ),
-        )
+        try:
+            result: LineOfSightResult = compute_base_aware_los(
+                layout,
+                los_request,
+                source_base=BaseProfile(
+                    diameter=source_diameter,
+                    boundary_sample_count=request.boundary_sample_count,
+                ),
+                target_base=BaseProfile(
+                    diameter=target_diameter,
+                    boundary_sample_count=request.boundary_sample_count,
+                ),
+            )
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=_sanitize_validation_errors(exc.errors()),
+            ) from exc
     else:
         result = compute_point_los(layout, los_request)
 
@@ -173,3 +192,18 @@ def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
     if layout is None:
         raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
     return layout
+
+
+def _sanitize_validation_errors(errors: Sequence[object]) -> list[dict[str, object]]:
+    return [_sanitize_validation_error(error) for error in errors]
+
+
+def _sanitize_validation_error(error: object) -> dict[str, object]:
+    if not isinstance(error, dict):
+        return {"msg": str(error)}
+    sanitized = dict(error)
+    sanitized.pop("input", None)
+    ctx = sanitized.get("ctx")
+    if isinstance(ctx, dict):
+        sanitized["ctx"] = {key: str(value) for key, value in ctx.items()}
+    return sanitized

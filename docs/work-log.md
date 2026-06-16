@@ -21,3 +21,5 @@
 - Verified the analysis checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 60 pytest tests passed.
 - Ran targeted adversarial LOS review. The reviewer blocked GUI work until endpoint contact semantics, movement-blocking terrain flags, base sampling metadata, analysis request validation, richer heatmap/exposure cell outputs, and unknown feature/deployment errors were fixed.
 - Fixed the accepted LOS review findings and regenerated schemas/fixtures after canonical model changes. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 69 pytest tests passed.
+- Ran LOS re-review. The reviewer found non-standard JSON numeric tokens could still cause 500 responses or bypass optional field validation.
+- Fixed API-boundary non-finite numeric handling with finite request fields and sanitized validation errors. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 72 pytest tests passed.
