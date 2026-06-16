@@ -8,6 +8,7 @@ const sourceStatus = document.querySelector("#source-status");
 const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
 const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
+const terrainSemantics = document.querySelector("#terrain-semantics");
 const featureProvenance = document.querySelector("#feature-provenance");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
@@ -112,6 +113,60 @@ function terrainFill(feature) {
     default:
       return "#d4d0c8";
   }
+}
+
+function terrainCategoryCounts(features) {
+  const counts = { dense: 0, light: 0, exposed: 0, unknown: 0 };
+  for (const feature of features) {
+    const category = feature.terrain_category in counts ? feature.terrain_category : "unknown";
+    counts[category] += 1;
+  }
+  return counts;
+}
+
+function denseWallCandidateCount() {
+  if (!state.layout) return 0;
+  const denseFeatureIds = new Set(
+    state.layout.terrain_features
+      .filter((feature) => feature.terrain_category === "dense")
+      .map((feature) => feature.feature_id),
+  );
+  return state.layout.blockers.filter((blocker) => denseFeatureIds.has(blocker.feature_id)).length;
+}
+
+function appendTerrainSemanticItem(container, label, value, color, style = "fill") {
+  const item = window.document.createElement("div");
+  const swatch = window.document.createElement("span");
+  const labelNode = window.document.createElement("span");
+  const valueNode = window.document.createElement("strong");
+  item.className = "terrain-item";
+  if (style === "line") {
+    swatch.className = "terrain-line-swatch";
+  } else {
+    swatch.className = "terrain-swatch";
+    swatch.style.background = color;
+  }
+  labelNode.textContent = label;
+  valueNode.textContent = value;
+  item.append(swatch, labelNode, valueNode);
+  container.appendChild(item);
+}
+
+function renderTerrainSemantics() {
+  terrainSemantics.replaceChildren();
+  if (!state.layout) return;
+  const counts = terrainCategoryCounts(state.layout.terrain_features);
+  appendTerrainSemanticItem(terrainSemantics, "Dense", `${counts.dense} features`, "#8fb59a");
+  appendTerrainSemanticItem(terrainSemantics, "Light", `${counts.light} features`, "#d6c87d");
+  appendTerrainSemanticItem(terrainSemantics, "Exposed", `${counts.exposed} features`, "#e7ded0");
+  appendTerrainSemanticItem(terrainSemantics, "Unknown", `${counts.unknown} features`, "#d4d0c8");
+  appendTerrainSemanticItem(
+    terrainSemantics,
+    "Dense wall candidates",
+    `${denseWallCandidateCount()} segments`,
+    "#b7791f",
+    "line",
+  );
 }
 
 function hasValidationCode(code) {
@@ -391,6 +446,7 @@ async function acceptValidationWarning(recordCode) {
   renderLayoutMetadata();
   renderValidation();
   renderSelectedFeatureProvenance();
+  renderTerrainSemantics();
   renderBoard();
 }
 
@@ -408,6 +464,7 @@ async function loadLayout(layoutId) {
   analysisResult.textContent = "Run heatmap, exposure, or terrain coverage.";
   renderLayoutMetadata();
   renderValidation();
+  renderTerrainSemantics();
   renderFeatureProvenance(null);
   renderFootprintMatches(matches);
   renderBoard();

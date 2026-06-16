@@ -35,6 +35,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="footprint-evidence"',
         'id="footprint-match-evidence"',
         'id="visual-sanity-evidence"',
+        'id="terrain-semantics"',
         'id="feature-provenance"',
         'id="layout-metadata"',
         'id="validation-panel"',
@@ -156,6 +157,23 @@ def test_client_script_renders_feature_provenance_from_inspect_clicks() -> None:
     assert "blocker count" in script
     assert "Layout warnings" in script
     assert 'interactionMode.value === "inspect"' in script
+
+
+def test_client_script_renders_dense_only_terrain_semantics() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const terrainSemantics" in script
+    assert "function terrainCategoryCounts" in script
+    assert "function renderTerrainSemantics" in script
+    assert "Dense" in script
+    assert "Light" in script
+    assert "Exposed" in script
+    assert "Unknown" in script
+    assert "Dense wall candidates" in script
+    assert 'feature.terrain_category === "dense"' in script
+    assert "renderTerrainSemantics()" in script
 
 
 def test_client_script_refreshes_selected_feature_after_warning_acceptance() -> None:

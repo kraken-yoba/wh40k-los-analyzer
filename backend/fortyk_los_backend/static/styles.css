@@ -128,6 +128,31 @@ input {
   font-size: 13px;
 }
 
+.terrain-semantics {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.terrain-item {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.terrain-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #70695d;
+}
+
+.terrain-line-swatch {
+  width: 18px;
+  border-top: 4px dashed #b7791f;
+}
+
 .dense-item {
   display: grid;
   grid-template-columns: 1fr auto;
