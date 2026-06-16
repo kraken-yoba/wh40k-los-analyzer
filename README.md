@@ -4,13 +4,28 @@ Local Python tooling for deterministic visual analysis of Warhammer 40k table la
 
 ## Status
 
-This repository is in infrastructure setup. The next implementation milestone is the deterministic data spine: source manifests, canonical geometry schemas, synthetic fixtures, validation records, and stable exports.
+This repository contains a working Python-only local web app for fixture-backed base-aware 2D LOS analysis plus official-PDF extraction evidence.
+
+Implemented now:
+
+- FastAPI-served GUI with layout/source status, validation records, click-on-map LOS, firing-lane heatmaps, deployment exposure, terrain contribution metrics, and export state.
+- Deterministic canonical geometry models, validation records, source manifests, stable layout hashing, and JSON schema export.
+- Base-aware 2D LOS using deterministic disk sampling.
+- Event Companion vector extraction for board, deployment zones, and terrain placement candidates.
+- Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, and provisional terrain-placement matches.
+- Official extracted layouts remain warning-state and blocked for LOS/heatmap/exposure until footprint/wall semantics are reviewed and accepted.
+
+Not implemented yet:
+
+- Full LOS-ready official wall/blocker generation.
+- Vision-model sanity checks. Vision output is intended only for advisory verification, not canonical geometry.
+- Full 3D-aware LOS. The current scope is base-aware 2D; future builds can add height/3D semantics after the deterministic 2D extraction chain is accepted.
 
 ## Source Policy
 
 Official Warhammer PDFs and rules text are third-party source material and are not redistributed by this repository. The app stores source URLs and hashes in manifests, while downloaded PDFs and rendered pages stay in a local gitignored cache.
 
-## Planned Stack
+## Stack
 
 - Python 3.12 local web app with FastAPI, Jinja2, Pydantic, PyMuPDF, OpenCV, Shapely, pytest, Ruff, mypy, and Python Playwright.
 - Browser GUI served by FastAPI using templates, CSS, vanilla JavaScript, SVG, and Canvas.
@@ -39,4 +54,16 @@ Additional gates are split so public CI stays copyright-safe:
 .\scripts\verify-full-local.cmd
 ```
 
-The full official-PDF regression gate requires a local pinned PDF cache and is intentionally separate from public-safe CI. Use `verify-full-local.cmd -RequireOfficialPdfRegression` once the official-cache regression harness exists.
+Official PDF binaries are gitignored. Tests that depend on the pinned local PDF cache are marked optional and skip when `data/pdfs/*.pdf` is absent. With the local cache present, `.\scripts\verify.cmd` also runs the official hash-pinned extraction regressions.
+
+## Local Official PDF Cache
+
+Place the official source PDFs at:
+
+```text
+data/pdfs/terrainareafootprints.pdf
+data/pdfs/event_companion.pdf
+data/pdfs/core_rules.pdf
+```
+
+Expected URLs and SHA-256 hashes are stored in `fixtures/source_manifest.official.json`.
