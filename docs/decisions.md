@@ -87,3 +87,15 @@ Consequences:
 - Deployment-zone depths can be cross-checked against printed inch annotations; full terrain offset measurement cross-checks remain pending.
 - Extracted Event Companion placements must not emit LOS blockers or be analyzed as real opaque walls until official footprint outlines and wall semantics are validated.
 - Browser and reviewer evidence must distinguish vector-extracted official map placement candidates from later detailed wall-shape enrichment.
+
+## 2026-06-16: Terrain Footprint PDF Outlines Are Evidence, Not Blockers
+
+Decision: Extract the large green vector outlines from the official Terrain Area Footprints PDF as deterministic footprint-outline evidence, but do not convert them into LOS blockers by default.
+
+Reasoning: The outline PDF provides stable vector geometry for footprint shapes, but it does not by itself establish wall opacity, internal wall segments, or how each outline should be transformed onto every Event Companion terrain placement. Treating outlines as evidence keeps the extraction useful while preserving the review gate for gameplay semantics.
+
+Consequences:
+
+- Cached official-footprint regression tests must pin the PDF SHA-256 and expected outline counts/bounds.
+- Event Companion layouts remain blocked for analysis until footprint outlines are mapped, reviewed, and wall semantics are represented explicitly.
+- Future extraction work should align these outlines to Event Companion placement rectangles before adding wall/blocker geometry.

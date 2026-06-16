@@ -25,7 +25,9 @@ BLACK_STROKE = (0.137, 0.122, 0.125)
 ATTACKER_FILL = (0.618, 0.040, 0.056)
 DEFENDER_FILL = (0.000, 0.241, 0.408)
 TERRAIN_FILL = (0.820, 0.826, 0.832)
+TERRAIN_FOOTPRINT_STROKE = (0.000, 0.660, 0.310)
 COLOR_TOLERANCE = 0.035
+MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA = 50_000.0
 INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
 
 
@@ -114,6 +116,15 @@ class EventCompanionLayoutPage:
     page_number: int
 
 
+@dataclass(frozen=True)
+class TerrainFootprintOutline:
+    footprint_id: str
+    page_number: int
+    bounds: tuple[float, float, float, float]
+    path_command_count: int
+    point_count: int
+
+
 def list_event_companion_layout_pages(pdf_path: Path) -> tuple[EventCompanionLayoutPage, ...]:
     pages: list[EventCompanionLayoutPage] = []
     with fitz.open(pdf_path) as document:
@@ -134,6 +145,39 @@ def list_event_companion_layout_pages(pdf_path: Path) -> tuple[EventCompanionLay
                 )
             )
     return tuple(pages)
+
+
+def extract_terrain_footprint_outlines(pdf_path: Path) -> tuple[TerrainFootprintOutline, ...]:
+    outlines: list[TerrainFootprintOutline] = []
+    with fitz.open(pdf_path) as document:
+        for page_index, page in enumerate(document, start=1):
+            candidates: list[tuple[PdfRect, dict[str, Any]]] = []
+            for drawing in page.get_drawings():
+                if drawing.get("type") != "s":
+                    continue
+                if not _color_matches(drawing.get("color"), TERRAIN_FOOTPRINT_STROKE):
+                    continue
+                rect = _pdf_rect(drawing["rect"])
+                if rect.area < MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA:
+                    continue
+                if len(drawing.get("items", ())) < 1:
+                    continue
+                candidates.append((rect, drawing))
+
+            for outline_index, (rect, drawing) in enumerate(
+                sorted(candidates, key=lambda candidate: (candidate[0].y0, candidate[0].x0)),
+                start=1,
+            ):
+                outlines.append(
+                    TerrainFootprintOutline(
+                        footprint_id=f"terrain-footprint-p{page_index}-{outline_index:02d}",
+                        page_number=page_index,
+                        bounds=(rect.x0, rect.y0, rect.x1, rect.y1),
+                        path_command_count=len(drawing.get("items", ())),
+                        point_count=_drawing_point_count(drawing),
+                    )
+                )
+    return tuple(outlines)
 
 
 def extract_event_companion_layout(
@@ -384,6 +428,38 @@ def _deployment_depth(deployment: DeploymentZone) -> float:
 
 def _has_matching_annotation(value: float, annotations: tuple[float, ...]) -> bool:
     return any(abs(value - annotation) <= 0.25 for annotation in annotations)
+
+
+def _drawing_point_count(drawing: dict[str, Any]) -> int:
+    points: set[tuple[float, float]] = set()
+    for item in drawing.get("items", ()):
+        for value in item[1:]:
+            points.update(_pdf_points(value))
+    return len(points)
+
+
+def _pdf_points(value: Any) -> tuple[tuple[float, float], ...]:
+    if hasattr(value, "x") and hasattr(value, "y"):
+        return ((_rounded_coordinate(value.x), _rounded_coordinate(value.y)),)
+    if all(hasattr(value, attribute) for attribute in ("ul", "ur", "ll", "lr")):
+        return (
+            (_rounded_coordinate(value.ul.x), _rounded_coordinate(value.ul.y)),
+            (_rounded_coordinate(value.ur.x), _rounded_coordinate(value.ur.y)),
+            (_rounded_coordinate(value.ll.x), _rounded_coordinate(value.ll.y)),
+            (_rounded_coordinate(value.lr.x), _rounded_coordinate(value.lr.y)),
+        )
+    if all(hasattr(value, attribute) for attribute in ("x0", "y0", "x1", "y1")):
+        return (
+            (_rounded_coordinate(value.x0), _rounded_coordinate(value.y0)),
+            (_rounded_coordinate(value.x1), _rounded_coordinate(value.y0)),
+            (_rounded_coordinate(value.x1), _rounded_coordinate(value.y1)),
+            (_rounded_coordinate(value.x0), _rounded_coordinate(value.y1)),
+        )
+    return ()
+
+
+def _rounded_coordinate(value: Any) -> float:
+    return round(float(value), 3)
 
 
 def _pdf_rect(rect: Any) -> PdfRect:
