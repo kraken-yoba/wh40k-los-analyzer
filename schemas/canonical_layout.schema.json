@@ -17,6 +17,16 @@
         "kind": {
           "$ref": "#/$defs/BlockerKind"
         },
+        "sealed_end": {
+          "default": false,
+          "title": "Sealed End",
+          "type": "boolean"
+        },
+        "sealed_start": {
+          "default": false,
+          "title": "Sealed Start",
+          "type": "boolean"
+        },
         "start": {
           "$ref": "#/$defs/Point"
         }
@@ -173,6 +183,11 @@
         "label": {
           "title": "Label",
           "type": "string"
+        },
+        "movement_blocking": {
+          "default": false,
+          "title": "Movement Blocking",
+          "type": "boolean"
         }
       },
       "required": [

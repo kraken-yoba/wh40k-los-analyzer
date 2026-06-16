@@ -19,3 +19,5 @@
 - Verified the LOS checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 54 pytest tests passed.
 - Implemented point-sampled firing-lane heatmaps, movement exposure, terrain coverage delta metrics, and FastAPI endpoints for `/heatmap`, `/exposure`, and `/terrain/{feature_id}/coverage`.
 - Verified the analysis checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 60 pytest tests passed.
+- Ran targeted adversarial LOS review. The reviewer blocked GUI work until endpoint contact semantics, movement-blocking terrain flags, base sampling metadata, analysis request validation, richer heatmap/exposure cell outputs, and unknown feature/deployment errors were fixed.
+- Fixed the accepted LOS review findings and regenerated schemas/fixtures after canonical model changes. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 69 pytest tests passed.

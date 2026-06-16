@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from fortyk_los_backend.app import app
 
-SYNTHETIC_ALPHA_HASH = "16d18cfb5fe9bc77da42391fa99b9ad22327d4dea24f6541de0917fd366e173a"
+SYNTHETIC_ALPHA_HASH = "91092527a7961fac123f3fbfdf0bc7ba70ea056b17b640323ddea16b78ec18cb"
 
 
 def test_layout_list_api_returns_synthetic_fixture() -> None:

@@ -42,6 +42,12 @@ def _layout_with_blockers(blockers: tuple[Blocker, ...]) -> CanonicalLayout:
                 label="Ruin A",
                 footprint=_rectangle(8.0, 0.0, 12.0, 20.0),
             ),
+            TerrainFeature(
+                feature_id="blocking-crater",
+                label="Blocking Crater",
+                footprint=_rectangle(1.0, 12.0, 3.0, 14.0),
+                movement_blocking=True,
+            ),
         ),
         blockers=blockers,
         deployments=(
@@ -114,8 +120,31 @@ def test_point_los_blocks_tangent_contact_with_wall_endpoint() -> None:
         LineOfSightRequest(source=Point(x=2.0, y=2.0), target=Point(x=18.0, y=18.0)),
     )
 
+    assert result.visible is True
+    assert result.blocking_blocker_ids == ()
+
+
+def test_point_los_blocks_sealed_endpoint_contact() -> None:
+    layout = _layout_with_blockers(
+        (
+            Blocker(
+                blocker_id="sealed-endpoint-wall",
+                feature_id="ruin-a",
+                kind=BlockerKind.WALL,
+                start=Point(x=10.0, y=10.0),
+                end=Point(x=10.0, y=20.0),
+                sealed_start=True,
+            ),
+        )
+    )
+
+    result = compute_point_los(
+        layout,
+        LineOfSightRequest(source=Point(x=2.0, y=2.0), target=Point(x=18.0, y=18.0)),
+    )
+
     assert result.visible is False
-    assert result.blocking_blocker_ids == ("endpoint-wall",)
+    assert result.blocking_blocker_ids == ("sealed-endpoint-wall",)
 
 
 def test_point_los_allows_contact_at_source_or_target_only() -> None:
@@ -159,13 +188,14 @@ def test_point_los_rejects_source_outside_board() -> None:
         )
 
 
-def test_base_center_legality_respects_board_and_terrain_footprints() -> None:
+def test_base_center_legality_respects_board_and_movement_blocking_terrain() -> None:
     layout = _layout_with_blockers(())
     base = BaseProfile(diameter=2.0)
 
     assert is_legal_base_center(layout, Point(x=2.0, y=2.0), base) is True
     assert is_legal_base_center(layout, Point(x=0.5, y=2.0), base) is False
-    assert is_legal_base_center(layout, Point(x=9.0, y=10.0), base) is False
+    assert is_legal_base_center(layout, Point(x=9.0, y=10.0), base) is True
+    assert is_legal_base_center(layout, Point(x=2.0, y=13.0), base) is False
 
 
 def test_base_aware_los_reports_sampling_metadata() -> None:
@@ -178,10 +208,19 @@ def test_base_aware_los_reports_sampling_metadata() -> None:
     result = compute_base_aware_los(
         layout,
         LineOfSightRequest(source=Point(x=4.0, y=10.0), target=Point(x=16.0, y=10.0)),
-        source_base=BaseProfile(diameter=2.0),
-        target_base=BaseProfile(diameter=2.0),
+        source_base=BaseProfile(diameter=2.0, boundary_sample_count=16),
+        target_base=BaseProfile(diameter=2.0, boundary_sample_count=16),
     )
 
     assert result.visible is True
-    assert result.sample_count > 1
+    assert result.sample_count == 289
+    assert result.boundary_sample_count == 16
     assert result.method == "disk-sample-v1"
+
+
+def test_base_profile_rejects_invalid_sampling_contract() -> None:
+    with pytest.raises(ValueError):
+        BaseProfile(diameter=float("inf"))
+
+    with pytest.raises(ValueError):
+        BaseProfile(diameter=1.0, boundary_sample_count=7)

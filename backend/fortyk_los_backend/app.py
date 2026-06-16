@@ -41,11 +41,13 @@ class LineOfSightApiRequest(CanonicalBaseModel):
     target: Point
     source_base_diameter: float | None = Field(default=None, gt=0)
     target_base_diameter: float | None = Field(default=None, gt=0)
+    boundary_sample_count: int = Field(default=16, ge=8, le=128)
 
 
 class HeatmapApiRequest(CanonicalBaseModel):
     source_region: Region
     target_grid: GridSpec
+    source_step: float | None = Field(default=None, gt=0)
 
 
 class TerrainCoverageApiRequest(CanonicalBaseModel):
@@ -94,8 +96,14 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
         result: LineOfSightResult = compute_base_aware_los(
             layout,
             los_request,
-            source_base=BaseProfile(diameter=source_diameter),
-            target_base=BaseProfile(diameter=target_diameter),
+            source_base=BaseProfile(
+                diameter=source_diameter,
+                boundary_sample_count=request.boundary_sample_count,
+            ),
+            target_base=BaseProfile(
+                diameter=target_diameter,
+                boundary_sample_count=request.boundary_sample_count,
+            ),
         )
     else:
         result = compute_point_los(layout, los_request)
@@ -110,6 +118,7 @@ def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str,
         layout,
         source_region=request.source_region,
         target_grid=request.target_grid,
+        source_step=request.source_step,
     )
     return dict(jsonable_encoder(result))
 
@@ -117,7 +126,11 @@ def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str,
 @app.post("/api/layouts/{layout_id}/exposure")
 def deployment_exposure(layout_id: str, request: MovementExposureRequest) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
-    return dict(jsonable_encoder(measure_deployment_exposure(layout, request)))
+    try:
+        result = measure_deployment_exposure(layout, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return dict(jsonable_encoder(result))
 
 
 @app.post("/api/layouts/{layout_id}/terrain/{feature_id}/coverage")
@@ -127,14 +140,17 @@ def terrain_coverage(
     request: TerrainCoverageApiRequest,
 ) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
-    result = measure_terrain_coverage(
-        layout,
-        TerrainCoverageRequest(
-            feature_id=feature_id,
-            source_region=request.source_region,
-            target_grid=request.target_grid,
-        ),
-    )
+    try:
+        result = measure_terrain_coverage(
+            layout,
+            TerrainCoverageRequest(
+                feature_id=feature_id,
+                source_region=request.source_region,
+                target_grid=request.target_grid,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return dict(jsonable_encoder(result))
 
 

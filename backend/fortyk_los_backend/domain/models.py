@@ -68,6 +68,7 @@ class TerrainFeature(CanonicalBaseModel):
     feature_id: str
     label: str
     footprint: PolygonGeometry
+    movement_blocking: bool = False
 
 
 class Blocker(CanonicalBaseModel):
@@ -76,6 +77,8 @@ class Blocker(CanonicalBaseModel):
     kind: BlockerKind
     start: Point
     end: Point
+    sealed_start: bool = False
+    sealed_end: bool = False
 
     def to_shapely(self) -> LineString:
         return LineString([(self.start.x, self.start.y), (self.end.x, self.end.y)])

@@ -54,8 +54,26 @@ def test_base_aware_los_api_accepts_base_diameters() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["method"] == "disk-sample-v1"
-    assert payload["sample_count"] == 81
+    assert payload["sample_count"] == 289
+    assert payload["boundary_sample_count"] == 16
     assert payload["visible"] is True
+
+
+def test_los_api_rejects_invalid_base_sampling() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/los",
+        json={
+            "source": {"x": 2.0, "y": 20.0},
+            "target": {"x": 42.0, "y": 20.0},
+            "source_base_diameter": 1.26,
+            "target_base_diameter": 1.26,
+            "boundary_sample_count": 7,
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_los_api_returns_404_for_unknown_layout() -> None:

@@ -74,6 +74,7 @@ def test_firing_lane_heatmap_counts_visible_source_positions() -> None:
         _layout(),
         source_region=Region(x_min=1.0, y_min=5.0, x_max=9.0, y_max=5.0),
         target_grid=GridSpec(x_min=1.0, y_min=5.0, x_max=9.0, y_max=5.0, step=4.0),
+        source_step=4.0,
     )
 
     cell_summaries = [
@@ -86,6 +87,31 @@ def test_firing_lane_heatmap_counts_visible_source_positions() -> None:
         (9.0, 5.0, 1),
     ]
     assert heatmap.max_visible_source_count == 1
+    assert heatmap.valid_source_count == 2
+    assert [cell.no_data for cell in heatmap.cells] == [False, True, False]
+
+
+def test_analysis_models_reject_invalid_numeric_inputs() -> None:
+    invalid_regions = [
+        {"x_min": float("inf"), "y_min": 0.0, "x_max": 1.0, "y_max": 1.0},
+        {"x_min": 2.0, "y_min": 0.0, "x_max": 1.0, "y_max": 1.0},
+        {"x_min": 0.0, "y_min": 2.0, "x_max": 1.0, "y_max": 1.0},
+    ]
+    for payload in invalid_regions:
+        try:
+            Region(**payload)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"accepted invalid region: {payload}")
+
+    for step in (0.0, -1.0, float("inf")):
+        try:
+            GridSpec(x_min=0.0, y_min=0.0, x_max=1.0, y_max=1.0, step=step)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"accepted invalid step: {step}")
 
 
 def test_deployment_exposure_uses_movement_reachable_points() -> None:
@@ -102,6 +128,25 @@ def test_deployment_exposure_uses_movement_reachable_points() -> None:
     assert exposure.reachable_sample_count > 0
     assert exposure.exposed_sample_count == 0
     assert exposure.exposed_fraction == 0.0
+    assert exposure.reachable_cells
+    assert all(not cell.exposed for cell in exposure.reachable_cells)
+
+
+def test_deployment_exposure_rejects_missing_deployment() -> None:
+    try:
+        measure_deployment_exposure(
+            _layout(),
+            MovementExposureRequest(
+                deployment_zone_id="missing",
+                movement_distance=2.0,
+                threat_region=Region(x_min=9.0, y_min=5.0, x_max=9.0, y_max=5.0),
+                sample_step=2.0,
+            ),
+        )
+    except ValueError as exc:
+        assert "Deployment zone not found: missing" in str(exc)
+    else:
+        raise AssertionError("accepted missing deployment zone")
 
 
 def test_terrain_coverage_reports_visibility_delta_when_feature_removed() -> None:
@@ -118,3 +163,20 @@ def test_terrain_coverage_reports_visibility_delta_when_feature_removed() -> Non
     assert coverage.blocked_with_feature_count == 1
     assert coverage.blocked_without_feature_count == 0
     assert coverage.coverage_delta == 1
+    assert coverage.cells[0].changed is True
+
+
+def test_terrain_coverage_rejects_unknown_feature() -> None:
+    try:
+        measure_terrain_coverage(
+            _layout(),
+            TerrainCoverageRequest(
+                feature_id="missing-feature",
+                source_region=Region(x_min=1.0, y_min=5.0, x_max=1.0, y_max=5.0),
+                target_grid=GridSpec(x_min=9.0, y_min=5.0, x_max=9.0, y_max=5.0, step=1.0),
+            ),
+        )
+    except ValueError as exc:
+        assert "Terrain feature not found: missing-feature" in str(exc)
+    else:
+        raise AssertionError("accepted missing terrain feature")
