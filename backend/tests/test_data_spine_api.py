@@ -201,6 +201,63 @@ def test_terrain_footprint_evidence_api_does_not_parse_hash_mismatch(
     assert payload["outlines"] == []
 
 
+def test_footprint_match_evidence_api_returns_provisional_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_and_terrain_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/event-companion-page-1/footprint-matches")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["layout_id"] == "event-companion-page-1"
+    assert payload["cache_status"]["status"] == "hash_match"
+    assert payload["extraction_method"] == "terrain-footprint-match-v1"
+    assert [
+        (match["feature_id"], match["template_id"], match["status"], match["review_reason"])
+        for match in payload["matches"]
+    ] == [
+        ("terrain-01", "terrain-footprint-p1-01", "candidate", "best_aspect_match"),
+    ]
+
+    detail_response = client.get("/api/layouts/event-companion-page-1")
+    assert detail_response.status_code == 200
+    record_codes = {
+        record["code"] for record in detail_response.json()["layout"]["validation_records"]
+    }
+    assert "terrain_footprint_match_candidates" in record_codes
+    assert "terrain_footprint_match_review_required" in record_codes
+
+
+def test_footprint_match_evidence_api_does_not_parse_hash_mismatched_templates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_and_terrain_repo(tmp_path, terrain_sha256="0" * 64)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_terrain_footprint_templates", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/event-companion-page-1/footprint-matches")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "hash_mismatch"
+    assert payload["matches"] == []
+
+
+def test_footprint_match_evidence_api_returns_404_for_missing_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/missing-layout/footprint-matches")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Layout not found: missing-layout"
+
+
 def _write_temp_event_companion_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
     pdf_path.parent.mkdir(parents=True)
@@ -219,6 +276,46 @@ def _write_temp_event_companion_repo(repo_root: Path) -> None:
                         "redistribution": "do-not-commit",
                         "url": "https://assets.warhammer-community.com/example-event.pdf",
                     }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_temp_event_and_terrain_repo(
+    repo_root: Path,
+    *,
+    terrain_sha256: str | None = None,
+) -> None:
+    event_pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
+    terrain_pdf_path = repo_root / "data" / "pdfs" / "terrainareafootprints.pdf"
+    event_pdf_path.parent.mkdir(parents=True)
+    _write_synthetic_event_layout_pdf(event_pdf_path)
+    _write_synthetic_terrain_footprint_pdf(terrain_pdf_path)
+    manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "cache_path": "data/pdfs/event_companion.pdf",
+                        "document_id": "event-companion-2026-06-12",
+                        "expected_sha256": sha256(event_pdf_path.read_bytes()).hexdigest(),
+                        "kind": "event_companion",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-event.pdf",
+                    },
+                    {
+                        "cache_path": "data/pdfs/terrainareafootprints.pdf",
+                        "document_id": "terrain-layouts-2026-06-12",
+                        "expected_sha256": terrain_sha256
+                        or sha256(terrain_pdf_path.read_bytes()).hexdigest(),
+                        "kind": "terrain_layouts",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-terrain.pdf",
+                    },
                 ]
             }
         ),

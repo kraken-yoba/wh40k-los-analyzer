@@ -4,12 +4,14 @@ const layoutSelect = document.querySelector("#layout-select");
 const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
 const footprintEvidence = document.querySelector("#footprint-evidence");
+const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
 const analysisResult = document.querySelector("#analysis-result");
 const baseDiameter = document.querySelector("#base-diameter");
 const movementDistance = document.querySelector("#movement-distance");
 const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
+const FOOTPRINT_MATCH_METHOD = "terrain-footprint-match-v1";
 
 const state = {
   layout: null,
@@ -180,6 +182,25 @@ function renderFootprintEvidence(payload) {
   }
 }
 
+function renderFootprintMatches(payload) {
+  footprintMatchEvidence.replaceChildren();
+  const cacheStatus = payload.cache_status ? payload.cache_status.status : "unavailable";
+  appendDenseItem(footprintMatchEvidence, "Status", cacheStatus);
+  appendDenseItem(
+    footprintMatchEvidence,
+    "Method",
+    payload.extraction_method || FOOTPRINT_MATCH_METHOD,
+  );
+  appendDenseItem(footprintMatchEvidence, "Matches", String(payload.matches.length));
+  for (const match of payload.matches) {
+    appendDenseItem(
+      footprintMatchEvidence,
+      match.feature_id,
+      `${match.template_id} ${match.status} ${match.review_reason}`,
+    );
+  }
+}
+
 function formatBounds(bounds) {
   return bounds.map((value) => Number(value).toFixed(1)).join(", ");
 }
@@ -206,7 +227,10 @@ function renderValidation() {
 }
 
 async function loadLayout(layoutId) {
-  const payload = await getJson(`/api/layouts/${layoutId}`);
+  const [payload, matches] = await Promise.all([
+    getJson(`/api/layouts/${layoutId}`),
+    getJson(`/api/layouts/${layoutId}/footprint-matches`),
+  ]);
   state.layout = payload.layout;
   state.layoutHash = payload.layout_hash;
   state.selectedPoints = [];
@@ -215,6 +239,7 @@ async function loadLayout(layoutId) {
   analysisResult.textContent = "Run heatmap, exposure, or terrain coverage.";
   renderLayoutMetadata();
   renderValidation();
+  renderFootprintMatches(matches);
   renderBoard();
 }
 

@@ -204,6 +204,14 @@ def terrain_footprint_evidence() -> dict[str, object]:
     return dict(jsonable_encoder(fixtures.terrain_footprint_evidence()))
 
 
+@app.get("/api/layouts/{layout_id}/footprint-matches")
+def footprint_match_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.footprint_match_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
 def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
     layout = fixtures.get_layout(layout_id)
     if layout is None:
