@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from fortyk_los_backend import app as app_module
 from fortyk_los_backend.app import app
+from fortyk_los_backend.domain import fixtures as fixtures_module
 from fortyk_los_backend.domain.fixtures import FixtureRepository
 
 SYNTHETIC_ALPHA_HASH = "91092527a7961fac123f3fbfdf0bc7ba70ea056b17b640323ddea16b78ec18cb"
@@ -163,6 +164,43 @@ def test_terrain_footprint_evidence_api_returns_hash_matched_outlines(
     ]
 
 
+def test_terrain_footprint_evidence_api_does_not_parse_missing_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_terrain_footprint_manifest(tmp_path, expected_sha256="0" * 64)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_terrain_footprint_outlines", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/extraction/terrain-footprints")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "missing"
+    assert payload["outlines"] == []
+
+
+def test_terrain_footprint_evidence_api_does_not_parse_hash_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_path = tmp_path / "data" / "pdfs" / "terrainareafootprints.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    _write_synthetic_terrain_footprint_pdf(pdf_path)
+    _write_terrain_footprint_manifest(tmp_path, expected_sha256="0" * 64)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    monkeypatch.setattr(fixtures_module, "extract_terrain_footprint_outlines", _raise_if_called)
+    client = TestClient(app)
+
+    response = client.get("/api/extraction/terrain-footprints")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["cache_status"]["status"] == "hash_mismatch"
+    assert payload["outlines"] == []
+
+
 def _write_temp_event_companion_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
     pdf_path.parent.mkdir(parents=True)
@@ -210,6 +248,13 @@ def _write_temp_terrain_footprint_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "terrainareafootprints.pdf"
     pdf_path.parent.mkdir(parents=True)
     _write_synthetic_terrain_footprint_pdf(pdf_path)
+    _write_terrain_footprint_manifest(
+        repo_root,
+        expected_sha256=sha256(pdf_path.read_bytes()).hexdigest(),
+    )
+
+
+def _write_terrain_footprint_manifest(repo_root: Path, *, expected_sha256: str) -> None:
     manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
     manifest_path.parent.mkdir(parents=True)
     manifest_path.write_text(
@@ -219,7 +264,7 @@ def _write_temp_terrain_footprint_repo(repo_root: Path) -> None:
                     {
                         "cache_path": "data/pdfs/terrainareafootprints.pdf",
                         "document_id": "terrain-layouts-2026-06-12",
-                        "expected_sha256": sha256(pdf_path.read_bytes()).hexdigest(),
+                        "expected_sha256": expected_sha256,
                         "kind": "terrain_layouts",
                         "redistribution": "do-not-commit",
                         "url": "https://assets.warhammer-community.com/example-terrain.pdf",
@@ -229,6 +274,10 @@ def _write_temp_terrain_footprint_repo(repo_root: Path) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def _raise_if_called(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("extract_terrain_footprint_outlines should not be called")
 
 
 def _write_synthetic_terrain_footprint_pdf(pdf_path: Path) -> None:
