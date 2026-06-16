@@ -43,6 +43,7 @@
     "SourceKind": {
       "enum": [
         "terrain_layouts",
+        "event_companion",
         "rules"
       ],
       "title": "SourceKind",

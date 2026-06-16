@@ -447,6 +447,7 @@ def test_public_source_manifest_contains_official_documents() -> None:
     documents_by_id = {document.document_id: document for document in manifest.documents}
     assert set(documents_by_id) == {
         "terrain-layouts-2026-06-12",
+        "event-companion-2026-06-12",
         "core-rules-2026-06-01",
     }
     assert documents_by_id["terrain-layouts-2026-06-12"].expected_sha256 == (
@@ -455,6 +456,10 @@ def test_public_source_manifest_contains_official_documents() -> None:
     assert documents_by_id["core-rules-2026-06-01"].expected_sha256 == (
         "f6a2443a44627ac5f0ef08407d29aa5ec7e97339998f05bc35f3ae37bf276833"
     )
+    assert documents_by_id["event-companion-2026-06-12"].expected_sha256 == (
+        "0e26f6586929e7ec4c50c6a17d240ed794bb7b6c654d1d9664fb908abc606a19"
+    )
+    assert documents_by_id["event-companion-2026-06-12"].kind == SourceKind.EVENT_COMPANION
     assert all(document.redistribution == "do-not-commit" for document in manifest.documents)
 
 

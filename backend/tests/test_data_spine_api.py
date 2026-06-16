@@ -51,6 +51,7 @@ def test_source_manifest_api_returns_public_safe_documents() -> None:
     documents = {document["document_id"]: document for document in payload["documents"]}
     assert set(documents) == {
         "terrain-layouts-2026-06-12",
+        "event-companion-2026-06-12",
         "core-rules-2026-06-01",
     }
     assert documents["terrain-layouts-2026-06-12"]["redistribution"] == "do-not-commit"
@@ -64,4 +65,8 @@ def test_source_manifest_api_returns_public_safe_documents() -> None:
         "missing",
         "hash_match",
     }
+    assert documents["event-companion-2026-06-12"]["kind"] == "event_companion"
+    assert documents["event-companion-2026-06-12"]["expected_sha256"] == (
+        "0e26f6586929e7ec4c50c6a17d240ed794bb7b6c654d1d9664fb908abc606a19"
+    )
     assert "assets.warhammer-community.com" in documents["core-rules-2026-06-01"]["url"]

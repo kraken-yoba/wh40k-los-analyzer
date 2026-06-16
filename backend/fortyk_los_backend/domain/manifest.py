@@ -14,6 +14,7 @@ SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 class SourceKind(StrEnum):
     TERRAIN_LAYOUTS = "terrain_layouts"
+    EVENT_COMPANION = "event_companion"
     RULES = "rules"
 
 

@@ -23,3 +23,4 @@
 - Fixed the accepted LOS review findings and regenerated schemas/fixtures after canonical model changes. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 69 pytest tests passed.
 - Ran LOS re-review. The reviewer found non-standard JSON numeric tokens could still cause 500 responses or bypass optional field validation.
 - Fixed API-boundary non-finite numeric handling with finite request fields and sanitized validation errors. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 72 pytest tests passed.
+- Added the Warhammer 40,000 Event Companion PDF to the public-safe official source manifest after the user noted it contains map layouts. The PDF remains only in the gitignored local cache; the committed manifest stores its URL and SHA-256 hash.
