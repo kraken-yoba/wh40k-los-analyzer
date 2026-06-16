@@ -97,8 +97,27 @@ function appendDenseItem(container, label, value) {
   container.appendChild(item);
 }
 
+function terrainFill(feature) {
+  switch (feature.terrain_category) {
+    case "dense":
+      return "#8fb59a";
+    case "light":
+      return "#d6c87d";
+    case "exposed":
+      return "#e7ded0";
+    default:
+      return "#d4d0c8";
+  }
+}
+
+function hasValidationCode(code) {
+  if (!state.layout || !Array.isArray(state.layout.validation_records)) return false;
+  return state.layout.validation_records.some((record) => record.code === code);
+}
+
 function renderBoard() {
   if (!state.layout) return;
+  const provisionalBlockers = hasValidationCode("terrain_footprint_blocker_review_required");
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#fffdf8";
   context.fillRect(0, 0, canvas.width, canvas.height);
@@ -114,7 +133,7 @@ function renderBoard() {
       else context.lineTo(point.x, point.y);
     });
     context.closePath();
-    context.fillStyle = feature.movement_blocking ? "#b9c4a8" : "#d8d0c0";
+    context.fillStyle = terrainFill(feature);
     context.fill();
     context.strokeStyle = "#746a5c";
     context.lineWidth = 2;
@@ -127,10 +146,12 @@ function renderBoard() {
     context.beginPath();
     context.moveTo(start.x, start.y);
     context.lineTo(end.x, end.y);
-    context.strokeStyle = "#8f2f2f";
-    context.lineWidth = 6;
+    context.setLineDash(provisionalBlockers ? [10, 7] : []);
+    context.strokeStyle = provisionalBlockers ? "#b7791f" : "#8f2f2f";
+    context.lineWidth = provisionalBlockers ? 4 : 6;
     context.stroke();
   }
+  context.setLineDash([]);
 
   if (state.heatmap) {
     for (const cell of state.heatmap.cells) {

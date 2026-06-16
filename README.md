@@ -11,8 +11,8 @@ Implemented now:
 - FastAPI-served GUI with layout/source status, validation records, click-on-map LOS, firing-lane heatmaps, deployment exposure, terrain contribution metrics, and export state.
 - Deterministic canonical geometry models, validation records, source manifests, stable layout hashing, and JSON schema export.
 - Base-aware 2D LOS using deterministic disk sampling.
-- Event Companion vector extraction for board, deployment zones, and terrain placement candidates.
-- Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional wall/blocker segments from matched footprint fragments.
+- Event Companion vector extraction for board, deployment zones, terrain placement candidates, and terrain category markers.
+- Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional Dense/Solid wall/blocker segments from matched footprint fragments.
 - Official extracted layouts remain warning-state and blocked for LOS/heatmap/exposure until footprint/wall semantics are reviewed and accepted.
 
 Not implemented yet:

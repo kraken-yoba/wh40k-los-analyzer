@@ -16,6 +16,7 @@ from fortyk_los_backend.domain.models import (
     LayoutProvenance,
     Point,
     PolygonGeometry,
+    TerrainCategory,
     TerrainFeature,
     ValidationRecord,
     ValidationSeverity,
@@ -30,10 +31,14 @@ ATTACKER_FILL = (0.618, 0.040, 0.056)
 DEFENDER_FILL = (0.000, 0.241, 0.408)
 TERRAIN_FILL = (0.820, 0.826, 0.832)
 TERRAIN_FOOTPRINT_STROKE = (0.000, 0.660, 0.310)
+DENSE_TERRAIN_FILLS = ((0.000, 0.452, 0.378),)
+LIGHT_TERRAIN_FILLS = ((0.687, 0.253, 0.171),)
 COLOR_TOLERANCE = 0.035
 # Calibrated against the official terrain footprint PDF: large outline bounds are above
 # 80,000 page units, while decorative green marks are tiny line fragments.
 MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA = 50_000.0
+MIN_TERRAIN_CATEGORY_MARKER_AREA = 100.0
+CUBIC_BEZIER_SEGMENTS = 8
 FOOTPRINT_MATCH_AMBIGUITY_DELTA = 0.025
 FOOTPRINT_MATCH_WEAK_DELTA = 0.25
 INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
@@ -269,7 +274,7 @@ def extract_event_companion_layout(
     board_rect = _find_board_rect(drawings)
     transform = BoardTransform(board_rect)
     terrain_rects = _find_terrain_rects(drawings, board_rect)
-    terrain_features = _terrain_features_from_rects(terrain_rects, transform, words)
+    terrain_features = _terrain_features_from_rects(terrain_rects, transform, words, drawings)
     deployments = (
         _deployment_zone(
             drawings,
@@ -384,8 +389,10 @@ def _terrain_features_from_rects(
     terrain_rects: tuple[PdfRect, ...],
     transform: BoardTransform,
     words: list[tuple[Any, ...]],
+    drawings: list[dict[str, Any]] | None = None,
 ) -> tuple[TerrainFeature, ...]:
     features: list[TerrainFeature] = []
+    terrain_categories = _terrain_categories_from_drawings(terrain_rects, drawings or [])
     for index, rect in enumerate(terrain_rects, start=1):
         label = _nearest_feature_label(rect, words) or f"Terrain {index:02d}"
         features.append(
@@ -393,9 +400,51 @@ def _terrain_features_from_rects(
                 feature_id=f"terrain-{index:02d}",
                 label=label,
                 footprint=transform.rect_to_polygon(rect),
+                terrain_category=terrain_categories[index - 1],
             )
         )
     return tuple(features)
+
+
+def _terrain_categories_from_drawings(
+    terrain_rects: tuple[PdfRect, ...],
+    drawings: list[dict[str, Any]],
+) -> tuple[TerrainCategory, ...]:
+    return tuple(
+        _terrain_category_from_drawings(terrain_rect, drawings) for terrain_rect in terrain_rects
+    )
+
+
+def _terrain_category_from_drawings(
+    terrain_rect: PdfRect,
+    drawings: list[dict[str, Any]],
+) -> TerrainCategory:
+    has_dense_marker = False
+    has_light_marker = False
+    for drawing in drawings:
+        if "rect" not in drawing:
+            continue
+        marker_rect = _pdf_rect(drawing["rect"])
+        if marker_rect.area < MIN_TERRAIN_CATEGORY_MARKER_AREA:
+            continue
+        if not _marker_overlaps_terrain_rect(marker_rect, terrain_rect):
+            continue
+        fill = drawing.get("fill")
+        if any(_color_matches(fill, dense_fill) for dense_fill in DENSE_TERRAIN_FILLS):
+            has_dense_marker = True
+        if any(_color_matches(fill, light_fill) for light_fill in LIGHT_TERRAIN_FILLS):
+            has_light_marker = True
+    if has_dense_marker:
+        return TerrainCategory.DENSE
+    if has_light_marker:
+        return TerrainCategory.LIGHT
+    return TerrainCategory.UNKNOWN
+
+
+def _marker_overlaps_terrain_rect(marker_rect: PdfRect, terrain_rect: PdfRect) -> bool:
+    if terrain_rect.contains(marker_rect, tolerance=2.0):
+        return True
+    return terrain_rect.intersection_area(marker_rect) >= marker_rect.area * 0.2
 
 
 def _layout_name(words: list[tuple[Any, ...]], *, fallback: str) -> str:
@@ -557,7 +606,7 @@ def _footprint_blocker_validation_records(blocker_count: int) -> list[Validation
             code="terrain_footprint_blocker_candidates",
             severity=ValidationSeverity.INFO,
             message=(
-                f"Generated {blocker_count} provisional wall segments from matched "
+                f"Generated {blocker_count} provisional Dense/Solid wall segments from matched "
                 "official terrain-footprint fragments."
             ),
         ),
@@ -565,8 +614,8 @@ def _footprint_blocker_validation_records(blocker_count: int) -> list[Validation
             code="terrain_footprint_blocker_review_required",
             severity=ValidationSeverity.WARNING,
             message=(
-                "Terrain-footprint wall segments are deterministic provisional geometry and "
-                "require review before enabling official-layout LOS analysis."
+                "Dense terrain-footprint wall segments are deterministic provisional geometry "
+                "and require review before enabling official-layout LOS analysis."
             ),
         ),
     ]
@@ -621,6 +670,8 @@ def _terrain_blockers_from_footprint_matches(
         feature = feature_by_id.get(match.feature_id)
         template = template_by_id.get(match.template_id)
         if feature is None or template is None:
+            continue
+        if feature.terrain_category != TerrainCategory.DENSE:
             continue
         feature_bounds = _feature_bounds(feature)
         for fragment_index, fragment_path in enumerate(template.normalized_fragment_paths, start=1):
@@ -834,10 +885,39 @@ def _drawing_point_count(drawing: dict[str, Any]) -> int:
 def _drawing_path_points(drawing: dict[str, Any]) -> tuple[tuple[float, float], ...]:
     ordered_points: list[tuple[float, float]] = []
     for item in drawing.get("items", ()):
+        if item[0] == "c":
+            ordered_points.extend(_cubic_bezier_points(item[1:]))
+            continue
         for value in item[1:]:
             ordered_points.extend(_pdf_points(value))
     return tuple(ordered_points)
 
+
+def _cubic_bezier_points(values: tuple[Any, ...]) -> tuple[tuple[float, float], ...]:
+    flattened_points = tuple(point for value in values for point in _pdf_points(value))
+    if len(flattened_points) != 4:
+        return flattened_points
+    p0, p1, p2, p3 = flattened_points
+    points: list[tuple[float, float]] = []
+    for step in range(CUBIC_BEZIER_SEGMENTS + 1):
+        t = step / CUBIC_BEZIER_SEGMENTS
+        points.append(
+            (
+                _rounded_coordinate(_cubic_bezier_coordinate(p0[0], p1[0], p2[0], p3[0], t)),
+                _rounded_coordinate(_cubic_bezier_coordinate(p0[1], p1[1], p2[1], p3[1], t)),
+            )
+        )
+    return tuple(points)
+
+
+def _cubic_bezier_coordinate(p0: float, p1: float, p2: float, p3: float, t: float) -> float:
+    inverse_t = 1.0 - t
+    return (
+        inverse_t**3 * p0
+        + 3.0 * inverse_t**2 * t * p1
+        + 3.0 * inverse_t * t**2 * p2
+        + t**3 * p3
+    )
 
 
 def _pdf_points(value: Any) -> tuple[tuple[float, float], ...]:

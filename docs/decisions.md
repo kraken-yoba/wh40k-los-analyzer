@@ -114,14 +114,15 @@ Consequences:
 
 ## 2026-06-16: Footprint Fragment Walls Are Provisional Blocker Candidates
 
-Decision: Convert matched Terrain Area Footprints fragment paths into deterministic board-inch wall segments, but keep those segments provisional and analysis-blocked until review.
+Decision: Convert matched Terrain Area Footprints fragment paths into deterministic board-inch wall segments only for Event Companion terrain placements classified as Dense, but keep those segments provisional and analysis-blocked until review.
 
-Reasoning: The official footprint PDF exposes stable green internal fragment paths that are useful wall/blocker evidence once a footprint template is matched to an Event Companion terrain placement. The match itself can still be ambiguous or label-weak, and the PDF does not explicitly encode gameplay opacity semantics, so generated wall segments must improve inspection without unblocking official-layout LOS.
+Reasoning: The official footprint PDF exposes stable green internal fragment paths that are useful wall/blocker evidence once a footprint template is matched to an Event Companion terrain placement. The Event Companion key distinguishes Dense and Light terrain, and the Core Rules' Dense/Solid semantics are the direct 2D LOS wall relevance for this first pass. The match itself can still be ambiguous or label-weak, and the PDF does not explicitly encode every gameplay opacity detail, so generated wall segments must improve inspection without unblocking official-layout LOS.
 
 Consequences:
 
 - Template matches record whether reciprocal aspect matching requires a 90 degree rotation before fragment points are transformed into board inches.
-- Fragment-derived wall segments are validated inside the referenced terrain footprint and surfaced in layout payloads and the GUI.
+- Fragment-derived wall segments are generated only for Dense terrain features, validated inside the referenced terrain footprint, and surfaced in layout payloads and the GUI as provisional blockers.
+- Cubic Bezier fragment commands are tessellated into deterministic path samples rather than treating control points as wall vertices.
 - Official extracted layouts keep `terrain_footprint_blocker_review_required` warnings, so LOS/heatmap/exposure endpoints still fail closed until the review workflow accepts the geometry.
 
 ## 2026-06-16: Bounded Interactive Analysis Work

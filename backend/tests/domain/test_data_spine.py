@@ -19,6 +19,7 @@ from fortyk_los_backend.domain.models import (
     Point,
     PolygonGeometry,
     ReviewStatus,
+    TerrainCategory,
     TerrainFeature,
     ValidationRecord,
     ValidationSeverity,
@@ -58,11 +59,13 @@ def _layout() -> CanonicalLayout:
                 feature_id="ruin-b",
                 label="Ruin B",
                 footprint=_rectangle(x_min=30.0, y_min=10.0, x_max=38.0, y_max=18.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
             TerrainFeature(
                 feature_id="ruin-a",
                 label="Ruin A",
                 footprint=_rectangle(x_min=4.0, y_min=4.0, x_max=12.0, y_max=14.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
         ),
         blockers=(
@@ -110,6 +113,9 @@ def test_canonical_layout_captures_required_domain_fields() -> None:
     assert layout.schema_version == "1.0"
     assert layout.board.unit == "inch"
     assert {feature.feature_id for feature in layout.terrain_features} == {"ruin-a", "ruin-b"}
+    assert {feature.terrain_category for feature in layout.terrain_features} == {
+        TerrainCategory.DENSE
+    }
     assert {blocker.kind for blocker in layout.blockers} == {BlockerKind.WALL}
     assert layout.provenance.source_document_id == "terrain-layouts-2026-06-12"
     assert layout.validation_status == ValidationStatus.PASSED

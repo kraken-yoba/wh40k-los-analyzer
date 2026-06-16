@@ -10,7 +10,7 @@ from fortyk_los_backend.app import app
 from fortyk_los_backend.domain import fixtures as fixtures_module
 from fortyk_los_backend.domain.fixtures import FixtureRepository
 
-SYNTHETIC_ALPHA_HASH = "91092527a7961fac123f3fbfdf0bc7ba70ea056b17b640323ddea16b78ec18cb"
+SYNTHETIC_ALPHA_HASH = "7e7d811ab5a6db2ee9fa4ae0c19a66d78d7e7505b33b48b21486b2c970f0573a"
 
 
 def test_layout_list_api_returns_synthetic_fixture() -> None:
@@ -39,6 +39,7 @@ def test_layout_detail_api_returns_canonical_layout_and_hash() -> None:
     assert payload["layout_hash"] == SYNTHETIC_ALPHA_HASH
     assert payload["layout"]["board"] == {"height": 60.0, "unit": "inch", "width": 44.0}
     assert payload["layout"]["terrain_features"][0]["feature_id"] == "ruin-a"
+    assert payload["layout"]["terrain_features"][0]["terrain_category"] == "dense"
 
 
 def test_layout_detail_api_returns_404_for_unknown_layout() -> None:
@@ -361,6 +362,12 @@ def _write_synthetic_event_layout_pdf(pdf_path: Path) -> None:
         color=(0.137, 0.122, 0.125),
         fill=(0.820, 0.826, 0.832),
         width=0.3,
+    )
+    page.draw_rect(
+        fitz.Rect(150, 190, 162, 202),
+        color=(1.0, 1.0, 1.0),
+        fill=(0.000, 0.452, 0.378),
+        width=0.2,
     )
     page.insert_text((158, 185), "AB")
     document.save(pdf_path)

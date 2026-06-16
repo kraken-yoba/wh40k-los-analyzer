@@ -34,6 +34,13 @@ class BlockerKind(StrEnum):
     WALL = "wall"
 
 
+class TerrainCategory(StrEnum):
+    UNKNOWN = "unknown"
+    EXPOSED = "exposed"
+    LIGHT = "light"
+    DENSE = "dense"
+
+
 class Point(CanonicalBaseModel):
     x: FiniteFloat
     y: FiniteFloat
@@ -68,6 +75,7 @@ class TerrainFeature(CanonicalBaseModel):
     feature_id: str
     label: str
     footprint: PolygonGeometry
+    terrain_category: TerrainCategory = TerrainCategory.UNKNOWN
     movement_blocking: bool = False
 
 

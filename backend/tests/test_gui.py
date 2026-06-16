@@ -99,6 +99,20 @@ def test_client_script_renders_footprint_match_evidence() -> None:
     assert "score=" in script
 
 
+def test_client_script_distinguishes_terrain_categories_and_provisional_blockers() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function terrainFill" in script
+    assert "terrain_category" in script
+    assert 'case "dense"' in script
+    assert 'case "light"' in script
+    assert "terrain_footprint_blocker_review_required" in script
+    assert "function hasValidationCode" in script
+    assert "context.setLineDash" in script
+
+
 def test_client_script_avoids_inner_html_for_api_derived_data() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"

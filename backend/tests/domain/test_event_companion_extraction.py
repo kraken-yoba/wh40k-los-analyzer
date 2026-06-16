@@ -4,7 +4,7 @@ from pathlib import Path
 import fitz
 import pytest
 from fortyk_los_backend.domain.extraction import extract_event_companion_layout
-from fortyk_los_backend.domain.models import CanonicalLayout, ValidationStatus
+from fortyk_los_backend.domain.models import CanonicalLayout, TerrainCategory, ValidationStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OFFICIAL_EVENT_COMPANION = REPO_ROOT / "data" / "pdfs" / "event_companion.pdf"
@@ -33,6 +33,12 @@ def test_extract_event_companion_layout_from_synthetic_vector_pdf(tmp_path: Path
     assert len(layout.terrain_features) == 2
     assert {feature.label for feature in layout.terrain_features} == {"AB", "CD"}
     assert layout.blockers == ()
+    assert {
+        feature.label: feature.terrain_category for feature in layout.terrain_features
+    } == {
+        "AB": TerrainCategory.DENSE,
+        "CD": TerrainCategory.LIGHT,
+    }
     record_codes = {record.code for record in layout.validation_records}
     assert "placement_proxy_not_los_ready" in record_codes
     assert "terrain_measurement_crosscheck_pending" in record_codes
@@ -44,6 +50,25 @@ def test_extract_event_companion_layout_from_synthetic_vector_pdf(tmp_path: Path
     assert max(attacker_y_values) == pytest.approx(60.0)
     assert min(defender_y_values) == pytest.approx(0.0)
     assert max(defender_y_values) == pytest.approx(20.0)
+
+
+def test_extract_event_companion_layout_prefers_dense_when_markers_overlap(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "synthetic-event-layout-conflicting-category.pdf"
+    _write_synthetic_event_layout_pdf(pdf_path, conflict_first_feature_category=True)
+
+    layout = extract_event_companion_layout(
+        pdf_path,
+        page_number=1,
+        source_document_id="synthetic-event-companion",
+    )
+
+    categories_by_label = {
+        feature.label: feature.terrain_category for feature in layout.terrain_features
+    }
+    assert categories_by_label["AB"] == TerrainCategory.DENSE
+    assert categories_by_label["CD"] == TerrainCategory.LIGHT
 
 
 @pytest.mark.skipif(
@@ -63,6 +88,15 @@ def test_extract_event_companion_layout_from_cached_official_page_9() -> None:
     assert len(layout.deployments) == 2
     assert len(layout.terrain_features) == 16
     assert layout.blockers == ()
+    categories_by_id = {
+        feature.feature_id: feature.terrain_category for feature in layout.terrain_features
+    }
+    assert {
+        feature_id
+        for feature_id, category in categories_by_id.items()
+        if category == TerrainCategory.DENSE
+    } == {"terrain-01", "terrain-03", "terrain-07", "terrain-08", "terrain-12", "terrain-14"}
+    assert any(category == TerrainCategory.UNKNOWN for category in categories_by_id.values())
     assert _bounds_by_zone(layout) == {
         "attacker": pytest.approx((0.0, 40.02, 44.0, 59.95), abs=0.01),
         "defender": pytest.approx((0.0, 0.0, 44.0, 19.91), abs=0.01),
@@ -120,7 +154,11 @@ def _rounded_feature_summaries(
     return summaries
 
 
-def _write_synthetic_event_layout_pdf(pdf_path: Path) -> None:
+def _write_synthetic_event_layout_pdf(
+    pdf_path: Path,
+    *,
+    conflict_first_feature_category: bool = False,
+) -> None:
     document = fitz.open()
     page = document.new_page(width=500, height=700)
     board = fitz.Rect(100, 100, 320, 400)
@@ -135,10 +173,27 @@ def _write_synthetic_event_layout_pdf(pdf_path: Path) -> None:
         width=0.3,
     )
     page.draw_rect(
+        fitz.Rect(150, 190, 162, 202),
+        color=(1.0, 1.0, 1.0),
+        fill=(0.000, 0.452, 0.378),
+        width=0.2,
+    )
+    if conflict_first_feature_category:
+        page.draw_rect(
+            fitz.Rect(164, 190, 176, 202),
+            color=None,
+            fill=(0.687, 0.253, 0.171),
+        )
+    page.draw_rect(
         fitz.Rect(220, 260, 270, 310),
         color=(0.137, 0.122, 0.125),
         fill=(0.820, 0.826, 0.832),
         width=0.3,
+    )
+    page.draw_rect(
+        fitz.Rect(230, 270, 242, 282),
+        color=None,
+        fill=(0.687, 0.253, 0.171),
     )
     page.insert_text((158, 185), "AB")
     page.insert_text((238, 285), "CD")

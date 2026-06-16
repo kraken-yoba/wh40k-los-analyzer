@@ -170,6 +170,16 @@
       "title": "ReviewStatus",
       "type": "string"
     },
+    "TerrainCategory": {
+      "enum": [
+        "unknown",
+        "exposed",
+        "light",
+        "dense"
+      ],
+      "title": "TerrainCategory",
+      "type": "string"
+    },
     "TerrainFeature": {
       "additionalProperties": false,
       "properties": {
@@ -188,6 +198,10 @@
           "default": false,
           "title": "Movement Blocking",
           "type": "boolean"
+        },
+        "terrain_category": {
+          "$ref": "#/$defs/TerrainCategory",
+          "default": "unknown"
         }
       },
       "required": [

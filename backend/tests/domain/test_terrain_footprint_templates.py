@@ -20,6 +20,7 @@ from fortyk_los_backend.domain.models import (
     LayoutProvenance,
     Point,
     PolygonGeometry,
+    TerrainCategory,
     TerrainFeature,
     ValidationStatus,
 )
@@ -30,7 +31,7 @@ OFFICIAL_TERRAIN_FOOTPRINTS_SHA256 = (
     "abda484efe1e3031a92079053594a8b933a6ac429b899151f39ce8d51cbb9189"
 )
 OFFICIAL_TERRAIN_FOOTPRINT_TEMPLATE_EVIDENCE_SHA256 = (
-    "beae14575a3d964c1bc7617883482a2e30122d17430a892ea67ede30d352244c"
+    "fe4bc16bb9299d5eb52763a4937377b2c07c82e5fe92753a3031ee569fd0b2be"
 )
 OFFICIAL_EVENT_COMPANION = REPO_ROOT / "data" / "pdfs" / "event_companion.pdf"
 OFFICIAL_EVENT_COMPANION_SHA256 = (
@@ -62,6 +63,26 @@ def test_extract_terrain_footprint_templates_from_synthetic_vector_pdf(tmp_path:
     assert [_rounded_points(path) for path in template.normalized_fragment_paths] == [
         [(0.25, 0.25), (0.75, 0.25)]
     ]
+
+
+def test_extract_terrain_footprint_templates_tessellates_cubic_fragments(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "synthetic-cubic-footprint-template.pdf"
+    _write_cubic_fragment_template_pdf(pdf_path)
+
+    templates = extract_terrain_footprint_templates(pdf_path)
+
+    assert len(templates) == 1
+    [fragment_path] = templates[0].normalized_fragment_paths
+    rounded_points = _rounded_points(fragment_path)
+    assert len(fragment_path) == 11
+    assert rounded_points[0] == (0.1, 0.4)
+    assert rounded_points[8] == (0.9, 0.4)
+    assert rounded_points[-1] == (0.1, 0.4)
+    assert (0.5, 0.47) in rounded_points
+    assert (0.25, 0.19) not in rounded_points
+    assert (0.75, 0.81) not in rounded_points
 
 
 def test_terrain_footprint_template_preserves_ordered_outline_path(tmp_path: Path) -> None:
@@ -115,7 +136,7 @@ def test_extract_terrain_footprint_templates_from_cached_official_pdf() -> None:
         1.512,
     ]
     assert [template.outline_path_command_count for template in templates] == [60, 86, 52, 38, 71]
-    assert [template.outline_point_count for template in templates] == [193, 246, 148, 111, 217]
+    assert [template.outline_point_count for template in templates] == [489, 631, 382, 285, 554]
     assert [template.fragment_count for template in templates] == [12, 14, 6, 6, 9]
     assert _template_evidence_digest(templates) == (
         OFFICIAL_TERRAIN_FOOTPRINT_TEMPLATE_EVIDENCE_SHA256
@@ -129,6 +150,7 @@ def test_match_terrain_features_to_footprints_prefers_best_aspect_candidate() ->
                 feature_id="terrain-01",
                 label="AB",
                 footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
         )
     )
@@ -155,6 +177,7 @@ def test_match_terrain_features_to_footprints_records_reciprocal_orientation() -
                 feature_id="terrain-01",
                 label="AB",
                 footprint=_rectangle(10.0, 10.0, 20.0, 30.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
         )
     )
@@ -176,6 +199,7 @@ def test_generate_terrain_blockers_from_footprint_matches_maps_fragments_to_boar
                 feature_id="terrain-01",
                 label="AB",
                 footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
         )
     )
@@ -208,6 +232,7 @@ def test_generate_terrain_blockers_from_footprint_matches_rotates_reciprocal_fra
                 feature_id="terrain-01",
                 label="AB",
                 footprint=_rectangle(10.0, 10.0, 20.0, 30.0),
+                terrain_category=TerrainCategory.DENSE,
             ),
         )
     )
@@ -229,6 +254,37 @@ def test_generate_terrain_blockers_from_footprint_matches_rotates_reciprocal_fra
     assert blocker.start.y == pytest.approx(15.0)
     assert blocker.end.x == pytest.approx(15.0)
     assert blocker.end.y == pytest.approx(25.0)
+
+
+@pytest.mark.parametrize(
+    "terrain_category",
+    [TerrainCategory.LIGHT, TerrainCategory.UNKNOWN],
+)
+def test_generate_terrain_blockers_from_footprint_matches_skips_non_dense_features(
+    terrain_category: TerrainCategory,
+) -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+                terrain_category=terrain_category,
+            ),
+        )
+    )
+    templates = (
+        _template(
+            "square",
+            aspect_ratio=1.0,
+            fragments=((Point(x=0.25, y=0.25), Point(x=0.75, y=0.25)),),
+        ),
+    )
+    matches = match_terrain_features_to_footprints(layout, templates)
+
+    blockers = generate_terrain_blockers_from_footprint_matches(layout, templates, matches)
+
+    assert blockers == ()
 
 
 def test_match_terrain_features_to_footprints_marks_close_scores_for_review() -> None:
@@ -361,6 +417,12 @@ def test_official_page_9_gets_provisional_matches_but_stays_blocked() -> None:
 
     assert len(matches) == len(layout.terrain_features)
     assert len(layout.blockers) > 0
+    dense_feature_ids = {
+        feature.feature_id
+        for feature in layout.terrain_features
+        if feature.terrain_category == TerrainCategory.DENSE
+    }
+    assert {blocker.feature_id for blocker in layout.blockers} <= dense_feature_ids
     assert layout.validation_status == ValidationStatus.WARNING
     assert any(match.status == FootprintMatchStatus.NEEDS_REVIEW for match in matches)
     record_codes = {record.code for record in layout.validation_records}
@@ -397,6 +459,33 @@ def _write_synthetic_template_pdf(pdf_path: Path) -> None:
         color=(0.0, 0.66, 0.31),
         width=2.0,
     )
+    document.save(pdf_path)
+
+
+def _write_cubic_fragment_template_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=500, height=500)
+    shape = page.new_shape()
+    shape.draw_polyline(
+        [
+            fitz.Point(100, 100),
+            fitz.Point(400, 100),
+            fitz.Point(400, 420),
+            fitz.Point(100, 420),
+            fitz.Point(100, 100),
+        ]
+    )
+    shape.finish(color=(0.0, 0.66, 0.31), width=2.0)
+    shape.commit()
+    shape = page.new_shape()
+    shape.draw_bezier(
+        fitz.Point(130, 228),
+        fitz.Point(175, 160),
+        fitz.Point(325, 360),
+        fitz.Point(370, 228),
+    )
+    shape.finish(color=(0.0, 0.66, 0.31), width=2.0)
+    shape.commit()
     document.save(pdf_path)
 
 
