@@ -30,6 +30,8 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="load-layout-button"',
         'id="interaction-mode"',
         'id="base-diameter"',
+        'id="source-underlay-toggle"',
+        'id="source-underlay-status"',
         'id="board-canvas"',
         'id="source-status"',
         'id="footprint-evidence"',
@@ -140,6 +142,56 @@ def test_client_script_renders_visual_sanity_evidence() -> None:
     assert "/visual-sanity" in script
     assert "event-companion-cv-sanity-v1" in script
     assert "vision_advisory" in script
+
+
+def test_client_script_renders_source_underlay_beneath_overlays() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const sourceUnderlayToggle" in script
+    assert "const sourceUnderlayStatus" in script
+    assert "sourceUnderlayImage" in script
+    assert "async function loadSourceUnderlay" in script
+    assert "/source-underlay.png" in script
+    assert "context.drawImage(state.sourceUnderlayImage" in script
+    assert "sourceUnderlayToggle.addEventListener" in script
+
+
+def test_client_script_ignores_stale_source_underlay_responses() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    helper_body = script.split("function isCurrentSourceUnderlayRequest", 1)[1].split(
+        "async function loadSourceUnderlay",
+        1,
+    )[0]
+    load_body = script.split("async function loadSourceUnderlay(layoutId)", 1)[1].split(
+        "function renderValidation()",
+        1,
+    )[0]
+
+    assert "state.layout.layout_id === layoutId" in helper_body
+    stale_guard = "isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)"
+    assert load_body.count(stale_guard) >= 3
+    assert load_body.index(stale_guard) < load_body.index("state.sourceUnderlayImage = image")
+
+
+def test_client_script_ignores_disabled_source_underlay_responses() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_body = script.split("async function loadSourceUnderlay(layoutId)", 1)[1].split(
+        "function renderValidation()",
+        1,
+    )[0]
+
+    assert "sourceUnderlayRequestId" in script
+    assert "state.sourceUnderlayRequestId += 1" in load_body
+    current_guard = "isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)"
+    assert load_body.count(current_guard) >= 3
+    assert "sourceUnderlayToggle.checked" in script
+    assert load_body.index(current_guard) < load_body.index("state.sourceUnderlayImage = image")
 
 
 def test_client_script_renders_feature_provenance_from_inspect_clicks() -> None:

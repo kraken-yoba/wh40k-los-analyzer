@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import Field, FiniteFloat, ValidationError
@@ -239,6 +239,21 @@ def visual_sanity_evidence(layout_id: str) -> dict[str, object]:
     payload = dict(jsonable_encoder(evidence))
     payload.pop("layout", None)
     return payload
+
+
+@app.get("/api/layouts/{layout_id}/source-underlay.png")
+def source_underlay(layout_id: str) -> Response:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    png = fixtures.source_underlay_png(layout)
+    if png is None:
+        raise HTTPException(status_code=404, detail=f"Source underlay not available: {layout_id}")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"cache-control": "no-store"},
+    )
 
 
 @app.post("/api/layouts/{layout_id}/validation/{record_code}/accept")

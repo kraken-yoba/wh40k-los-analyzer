@@ -494,6 +494,33 @@ def test_visual_sanity_api_returns_404_for_missing_layout() -> None:
     assert response.json()["detail"] == "Layout not found: missing-layout"
 
 
+def test_source_underlay_api_returns_board_cropped_png_for_extracted_layout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/event-companion-page-1/source-underlay.png")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+    image = fitz.Pixmap(response.content)
+    assert image.width == 880
+    assert image.height == 1200
+
+
+def test_source_underlay_api_returns_404_for_fixture_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/synthetic-alpha/source-underlay.png")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Source underlay not available: synthetic-alpha"
+
+
 def _write_temp_event_companion_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
     pdf_path.parent.mkdir(parents=True)

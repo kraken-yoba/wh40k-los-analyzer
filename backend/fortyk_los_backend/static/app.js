@@ -15,6 +15,8 @@ const losResult = document.querySelector("#los-result");
 const analysisResult = document.querySelector("#analysis-result");
 const baseDiameter = document.querySelector("#base-diameter");
 const movementDistance = document.querySelector("#movement-distance");
+const sourceUnderlayToggle = document.querySelector("#source-underlay-toggle");
+const sourceUnderlayStatus = document.querySelector("#source-underlay-status");
 const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
 const FOOTPRINT_MATCH_METHOD = "terrain-footprint-match-v1";
 
@@ -24,6 +26,9 @@ const state = {
   selectedPoints: [],
   selectedFeatureId: null,
   heatmap: null,
+  sourceUnderlayImage: null,
+  sourceUnderlayObjectUrl: null,
+  sourceUnderlayRequestId: 0,
 };
 
 function boardToCanvas(point) {
@@ -210,8 +215,14 @@ function renderBoard() {
   if (!state.layout) return;
   const provisionalBlockers = hasValidationCode("terrain_footprint_blocker_review_required");
   context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#fffdf8";
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  if (state.sourceUnderlayImage) {
+    context.drawImage(state.sourceUnderlayImage, 0, 0, canvas.width, canvas.height);
+    context.fillStyle = "rgba(255, 253, 248, 0.18)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    context.fillStyle = "#fffdf8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
   context.strokeStyle = "#1e272b";
   context.lineWidth = 4;
   context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
@@ -225,7 +236,9 @@ function renderBoard() {
     });
     context.closePath();
     context.fillStyle = terrainFill(feature);
+    context.globalAlpha = state.sourceUnderlayImage ? 0.58 : 1;
     context.fill();
+    context.globalAlpha = 1;
     context.strokeStyle = "#746a5c";
     context.lineWidth = 2;
     context.stroke();
@@ -402,6 +415,61 @@ function renderLayoutMetadata() {
   appendDenseItem(layoutMetadata, "Method", state.layout.provenance.extraction_method);
 }
 
+function clearSourceUnderlayImage() {
+  if (state.sourceUnderlayObjectUrl) URL.revokeObjectURL(state.sourceUnderlayObjectUrl);
+  state.sourceUnderlayObjectUrl = null;
+  state.sourceUnderlayImage = null;
+}
+
+function isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId) {
+  return (
+    state.layout &&
+    state.layout.layout_id === layoutId &&
+    sourceUnderlayToggle.checked &&
+    sourceUnderlayRequestId === state.sourceUnderlayRequestId
+  );
+}
+
+async function loadSourceUnderlay(layoutId) {
+  state.sourceUnderlayRequestId += 1;
+  const sourceUnderlayRequestId = state.sourceUnderlayRequestId;
+  clearSourceUnderlayImage();
+  if (!sourceUnderlayToggle.checked) {
+    sourceUnderlayStatus.textContent = "Underlay off";
+    return;
+  }
+  sourceUnderlayStatus.textContent = "Loading underlay";
+  let objectUrl = null;
+  try {
+    const response = await fetch(`/api/layouts/${layoutId}/source-underlay.png`);
+    if (!isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)) return;
+    if (!response.ok) {
+      sourceUnderlayStatus.textContent = "Underlay unavailable";
+      return;
+    }
+    const blob = await response.blob();
+    if (!isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)) return;
+    objectUrl = URL.createObjectURL(blob);
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", reject, { once: true });
+      image.src = objectUrl;
+    });
+    if (!isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    state.sourceUnderlayObjectUrl = objectUrl;
+    state.sourceUnderlayImage = image;
+    sourceUnderlayStatus.textContent = "Underlay visible";
+  } catch (_error) {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    if (!isCurrentSourceUnderlayRequest(layoutId, sourceUnderlayRequestId)) return;
+    sourceUnderlayStatus.textContent = "Underlay unavailable";
+  }
+}
+
 function renderValidation() {
   validationPanel.replaceChildren();
   const records = state.layout.validation_records;
@@ -462,6 +530,7 @@ async function loadLayout(layoutId) {
   state.heatmap = null;
   losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
   analysisResult.textContent = "Run heatmap, exposure, or terrain coverage.";
+  await loadSourceUnderlay(layoutId);
   renderLayoutMetadata();
   renderValidation();
   renderTerrainSemantics();
@@ -532,6 +601,14 @@ layoutSelect.addEventListener("change", () => {
 
 loadLayoutButton.addEventListener("click", () => {
   void loadSelectedLayout();
+});
+
+sourceUnderlayToggle.addEventListener("change", () => {
+  void runPanelAction(losResult, async () => {
+    if (!state.layout) return;
+    await loadSourceUnderlay(state.layout.layout_id);
+    renderBoard();
+  });
 });
 
 async function loadSelectedLayout() {

@@ -18,6 +18,7 @@ from fortyk_los_backend.domain.manifest import (
 )
 from fortyk_los_backend.domain.models import CanonicalLayout, ReviewStatus, ValidationSeverity
 from fortyk_los_backend.domain.serialization import stable_layout_hash
+from fortyk_los_backend.domain.source_underlay import render_event_companion_board_underlay
 from fortyk_los_backend.domain.visual_sanity import (
     EventCompanionVisualSanityReport,
     VisualSanityStatus,
@@ -176,6 +177,19 @@ class FixtureRepository:
             event_document_path,
             page_number=layout.provenance.source_page,
             layout=layout,
+        )
+
+    def source_underlay_png(self, layout: CanonicalLayout) -> bytes | None:
+        if layout.provenance.extraction_method != "event-companion-vector-v1":
+            return None
+
+        event_document_path = self._hash_matched_event_companion_path()
+        if event_document_path is None:
+            return None
+
+        return render_event_companion_board_underlay(
+            event_document_path,
+            page_number=layout.provenance.source_page,
         )
 
     def terrain_footprint_evidence(self) -> dict[str, object]:
