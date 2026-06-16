@@ -99,3 +99,15 @@ Consequences:
 - Cached official-footprint regression tests must pin the PDF SHA-256 and expected outline counts/bounds.
 - Event Companion layouts remain blocked for analysis until footprint outlines are mapped, reviewed, and wall semantics are represented explicitly.
 - Future extraction work should align these outlines to Event Companion placement rectangles before adding wall/blocker geometry.
+
+## 2026-06-16: Footprint Template Matching Is Provisional Evidence
+
+Decision: Normalize Terrain Area Footprints outlines and contained green fragments into template evidence, then match Event Companion terrain placements to templates by deterministic aspect-ratio scoring only as provisional candidates.
+
+Reasoning: Template matching improves the extraction evidence chain without pretending that footprint outlines define walls or opaque LOS blockers. Aspect-ratio matching is deterministic and testable, but official labels are incomplete or ambiguous and the PDF does not encode wall opacity semantics.
+
+Consequences:
+
+- Footprint matches can add validation records, but they cannot unblock official-layout LOS analysis by themselves.
+- Ambiguous template scores, weak aspect matches, fallback labels, and slash labels must remain `needs_review`.
+- `extract_event_companion_layout(..., footprint_templates=...)` still emits no blockers and keeps official layouts warning-state.

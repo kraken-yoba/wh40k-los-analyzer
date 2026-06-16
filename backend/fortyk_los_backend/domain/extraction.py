@@ -1,5 +1,7 @@
 import re
 from dataclasses import dataclass
+from enum import StrEnum
+from math import log
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,8 @@ COLOR_TOLERANCE = 0.035
 # Calibrated against the official terrain footprint PDF: large outline bounds are above
 # 80,000 page units, while decorative green marks are tiny line fragments.
 MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA = 50_000.0
+FOOTPRINT_MATCH_AMBIGUITY_DELTA = 0.025
+FOOTPRINT_MATCH_WEAK_DELTA = 0.25
 INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
 
 
@@ -127,6 +131,35 @@ class TerrainFootprintOutline:
     point_count: int
 
 
+@dataclass(frozen=True)
+class TerrainFootprintTemplate:
+    template_id: str
+    page_number: int
+    bounds: tuple[float, float, float, float]
+    aspect_ratio: float
+    outline_path_command_count: int
+    outline_point_count: int
+    fragment_count: int
+    normalized_outline_points: tuple[Point, ...]
+    normalized_fragment_paths: tuple[tuple[Point, ...], ...]
+
+
+class FootprintMatchStatus(StrEnum):
+    CANDIDATE = "candidate"
+    NEEDS_REVIEW = "needs_review"
+
+
+@dataclass(frozen=True)
+class TerrainFootprintMatch:
+    feature_id: str
+    feature_label: str
+    template_id: str
+    score: float
+    aspect_delta: float
+    status: FootprintMatchStatus
+    review_reason: str
+
+
 def list_event_companion_layout_pages(pdf_path: Path) -> tuple[EventCompanionLayoutPage, ...]:
     pages: list[EventCompanionLayoutPage] = []
     with fitz.open(pdf_path) as document:
@@ -153,31 +186,8 @@ def extract_terrain_footprint_outlines(pdf_path: Path) -> tuple[TerrainFootprint
     outlines: list[TerrainFootprintOutline] = []
     with fitz.open(pdf_path) as document:
         for page_index, page in enumerate(document, start=1):
-            candidates: list[tuple[PdfRect, dict[str, Any]]] = []
-            for drawing in page.get_drawings():
-                if drawing.get("type") != "s":
-                    continue
-                if not _color_matches(drawing.get("color"), TERRAIN_FOOTPRINT_STROKE):
-                    continue
-                rect = _pdf_rect(drawing["rect"])
-                if rect.area < MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA:
-                    continue
-                if len(drawing.get("items", ())) < 1:
-                    continue
-                candidates.append((rect, drawing))
-
-            for outline_index, (rect, drawing) in enumerate(
-                sorted(
-                    candidates,
-                    key=lambda candidate: (
-                        candidate[0].y0,
-                        candidate[0].x0,
-                        candidate[0].y1,
-                        candidate[0].x1,
-                        len(candidate[1].get("items", ())),
-                        _drawing_point_count(candidate[1]),
-                    ),
-                ),
+            for outline_index, (_drawing_index, rect, drawing) in enumerate(
+                _terrain_footprint_outline_candidates(_green_stroke_drawings(page)),
                 start=1,
             ):
                 outlines.append(
@@ -192,11 +202,50 @@ def extract_terrain_footprint_outlines(pdf_path: Path) -> tuple[TerrainFootprint
     return tuple(outlines)
 
 
+def extract_terrain_footprint_templates(pdf_path: Path) -> tuple[TerrainFootprintTemplate, ...]:
+    templates: list[TerrainFootprintTemplate] = []
+    with fitz.open(pdf_path) as document:
+        for page_index, page in enumerate(document, start=1):
+            green_drawings = _green_stroke_drawings(page)
+            outline_candidates = _terrain_footprint_outline_candidates(green_drawings)
+            fragment_assignments = _assign_fragments_to_outlines(green_drawings, outline_candidates)
+            for template_index, (_drawing_index, rect, drawing) in enumerate(
+                outline_candidates,
+                start=1,
+            ):
+                normalized_fragments = tuple(
+                    _normalize_points(_drawing_points(fragment_drawing), rect)
+                    for _fragment_rect, fragment_drawing in fragment_assignments[template_index - 1]
+                )
+                templates.append(
+                    TerrainFootprintTemplate(
+                        template_id=f"terrain-footprint-p{page_index}-{template_index:02d}",
+                        page_number=page_index,
+                        bounds=(rect.x0, rect.y0, rect.x1, rect.y1),
+                        aspect_ratio=rect.width / rect.height,
+                        outline_path_command_count=len(drawing.get("items", ())),
+                        outline_point_count=_drawing_point_count(drawing),
+                        fragment_count=len(normalized_fragments),
+                        normalized_outline_points=_normalize_points(_drawing_points(drawing), rect),
+                        normalized_fragment_paths=normalized_fragments,
+                    )
+                )
+    return tuple(templates)
+
+
+def match_terrain_features_to_footprints(
+    layout: CanonicalLayout,
+    templates: tuple[TerrainFootprintTemplate, ...],
+) -> tuple[TerrainFootprintMatch, ...]:
+    return _match_terrain_features_to_footprints(layout.terrain_features, templates)
+
+
 def extract_event_companion_layout(
     pdf_path: Path,
     *,
     page_number: int,
     source_document_id: str = "event-companion-2026-06-12",
+    footprint_templates: tuple[TerrainFootprintTemplate, ...] = (),
 ) -> CanonicalLayout:
     with fitz.open(pdf_path) as document:
         page = document[page_number - 1]
@@ -225,7 +274,16 @@ def extract_event_companion_layout(
             label="Defender",
         ),
     )
-    validation_records = _validation_records(terrain_features, deployments, words)
+    footprint_matches = _match_terrain_features_to_footprints(
+        terrain_features,
+        footprint_templates,
+    )
+    validation_records = _validation_records(
+        terrain_features,
+        deployments,
+        words,
+        footprint_matches,
+    )
 
     return CanonicalLayout(
         layout_id=f"event-companion-page-{page_number}",
@@ -360,6 +418,7 @@ def _validation_records(
     terrain_features: tuple[TerrainFeature, ...],
     deployments: tuple[DeploymentZone, ...],
     words: list[tuple[Any, ...]],
+    footprint_matches: tuple[TerrainFootprintMatch, ...],
 ) -> tuple[ValidationRecord, ...]:
     records: list[ValidationRecord] = [
         ValidationRecord(
@@ -421,6 +480,7 @@ def _validation_records(
                 ),
             )
         )
+    records.extend(_footprint_match_validation_records(footprint_matches))
     return tuple(records)
 
 
@@ -442,12 +502,201 @@ def _has_matching_annotation(value: float, annotations: tuple[float, ...]) -> bo
     return any(abs(value - annotation) <= 0.25 for annotation in annotations)
 
 
+def _footprint_match_validation_records(
+    footprint_matches: tuple[TerrainFootprintMatch, ...],
+) -> list[ValidationRecord]:
+    if not footprint_matches:
+        return []
+    return [
+        ValidationRecord(
+            code="terrain_footprint_match_candidates",
+            severity=ValidationSeverity.INFO,
+            message=(
+                f"Generated {len(footprint_matches)} provisional terrain-footprint template "
+                "matches from deterministic geometry signals."
+            ),
+        ),
+        ValidationRecord(
+            code="terrain_footprint_match_review_required",
+            severity=ValidationSeverity.WARNING,
+            message=(
+                "Terrain-footprint template matches are provisional evidence and require "
+                "review before emitting LOS blockers or accepting wall semantics."
+            ),
+        ),
+    ]
+
+
+def _match_terrain_features_to_footprints(
+    terrain_features: tuple[TerrainFeature, ...],
+    templates: tuple[TerrainFootprintTemplate, ...],
+) -> tuple[TerrainFootprintMatch, ...]:
+    if not templates:
+        return ()
+    matches: list[TerrainFootprintMatch] = []
+    for feature in terrain_features:
+        feature_aspect_ratio = _feature_aspect_ratio(feature)
+        scored_templates = sorted(
+            (
+                (_template_aspect_delta(feature_aspect_ratio, template), template)
+                for template in templates
+            ),
+            key=lambda scored: (scored[0], scored[1].template_id),
+        )
+        best_delta, best_template = scored_templates[0]
+        second_delta = scored_templates[1][0] if len(scored_templates) > 1 else None
+        status, review_reason = _footprint_match_status(feature, best_delta, second_delta)
+        matches.append(
+            TerrainFootprintMatch(
+                feature_id=feature.feature_id,
+                feature_label=feature.label,
+                template_id=best_template.template_id,
+                score=round(max(0.0, 1.0 - best_delta), 6),
+                aspect_delta=round(best_delta, 6),
+                status=status,
+                review_reason=review_reason,
+            )
+        )
+    return tuple(matches)
+
+
+def _footprint_match_status(
+    feature: TerrainFeature,
+    best_delta: float,
+    second_delta: float | None,
+) -> tuple[FootprintMatchStatus, str]:
+    if (
+        second_delta is not None
+        and abs(second_delta - best_delta) <= FOOTPRINT_MATCH_AMBIGUITY_DELTA
+    ):
+        return FootprintMatchStatus.NEEDS_REVIEW, "ambiguous_template_score"
+    if best_delta > FOOTPRINT_MATCH_WEAK_DELTA:
+        return FootprintMatchStatus.NEEDS_REVIEW, "weak_aspect_match"
+    if feature.label.startswith("Terrain ") or "/" in feature.label:
+        return FootprintMatchStatus.NEEDS_REVIEW, "low_confidence_feature_label"
+    return FootprintMatchStatus.CANDIDATE, "best_aspect_match"
+
+
+def _feature_aspect_ratio(feature: TerrainFeature) -> float:
+    xs = [point.x for point in feature.footprint.points]
+    ys = [point.y for point in feature.footprint.points]
+    width = max(xs) - min(xs)
+    height = max(ys) - min(ys)
+    return width / height
+
+
+def _template_aspect_delta(
+    feature_aspect_ratio: float,
+    template: TerrainFootprintTemplate,
+) -> float:
+    template_aspect_ratio = template.aspect_ratio
+    return min(
+        abs(log(feature_aspect_ratio / template_aspect_ratio)),
+        abs(log(feature_aspect_ratio / (1.0 / template_aspect_ratio))),
+    )
+
+
+def _green_stroke_drawings(page: Any) -> list[tuple[int, PdfRect, dict[str, Any]]]:
+    green_drawings: list[tuple[int, PdfRect, dict[str, Any]]] = []
+    for drawing_index, drawing in enumerate(page.get_drawings()):
+        if drawing.get("type") != "s":
+            continue
+        if not _color_matches(drawing.get("color"), TERRAIN_FOOTPRINT_STROKE):
+            continue
+        green_drawings.append((drawing_index, _pdf_rect(drawing["rect"]), drawing))
+    return green_drawings
+
+
+def _terrain_footprint_outline_candidates(
+    green_drawings: list[tuple[int, PdfRect, dict[str, Any]]],
+) -> list[tuple[int, PdfRect, dict[str, Any]]]:
+    return sorted(
+        [
+            (drawing_index, rect, drawing)
+            for drawing_index, rect, drawing in green_drawings
+            if rect.area >= MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA
+            and len(drawing.get("items", ())) >= 1
+        ],
+        key=_terrain_footprint_candidate_sort_key,
+    )
+
+
+def _terrain_footprint_candidate_sort_key(
+    candidate: tuple[int, PdfRect, dict[str, Any]],
+) -> tuple[float, float, float, float, int, int, int]:
+    drawing_index, rect, drawing = candidate
+    return (
+        rect.y0,
+        rect.x0,
+        rect.y1,
+        rect.x1,
+        len(drawing.get("items", ())),
+        _drawing_point_count(drawing),
+        drawing_index,
+    )
+
+
+def _assign_fragments_to_outlines(
+    green_drawings: list[tuple[int, PdfRect, dict[str, Any]]],
+    outline_candidates: list[tuple[int, PdfRect, dict[str, Any]]],
+) -> tuple[tuple[tuple[PdfRect, dict[str, Any]], ...], ...]:
+    outline_indexes = {drawing_index for drawing_index, _rect, _drawing in outline_candidates}
+    assignments: list[list[tuple[PdfRect, dict[str, Any]]]] = [
+        [] for _outline in outline_candidates
+    ]
+    for drawing_index, rect, drawing in green_drawings:
+        if drawing_index in outline_indexes:
+            continue
+        containing_outlines: list[tuple[float, int]] = []
+        center_x = (rect.x0 + rect.x1) / 2.0
+        center_y = (rect.y0 + rect.y1) / 2.0
+        for outline_index, (_outline_drawing_index, outline_rect, _outline_drawing) in enumerate(
+            outline_candidates
+        ):
+            if _rect_contains_point(outline_rect.inflate(2.0), center_x, center_y):
+                containing_outlines.append((outline_rect.area, outline_index))
+        if containing_outlines:
+            _area, outline_index = min(containing_outlines)
+            assignments[outline_index].append((rect, drawing))
+    return tuple(
+        tuple(sorted(assignment, key=lambda item: (item[0].y0, item[0].x0, item[0].y1, item[0].x1)))
+        for assignment in assignments
+    )
+
+
+def _rect_contains_point(rect: PdfRect, x: float, y: float) -> bool:
+    return rect.x0 <= x <= rect.x1 and rect.y0 <= y <= rect.y1
+
+
+def _normalize_points(
+    points: tuple[tuple[float, float], ...],
+    bounds: PdfRect,
+) -> tuple[Point, ...]:
+    return tuple(
+        Point(
+            x=_clamp((x - bounds.x0) / bounds.width, low=0.0, high=1.0),
+            y=_clamp((y - bounds.y0) / bounds.height, low=0.0, high=1.0),
+        )
+        for x, y in points
+    )
+
+
 def _drawing_point_count(drawing: dict[str, Any]) -> int:
+    return len(_drawing_points(drawing))
+
+
+def _drawing_points(drawing: dict[str, Any]) -> tuple[tuple[float, float], ...]:
     points: set[tuple[float, float]] = set()
+    ordered_points: list[tuple[float, float]] = []
     for item in drawing.get("items", ()):
         for value in item[1:]:
-            points.update(_pdf_points(value))
-    return len(points)
+            for point in _pdf_points(value):
+                if point in points:
+                    continue
+                points.add(point)
+                ordered_points.append(point)
+    return tuple(ordered_points)
+
 
 
 def _pdf_points(value: Any) -> tuple[tuple[float, float], ...]:
