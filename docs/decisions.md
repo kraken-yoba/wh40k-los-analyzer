@@ -111,3 +111,26 @@ Consequences:
 - Footprint matches can add validation records, but they cannot unblock official-layout LOS analysis by themselves.
 - Ambiguous template scores, weak aspect matches, fallback labels, and slash labels must remain `needs_review`.
 - `extract_event_companion_layout(..., footprint_templates=...)` still emits no blockers and keeps official layouts warning-state.
+
+## 2026-06-16: Bounded Interactive Analysis Work
+
+Decision: Cap sampled analysis regions and pairwise LOS workloads before running heatmap, exposure, or terrain-coverage analysis.
+
+Reasoning: API callers can control finite positive grid steps. Without explicit work limits, very small steps can allocate large sample grids and trigger excessive CPU work even though the numeric inputs pass finite-value validation. The local app should fail closed with a client error rather than freezing the analysis process.
+
+Consequences:
+
+- `analysis.py` enforces maximum region samples and maximum LOS pair evaluations.
+- FastAPI analysis endpoints convert `AnalysisRequestTooLarge` into HTTP 422 responses.
+- Oversized work has domain and API regression coverage.
+
+## 2026-06-16: Minimal Dependency Trust Base
+
+Decision: Remove dependencies that are not directly used or justified by the runtime/test suite.
+
+Reasoning: The security scan found `httpx2` in `pyproject.toml` and `uv.lock` even though no code imports it. Keeping unused public packages expands the install trust base and creates avoidable supply-chain exposure.
+
+Consequences:
+
+- `httpx2`, `httpcore2`, and `truststore` are absent from the lockfile.
+- Future dependency additions should be tied to concrete imports, tests, or documented tool requirements.
