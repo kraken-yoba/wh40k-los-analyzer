@@ -1,3 +1,4 @@
+import json
 from hashlib import sha256
 from pathlib import Path
 
@@ -25,6 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 OFFICIAL_TERRAIN_FOOTPRINTS = REPO_ROOT / "data" / "pdfs" / "terrainareafootprints.pdf"
 OFFICIAL_TERRAIN_FOOTPRINTS_SHA256 = (
     "abda484efe1e3031a92079053594a8b933a6ac429b899151f39ce8d51cbb9189"
+)
+OFFICIAL_TERRAIN_FOOTPRINT_TEMPLATE_EVIDENCE_SHA256 = (
+    "beae14575a3d964c1bc7617883482a2e30122d17430a892ea67ede30d352244c"
 )
 OFFICIAL_EVENT_COMPANION = REPO_ROOT / "data" / "pdfs" / "event_companion.pdf"
 OFFICIAL_EVENT_COMPANION_SHA256 = (
@@ -58,6 +62,31 @@ def test_extract_terrain_footprint_templates_from_synthetic_vector_pdf(tmp_path:
     ]
 
 
+def test_terrain_footprint_template_preserves_ordered_outline_path(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "ordered-outline.pdf"
+    _write_ordered_outline_pdf(pdf_path)
+
+    [template] = extract_terrain_footprint_templates(pdf_path)
+
+    assert template.outline_path_command_count == 5
+    assert template.outline_point_count == 5
+    assert len(template.normalized_outline_points) == 10
+    assert template.normalized_outline_points[0] == template.normalized_outline_points[-1]
+    assert template.normalized_outline_points[1] == template.normalized_outline_points[2]
+
+
+def test_terrain_footprint_template_does_not_assign_crossing_fragment(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "crossing-fragment.pdf"
+    _write_crossing_fragment_pdf(pdf_path)
+
+    [template] = extract_terrain_footprint_templates(pdf_path)
+
+    assert template.fragment_count == 0
+    assert template.normalized_fragment_paths == ()
+
+
 @pytest.mark.skipif(
     not OFFICIAL_TERRAIN_FOOTPRINTS.exists(),
     reason="official terrain footprint PDF is kept in the local gitignored cache",
@@ -86,6 +115,9 @@ def test_extract_terrain_footprint_templates_from_cached_official_pdf() -> None:
     assert [template.outline_path_command_count for template in templates] == [60, 86, 52, 38, 71]
     assert [template.outline_point_count for template in templates] == [193, 246, 148, 111, 217]
     assert [template.fragment_count for template in templates] == [12, 14, 6, 6, 9]
+    assert _template_evidence_digest(templates) == (
+        OFFICIAL_TERRAIN_FOOTPRINT_TEMPLATE_EVIDENCE_SHA256
+    )
 
 
 def test_match_terrain_features_to_footprints_prefers_best_aspect_candidate() -> None:
@@ -132,6 +164,93 @@ def test_match_terrain_features_to_footprints_marks_close_scores_for_review() ->
 
     assert matches[0].status == FootprintMatchStatus.NEEDS_REVIEW
     assert matches[0].review_reason == "ambiguous_template_score"
+
+
+def test_match_terrain_features_to_footprints_ignores_invalid_aspect_templates() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+            ),
+        )
+    )
+    templates = (
+        _template("zero", aspect_ratio=0.0),
+        _template("negative", aspect_ratio=-1.0),
+        _template("infinite", aspect_ratio=float("inf")),
+        _template("nan", aspect_ratio=float("nan")),
+        _template("valid", aspect_ratio=1.0),
+    )
+
+    matches = match_terrain_features_to_footprints(layout, templates)
+
+    assert len(matches) == 1
+    assert matches[0].template_id == "valid"
+    assert matches[0].status == FootprintMatchStatus.CANDIDATE
+
+
+def test_match_terrain_features_to_footprints_returns_no_matches_without_valid_templates() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+            ),
+        )
+    )
+
+    matches = match_terrain_features_to_footprints(
+        layout,
+        (_template("invalid", aspect_ratio=0.0),),
+    )
+
+    assert matches == ()
+
+
+def test_match_terrain_features_to_footprints_marks_weak_aspect_for_review() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+            ),
+        )
+    )
+
+    matches = match_terrain_features_to_footprints(
+        layout,
+        (_template("too-wide", aspect_ratio=8.0),),
+    )
+
+    assert matches[0].status == FootprintMatchStatus.NEEDS_REVIEW
+    assert matches[0].review_reason == "weak_aspect_match"
+
+
+@pytest.mark.parametrize("label", ["Terrain 01", "AB/CD"])
+def test_match_terrain_features_to_footprints_marks_low_confidence_labels_for_review(
+    label: str,
+) -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label=label,
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+            ),
+        )
+    )
+
+    matches = match_terrain_features_to_footprints(
+        layout,
+        (_template("square", aspect_ratio=1.0),),
+    )
+
+    assert matches[0].status == FootprintMatchStatus.NEEDS_REVIEW
+    assert matches[0].review_reason == "low_confidence_feature_label"
 
 
 @pytest.mark.skipif(
@@ -193,6 +312,49 @@ def _write_synthetic_template_pdf(pdf_path: Path) -> None:
     document.save(pdf_path)
 
 
+def _write_ordered_outline_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=500, height=500)
+    shape = page.new_shape()
+    shape.draw_polyline(
+        [
+            fitz.Point(100, 100),
+            fitz.Point(300, 90),
+            fitz.Point(410, 260),
+            fitz.Point(320, 430),
+            fitz.Point(110, 390),
+            fitz.Point(100, 100),
+        ]
+    )
+    shape.finish(color=(0.0, 0.66, 0.31), width=2.0)
+    shape.commit()
+    document.save(pdf_path)
+
+
+def _write_crossing_fragment_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=500, height=500)
+    shape = page.new_shape()
+    shape.draw_polyline(
+        [
+            fitz.Point(100, 100),
+            fitz.Point(400, 100),
+            fitz.Point(400, 420),
+            fitz.Point(100, 420),
+            fitz.Point(100, 100),
+        ]
+    )
+    shape.finish(color=(0.0, 0.66, 0.31), width=2.0)
+    shape.commit()
+    page.draw_line(
+        fitz.Point(50, 180),
+        fitz.Point(250, 180),
+        color=(0.0, 0.66, 0.31),
+        width=2.0,
+    )
+    document.save(pdf_path)
+
+
 def _template(template_id: str, *, aspect_ratio: float) -> TerrainFootprintTemplate:
     return TerrainFootprintTemplate(
         template_id=template_id,
@@ -248,3 +410,31 @@ def _rectangle(x_min: float, y_min: float, x_max: float, y_max: float) -> Polygo
 
 def _rounded_points(points: tuple[Point, ...]) -> list[tuple[float, float]]:
     return [(round(point.x, 2), round(point.y, 2)) for point in points]
+
+
+def _template_evidence_digest(templates: tuple[TerrainFootprintTemplate, ...]) -> str:
+    payload = [
+        {
+            "aspect_ratio": round(template.aspect_ratio, 6),
+            "bounds": [round(value, 3) for value in template.bounds],
+            "fragment_count": template.fragment_count,
+            "normalized_fragment_paths": [
+                [_digest_point(point) for point in path]
+                for path in template.normalized_fragment_paths
+            ],
+            "normalized_outline_points": [
+                _digest_point(point) for point in template.normalized_outline_points
+            ],
+            "outline_path_command_count": template.outline_path_command_count,
+            "outline_point_count": template.outline_point_count,
+            "page_number": template.page_number,
+            "template_id": template.template_id,
+        }
+        for template in templates
+    ]
+    encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    return sha256(encoded).hexdigest()
+
+
+def _digest_point(point: Point) -> list[float]:
+    return [round(point.x, 6), round(point.y, 6)]

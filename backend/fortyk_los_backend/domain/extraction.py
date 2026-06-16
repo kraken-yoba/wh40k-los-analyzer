@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from math import log
+from math import isfinite, log
 from pathlib import Path
 from typing import Any
 
@@ -214,7 +214,7 @@ def extract_terrain_footprint_templates(pdf_path: Path) -> tuple[TerrainFootprin
                 start=1,
             ):
                 normalized_fragments = tuple(
-                    _normalize_points(_drawing_points(fragment_drawing), rect)
+                    _normalize_points(_drawing_path_points(fragment_drawing), rect)
                     for _fragment_rect, fragment_drawing in fragment_assignments[template_index - 1]
                 )
                 templates.append(
@@ -226,7 +226,10 @@ def extract_terrain_footprint_templates(pdf_path: Path) -> tuple[TerrainFootprin
                         outline_path_command_count=len(drawing.get("items", ())),
                         outline_point_count=_drawing_point_count(drawing),
                         fragment_count=len(normalized_fragments),
-                        normalized_outline_points=_normalize_points(_drawing_points(drawing), rect),
+                        normalized_outline_points=_normalize_points(
+                            _drawing_path_points(drawing),
+                            rect,
+                        ),
                         normalized_fragment_paths=normalized_fragments,
                     )
                 )
@@ -531,7 +534,10 @@ def _match_terrain_features_to_footprints(
     terrain_features: tuple[TerrainFeature, ...],
     templates: tuple[TerrainFootprintTemplate, ...],
 ) -> tuple[TerrainFootprintMatch, ...]:
-    if not templates:
+    valid_templates = tuple(
+        template for template in templates if _is_valid_template_aspect(template.aspect_ratio)
+    )
+    if not valid_templates:
         return ()
     matches: list[TerrainFootprintMatch] = []
     for feature in terrain_features:
@@ -539,7 +545,7 @@ def _match_terrain_features_to_footprints(
         scored_templates = sorted(
             (
                 (_template_aspect_delta(feature_aspect_ratio, template), template)
-                for template in templates
+                for template in valid_templates
             ),
             key=lambda scored: (scored[0], scored[1].template_id),
         )
@@ -594,6 +600,10 @@ def _template_aspect_delta(
         abs(log(feature_aspect_ratio / template_aspect_ratio)),
         abs(log(feature_aspect_ratio / (1.0 / template_aspect_ratio))),
     )
+
+
+def _is_valid_template_aspect(aspect_ratio: float) -> bool:
+    return isfinite(aspect_ratio) and aspect_ratio > 0.0
 
 
 def _green_stroke_drawings(page: Any) -> list[tuple[int, PdfRect, dict[str, Any]]]:
@@ -653,7 +663,11 @@ def _assign_fragments_to_outlines(
         for outline_index, (_outline_drawing_index, outline_rect, _outline_drawing) in enumerate(
             outline_candidates
         ):
-            if _rect_contains_point(outline_rect.inflate(2.0), center_x, center_y):
+            inflated_outline = outline_rect.inflate(2.0)
+            if (
+                _rect_contains_point(inflated_outline, center_x, center_y)
+                and _fragment_fully_contained(rect, drawing, inflated_outline)
+            ):
                 containing_outlines.append((outline_rect.area, outline_index))
         if containing_outlines:
             _area, outline_index = min(containing_outlines)
@@ -666,6 +680,18 @@ def _assign_fragments_to_outlines(
 
 def _rect_contains_point(rect: PdfRect, x: float, y: float) -> bool:
     return rect.x0 <= x <= rect.x1 and rect.y0 <= y <= rect.y1
+
+
+def _fragment_fully_contained(
+    fragment_rect: PdfRect,
+    fragment_drawing: dict[str, Any],
+    outline_rect: PdfRect,
+) -> bool:
+    if not outline_rect.contains(fragment_rect):
+        return False
+    return all(
+        _rect_contains_point(outline_rect, x, y) for x, y in _drawing_path_points(fragment_drawing)
+    )
 
 
 def _normalize_points(
@@ -682,19 +708,14 @@ def _normalize_points(
 
 
 def _drawing_point_count(drawing: dict[str, Any]) -> int:
-    return len(_drawing_points(drawing))
+    return len(set(_drawing_path_points(drawing)))
 
 
-def _drawing_points(drawing: dict[str, Any]) -> tuple[tuple[float, float], ...]:
-    points: set[tuple[float, float]] = set()
+def _drawing_path_points(drawing: dict[str, Any]) -> tuple[tuple[float, float], ...]:
     ordered_points: list[tuple[float, float]] = []
     for item in drawing.get("items", ()):
         for value in item[1:]:
-            for point in _pdf_points(value):
-                if point in points:
-                    continue
-                points.add(point)
-                ordered_points.append(point)
+            ordered_points.extend(_pdf_points(value))
     return tuple(ordered_points)
 
 
