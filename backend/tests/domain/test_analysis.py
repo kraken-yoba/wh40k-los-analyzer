@@ -1,4 +1,5 @@
 from fortyk_los_backend.domain.analysis import (
+    AnalysisRequestTooLarge,
     GridSpec,
     MovementExposureRequest,
     Region,
@@ -114,6 +115,20 @@ def test_analysis_models_reject_invalid_numeric_inputs() -> None:
             raise AssertionError(f"accepted invalid step: {step}")
 
 
+def test_firing_lane_heatmap_rejects_oversized_grid() -> None:
+    try:
+        generate_firing_lane_heatmap(
+            _layout(),
+            source_region=Region(x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0),
+            target_grid=GridSpec(x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0, step=0.01),
+            source_step=1.0,
+        )
+    except AnalysisRequestTooLarge as exc:
+        assert "too many" in str(exc)
+    else:
+        raise AssertionError("accepted oversized heatmap grid")
+
+
 def test_deployment_exposure_uses_movement_reachable_points() -> None:
     exposure = measure_deployment_exposure(
         _layout(),
@@ -149,6 +164,23 @@ def test_deployment_exposure_rejects_missing_deployment() -> None:
         raise AssertionError("accepted missing deployment zone")
 
 
+def test_deployment_exposure_rejects_oversized_work() -> None:
+    try:
+        measure_deployment_exposure(
+            _layout(),
+            MovementExposureRequest(
+                deployment_zone_id="left-zone",
+                movement_distance=10.0,
+                threat_region=Region(x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0),
+                sample_step=0.01,
+            ),
+        )
+    except AnalysisRequestTooLarge as exc:
+        assert "too many" in str(exc)
+    else:
+        raise AssertionError("accepted oversized exposure request")
+
+
 def test_terrain_coverage_reports_visibility_delta_when_feature_removed() -> None:
     coverage = measure_terrain_coverage(
         _layout(),
@@ -180,3 +212,19 @@ def test_terrain_coverage_rejects_unknown_feature() -> None:
         assert "Terrain feature not found: missing-feature" in str(exc)
     else:
         raise AssertionError("accepted missing terrain feature")
+
+
+def test_terrain_coverage_rejects_oversized_work() -> None:
+    try:
+        measure_terrain_coverage(
+            _layout(),
+            TerrainCoverageRequest(
+                feature_id="wall-feature",
+                source_region=Region(x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0),
+                target_grid=GridSpec(x_min=0.0, y_min=0.0, x_max=10.0, y_max=10.0, step=0.01),
+            ),
+        )
+    except AnalysisRequestTooLarge as exc:
+        assert "too many" in str(exc)
+    else:
+        raise AssertionError("accepted oversized terrain coverage request")

@@ -1,3 +1,5 @@
+from math import floor, isfinite
+
 from pydantic import Field, FiniteFloat, model_validator
 from shapely.geometry import Point as ShapelyPoint
 
@@ -7,6 +9,13 @@ from fortyk_los_backend.domain.models import (
     CanonicalLayout,
     Point,
 )
+
+MAX_REGION_SAMPLES = 50_000
+MAX_LOS_EVALUATIONS = 1_000_000
+
+
+class AnalysisRequestTooLarge(ValueError):
+    """Raised when a requested analysis would exceed local interactive limits."""
 
 
 class Region(CanonicalBaseModel):
@@ -94,6 +103,11 @@ def generate_firing_lane_heatmap(
         source for source in source_samples if _is_valid_analysis_point(layout, source)
     )
     target_samples = _sample_region(target_grid, target_grid.step)
+    _require_pair_work_within_limit(
+        "firing lane heatmap",
+        len(valid_source_samples),
+        len(target_samples),
+    )
     cells: list[HeatmapCell] = []
 
     for target in target_samples:
@@ -150,6 +164,11 @@ def measure_deployment_exposure(
         and _is_valid_analysis_point(layout, sample)
     ]
     threat_samples = _sample_region(request.threat_region, request.sample_step)
+    _require_pair_work_within_limit(
+        "deployment exposure",
+        len(reachable_samples),
+        len(threat_samples),
+    )
     reachable_cells: list[ExposureCell] = []
     for sample in reachable_samples:
         exposed = any(
@@ -176,6 +195,11 @@ def measure_terrain_coverage(
         raise ValueError(f"Terrain feature not found: {request.feature_id}")
     source_samples = _sample_region(request.source_region, request.target_grid.step)
     target_samples = _sample_region(request.target_grid, request.target_grid.step)
+    _require_pair_work_within_limit(
+        "terrain coverage",
+        len(source_samples),
+        len(target_samples),
+    )
     without_feature = layout.model_copy(
         update={
             "blockers": tuple(
@@ -269,12 +293,29 @@ def _terrain_coverage_cells(
 def _sample_region(region: Region, step: float) -> tuple[Point, ...]:
     xs = _sample_axis(region.x_min, region.x_max, step)
     ys = _sample_axis(region.y_min, region.y_max, step)
+    sample_count = len(xs) * len(ys)
+    if sample_count > MAX_REGION_SAMPLES:
+        raise AnalysisRequestTooLarge(
+            f"analysis region has too many samples ({sample_count} > {MAX_REGION_SAMPLES}); "
+            "increase step or narrow the region"
+        )
     return tuple(Point(x=x, y=y) for y in ys for x in xs)
 
 
 def _sample_axis(start: float, stop: float, step: float) -> tuple[float, ...]:
     if step <= 0:
         raise ValueError("step must be positive")
+    estimated_span = (stop - start) / step
+    if not isfinite(estimated_span):
+        raise AnalysisRequestTooLarge(
+            "analysis axis has too many samples; increase step or narrow the region"
+        )
+    estimated_count = floor(estimated_span) + 1
+    if estimated_count > MAX_REGION_SAMPLES:
+        raise AnalysisRequestTooLarge(
+            f"analysis axis has too many samples ({estimated_count} > {MAX_REGION_SAMPLES}); "
+            "increase step or narrow the region"
+        )
     values: list[float] = []
     current = start
     while current <= stop + 1e-9:
@@ -283,3 +324,12 @@ def _sample_axis(start: float, stop: float, step: float) -> tuple[float, ...]:
     if not values or values[-1] != round(stop, 4):
         values.append(round(stop, 4))
     return tuple(values)
+
+
+def _require_pair_work_within_limit(label: str, source_count: int, target_count: int) -> None:
+    pair_count = source_count * target_count
+    if pair_count > MAX_LOS_EVALUATIONS:
+        raise AnalysisRequestTooLarge(
+            f"{label} has too many LOS checks ({pair_count} > {MAX_LOS_EVALUATIONS}); "
+            "increase step or narrow the region"
+        )

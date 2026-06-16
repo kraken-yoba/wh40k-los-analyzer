@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import Field, FiniteFloat, ValidationError
 
 from fortyk_los_backend.domain.analysis import (
+    AnalysisRequestTooLarge,
     GridSpec,
     MovementExposureRequest,
     Region,
@@ -143,12 +144,15 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
 def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str, object]:
     layout = _get_layout_or_404(layout_id)
     _ensure_layout_ready_for_analysis(layout)
-    result = generate_firing_lane_heatmap(
-        layout,
-        source_region=request.source_region,
-        target_grid=request.target_grid,
-        source_step=request.source_step,
-    )
+    try:
+        result = generate_firing_lane_heatmap(
+            layout,
+            source_region=request.source_region,
+            target_grid=request.target_grid,
+            source_step=request.source_step,
+        )
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return dict(jsonable_encoder(result))
 
 
@@ -158,6 +162,8 @@ def deployment_exposure(layout_id: str, request: MovementExposureRequest) -> dic
     _ensure_layout_ready_for_analysis(layout)
     try:
         result = measure_deployment_exposure(layout, request)
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return dict(jsonable_encoder(result))
@@ -180,6 +186,8 @@ def terrain_coverage(
                 target_grid=request.target_grid,
             ),
         )
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return dict(jsonable_encoder(result))
