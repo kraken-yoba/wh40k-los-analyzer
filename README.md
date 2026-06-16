@@ -23,6 +23,14 @@ Official Warhammer PDFs and rules text are third-party source material and are n
 .\scripts\dev.cmd
 ```
 
+The dev server defaults to `http://127.0.0.1:8765` to avoid common local ports.
+Set `FORTYK_LOS_PORT` when another Codex thread or local app is already using that port:
+
+```powershell
+$env:FORTYK_LOS_PORT = "8766"
+.\scripts\dev.cmd
+```
+
 Additional gates are split so public CI stays copyright-safe:
 
 ```powershell

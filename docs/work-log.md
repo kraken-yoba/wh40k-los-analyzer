@@ -28,3 +28,4 @@
 - Added an API regression for illegal base centers so base-aware LOS returns 422 instead of surfacing a server error.
 - Verified the GUI/API checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 74 pytest tests passed.
 - Browser-tested the fixture-backed GUI on `http://127.0.0.1:8000`: dashboard loaded, all three source PDFs showed `hash_match`, map clicks returned `disk-sample-v1` LOS with 289 samples, heatmap/exposure/terrain/export controls returned JSON, mobile-width layout had no horizontal overflow, and there were no browser console errors.
+- Updated the dev launcher to default to `127.0.0.1:8765` and support `FORTYK_LOS_HOST` / `FORTYK_LOS_PORT` overrides so parallel Codex threads can avoid local port collisions.
