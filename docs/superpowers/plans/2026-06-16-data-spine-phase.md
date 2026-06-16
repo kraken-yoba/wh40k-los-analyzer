@@ -18,40 +18,40 @@
 
 ## Phase Steps
 
-- [ ] **Step 1: Add failing schema tests**
+- [x] **Step 1: Add failing schema tests**
   - Test canonical layout models require board dimensions, terrain features, blockers, deployments, provenance, validation status, and schema version.
   - Test invalid coordinates outside board bounds fail validation.
   - Test stable serialization produces identical bytes for equivalent model construction order.
 
-- [ ] **Step 2: Implement canonical Pydantic models**
+- [x] **Step 2: Implement canonical Pydantic models**
   - Add `fortyk_los_backend/domain/models.py`.
   - Include board, point, polygon, line segment, terrain feature, blocker, deployment zone, provenance, warning, validation, review, and layout models.
   - Use explicit units and enum values.
 
-- [ ] **Step 3: Add deterministic serialization and hashing**
+- [x] **Step 3: Add deterministic serialization and hashing**
   - Add fixed precision float normalization.
   - Add canonical JSON bytes export.
   - Add stable SHA-256 layout hash excluding volatile local paths and timestamps.
 
-- [ ] **Step 4: Add source manifest models**
+- [x] **Step 4: Add source manifest models**
   - Add source URL, expected hash, cache filename, source kind, license note, and retrieval status fields.
   - Add public-safe sample manifest entries for the official terrain and rules PDFs using source URLs only.
   - Add hash mismatch and missing-cache status tests.
 
-- [ ] **Step 5: Add validator rules**
+- [x] **Step 5: Add validator rules**
   - Validate board bounds, closed polygons, blocker endpoints, deployment zones, duplicate IDs, missing provenance, and unreviewed warnings.
   - Return structured warning/error records with codes suitable for GUI display.
 
-- [ ] **Step 6: Add synthetic fixtures and goldens**
+- [x] **Step 6: Add synthetic fixtures and goldens**
   - Add a tiny canonical board fixture with known footprints, wall segments, deployments, warnings, and provenance.
   - Add expected canonical JSON and hash outputs.
   - Keep fixtures copyright-safe and independent of official artwork/rules text.
 
-- [ ] **Step 7: Export JSON Schema**
+- [x] **Step 7: Export JSON Schema**
   - Generate deterministic schema files into `schemas/`.
   - Add a test that schema generation is stable and current.
 
-- [ ] **Step 8: Add data-spine API endpoints**
+- [x] **Step 8: Add data-spine API endpoints**
   - Expose fixture layout list, layout detail, validation records, and source manifest status through FastAPI.
   - Add endpoint tests.
 

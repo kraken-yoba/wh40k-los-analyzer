@@ -8,7 +8,10 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $env:UV_CACHE_DIR = Join-Path $repoRoot ".uv-cache"
 
 & "$PSScriptRoot\verify-public.ps1"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 & "$PSScriptRoot\verify-gui.ps1"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $officialRegression = Join-Path $PSScriptRoot "..\backend\tests\test_official_pdf_regression.py"
 if (Test-Path -LiteralPath $officialRegression) {

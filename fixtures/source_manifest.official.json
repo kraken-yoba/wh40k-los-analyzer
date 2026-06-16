@@ -1,0 +1,20 @@
+{
+  "documents": [
+    {
+      "cache_path": "data/pdfs/terrainareafootprints.pdf",
+      "document_id": "terrain-layouts-2026-06-12",
+      "expected_sha256": "abda484efe1e3031a92079053594a8b933a6ac429b899151f39ce8d51cbb9189",
+      "kind": "terrain_layouts",
+      "redistribution": "do-not-commit",
+      "url": "https://assets.warhammer-community.com/eng_12-06_warhammer40000_terrainareafootprints-biavo5zf9f-gxdahkydbj.pdf"
+    },
+    {
+      "cache_path": "data/pdfs/core_rules.pdf",
+      "document_id": "core-rules-2026-06-01",
+      "expected_sha256": "f6a2443a44627ac5f0ef08407d29aa5ec7e97339998f05bc35f3ae37bf276833",
+      "kind": "rules",
+      "redistribution": "do-not-commit",
+      "url": "https://assets.warhammer-community.com/eng_01-06_warhammer40k_new40k_core_rules-was6fbu1ix-hfewhmxyiy.pdf"
+    }
+  ]
+}

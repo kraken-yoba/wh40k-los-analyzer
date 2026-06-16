@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "SourceDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_path": {
+          "format": "path",
+          "title": "Cache Path",
+          "type": "string"
+        },
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "expected_sha256": {
+          "title": "Expected Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind"
+        },
+        "redistribution": {
+          "title": "Redistribution",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "kind",
+        "url",
+        "expected_sha256",
+        "cache_path",
+        "redistribution"
+      ],
+      "title": "SourceDocument",
+      "type": "object"
+    },
+    "SourceKind": {
+      "enum": [
+        "terrain_layouts",
+        "rules"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/SourceDocument"
+      },
+      "title": "Documents",
+      "type": "array"
+    }
+  },
+  "required": [
+    "documents"
+  ],
+  "title": "SourceManifest",
+  "type": "object"
+}

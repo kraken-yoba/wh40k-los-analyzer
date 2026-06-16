@@ -11,3 +11,5 @@
 - Verified the Python-only checkpoint with Ruff, mypy, pytest, and whitespace checks.
 - Ran consultant subagents for extraction/data spine, LOS/math, and UX/release evidence. Key adjustment: implement a synthetic canonical data spine and fixture-first GUI before official-PDF extraction.
 - Split verification intent into public, GUI, and full-local gates so public CI stays copyright-safe while final release can require the pinned official-PDF cache.
+- Implemented the first deterministic data-spine slice: canonical layout models, source manifest models, stable canonical JSON and layout hashing, schema export, synthetic layout fixture, public-safe official source manifest, and FastAPI endpoints for layouts and source status.
+- Verified the data-spine checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 17 pytest tests passed.
