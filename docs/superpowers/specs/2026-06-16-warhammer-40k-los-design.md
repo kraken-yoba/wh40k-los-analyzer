@@ -94,6 +94,8 @@ Each source PDF must be pinned in `pdf_manifest.json` before extraction. The man
 
 Extraction must fail closed on hash mismatch unless the manifest is intentionally updated. CI must use cached PDFs from the manifest and run without network access.
 
+Public repository workflows must not assume the official PDF binaries can be redistributed. The default public repo should commit source URLs, hashes, schemas, deterministic code, synthetic fixtures, and copyright-safe golden outputs. Official PDFs belong in a gitignored local cache or a private/manual CI cache unless redistribution is explicitly permitted. The full release gate still requires running official-PDF extraction regression against the pinned cache.
+
 ## Canonical Data Model
 
 Each extracted layout should be stored as versioned canonical JSON with sorted keys, fixed float precision, explicit units, required status enums, and `schema_version`. The backend must generate JSON Schema from Pydantic models, and the frontend must consume mirrored or generated Zod schemas.
@@ -287,6 +289,39 @@ The app must export reproducible analysis bundles containing:
 - PDF hashes, render profile, render DPI, tolerance config, sampling grid, and random seed if any.
 - Derived heatmap/exposure arrays or raster tiles when generated.
 - Optional PNG/SVG overlay snapshots for QA review.
+
+## Project Infrastructure
+
+The project should be set up as a public-ready monorepo after the spec is approved and the implementation plan is written.
+
+Repository layout:
+
+- `backend/`: Python FastAPI extraction, validation, geometry, and LOS services.
+- `frontend/`: TypeScript React/Vite local GUI.
+- `schemas/`: generated JSON Schema and shared schema documentation.
+- `fixtures/`: synthetic fixtures, small copyright-safe regression inputs, expected JSON, and expected overlay snapshots.
+- `scripts/`: cross-platform setup, download, extraction, verification, and dev-server entry points.
+- `docs/`: design specs, implementation plans, source-manifest notes, and user-facing methodology.
+- `.github/workflows/`: CI workflows for public-safe checks and optional/manual full fixture regression.
+- `.env.example`: documented optional environment variables, including any vision-verifier provider settings.
+
+Coding tools:
+
+- Python dependency management should use `uv` with a checked-in `uv.lock`.
+- Python quality gates should include Ruff formatting/linting, mypy type checks, pytest, coverage reporting, and schema-generation checks.
+- Frontend dependency management should use npm with a checked-in `package-lock.json`.
+- Frontend quality gates should include TypeScript type checks, ESLint, Prettier, Vitest unit tests, and Playwright GUI tests.
+- Repository-level commands should provide one obvious setup command, one dev command, one deterministic verification command, and one full local release-gate command.
+- Generated caches, downloaded PDFs, rendered pages, heatmap rasters, model responses, and temporary analysis outputs must be ignored by git unless they are intentional fixtures.
+
+GitHub repository:
+
+- Create a public GitHub repository only after the user confirms the owner, repository name, license, and whether the repo should publish immediately or start private and be made public later.
+- Default branch should be `main`.
+- The public repository should include a README that explains the deterministic extraction approach, source-PDF policy, local setup, verification commands, and current limitations.
+- The public repository should include a code license for project code, and a separate notice that official Warhammer PDFs and rules text are third-party source material not owned by the project.
+- GitHub Actions should run public-safe CI on every push and pull request. Full official-PDF regression should run locally or as a manually triggered workflow only when the pinned PDFs are available through an allowed cache.
+- Draft releases should include source code, generated schemas, and reproducible methodology, not third-party PDF binaries.
 
 ## Testing And Verification
 
