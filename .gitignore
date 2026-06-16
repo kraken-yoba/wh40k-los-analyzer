@@ -30,6 +30,7 @@ data/outputs/
 .env.*
 !.env.example
 vision-cache/
+.tmp/
 
 # Superpowers local worktrees / mockups
 .worktrees/

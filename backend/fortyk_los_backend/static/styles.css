@@ -1,27 +1,157 @@
 :root {
-  color: #202124;
-  background: #f7f5ef;
+  color: #1f2528;
+  background: #f4f1eb;
   font-family: Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
 }
 
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #33434a;
+  background: #263941;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #36505a;
+}
+
 .app-shell {
-  max-width: 1120px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 20px;
+}
+
+.topbar,
+.controls,
+.workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.topbar {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 28px;
+}
+
+h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+#status {
+  margin-top: 4px;
+  color: #5b6469;
+}
+
+.controls {
+  grid-template-columns: minmax(180px, 1fr) repeat(2, 150px) repeat(3, auto);
+  align-items: end;
+  margin: 18px 0;
+  padding: 12px 0;
+  border-top: 1px solid #cbc4b8;
+  border-bottom: 1px solid #cbc4b8;
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  color: #465058;
+  font-size: 13px;
+}
+
+select,
+input {
+  min-height: 38px;
+  border: 1px solid #a8a197;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #1f2528;
+  padding: 8px;
+}
+
+.workspace {
+  grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr);
+  align-items: start;
 }
 
 .board-frame {
-  border: 1px solid #79756d;
-  background: #fffdf7;
-  max-width: 440px;
+  border: 1px solid #686f64;
+  background: #fffdf8;
+  width: min(100%, 640px);
 }
 
 #board-canvas {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.side-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.side-panel section {
+  border-top: 1px solid #cbc4b8;
+  padding-top: 12px;
+}
+
+.dense-list {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.dense-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #e1dcd2;
+}
+
+pre {
+  margin: 0;
+  min-height: 86px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #fffdf8;
+  border: 1px solid #d6d0c5;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .topbar,
+  .controls,
+  .workspace {
+    grid-template-columns: 1fr;
+  }
 }

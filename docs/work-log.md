@@ -24,3 +24,7 @@
 - Ran LOS re-review. The reviewer found non-standard JSON numeric tokens could still cause 500 responses or bypass optional field validation.
 - Fixed API-boundary non-finite numeric handling with finite request fields and sanitized validation errors. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 72 pytest tests passed.
 - Added the Warhammer 40,000 Event Companion PDF to the public-safe official source manifest after the user noted it contains map layouts. The PDF remains only in the gitignored local cache; the committed manifest stores its URL and SHA-256 hash.
+- Built the first fixture-backed local GUI with layout/source status, validation status, canvas board rendering, click-on-map base-aware LOS, heatmap, deployment exposure, terrain coverage, and export controls.
+- Added an API regression for illegal base centers so base-aware LOS returns 422 instead of surfacing a server error.
+- Verified the GUI/API checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 74 pytest tests passed.
+- Browser-tested the fixture-backed GUI on `http://127.0.0.1:8000`: dashboard loaded, all three source PDFs showed `hash_match`, map clicks returned `disk-sample-v1` LOS with 289 samples, heatmap/exposure/terrain/export controls returned JSON, mobile-width layout had no horizontal overflow, and there were no browser console errors.

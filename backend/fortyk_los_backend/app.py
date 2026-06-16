@@ -124,6 +124,8 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
                 status_code=422,
                 detail=_sanitize_validation_errors(exc.errors()),
             ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     else:
         result = compute_point_los(layout, los_request)
 

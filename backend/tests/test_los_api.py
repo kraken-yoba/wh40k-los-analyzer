@@ -76,6 +76,23 @@ def test_los_api_rejects_invalid_base_sampling() -> None:
     assert response.status_code == 422
 
 
+def test_base_aware_los_api_rejects_illegal_base_center_without_500() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/los",
+        json={
+            "source": {"x": 0.1, "y": 20.0},
+            "target": {"x": 42.0, "y": 20.0},
+            "source_base_diameter": 1.26,
+            "target_base_diameter": 1.26,
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "source base center is not legal"
+
+
 def test_los_api_rejects_non_finite_base_diameter_without_500() -> None:
     client = TestClient(app)
 
