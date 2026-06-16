@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Local source assets and generated outputs
+.cache/
+data/cache/
+data/pdfs/
+data/renders/
+data/outputs/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.tiff
+
+# Vision verifier and local env
+.env
+.env.*
+!.env.example
+vision-cache/
+
+# Superpowers local worktrees / mockups
+.worktrees/
+.superpowers/
