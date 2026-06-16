@@ -139,6 +139,185 @@ def test_los_api_blocks_unreviewed_extracted_event_companion_layout(
     assert "placement_proxy_not_los_ready" in response.json()["detail"]["record_codes"]
 
 
+def test_accepting_validation_warnings_unblocks_analysis_with_degraded_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    detail_response = client.get("/api/layouts/event-companion-page-1")
+    warning_codes = [
+        record["code"]
+        for record in detail_response.json()["layout"]["validation_records"]
+        if record["severity"] == "warning"
+    ]
+    assert warning_codes
+
+    blocked_response = client.post(
+        "/api/layouts/event-companion-page-1/los",
+        json={
+            "source": {"x": 2.0, "y": 40.0},
+            "target": {"x": 42.0, "y": 40.0},
+        },
+    )
+    assert blocked_response.status_code == 409
+
+    current_layout_hash = detail_response.json()["layout_hash"]
+    for warning_code in warning_codes:
+        accept_response = client.post(
+            f"/api/layouts/event-companion-page-1/validation/{warning_code}/accept",
+            json={"layout_hash": current_layout_hash},
+        )
+        assert accept_response.status_code == 200
+        assert accept_response.json()["layout"]["validation_status"] == "warning"
+        current_layout_hash = accept_response.json()["layout_hash"]
+
+    ready_response = client.post(
+        "/api/layouts/event-companion-page-1/los",
+        json={
+            "source": {"x": 2.0, "y": 40.0},
+            "target": {"x": 42.0, "y": 40.0},
+        },
+    )
+
+    assert ready_response.status_code == 200
+    payload = ready_response.json()
+    assert payload["validation_state"] == {
+        "status": "accepted_with_warnings",
+        "accepted_warning_codes": warning_codes,
+        "unresolved_warning_codes": [],
+    }
+
+    accepted_detail_response = client.get("/api/layouts/event-companion-page-1")
+    accepted_records = {
+        record["code"]: record["review_status"]
+        for record in accepted_detail_response.json()["layout"]["validation_records"]
+        if record["severity"] == "warning"
+    }
+    assert accepted_records == {code: "accepted" for code in warning_codes}
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "payload"),
+    [
+        (
+            "/api/layouts/event-companion-page-1/los",
+            {
+                "source": {"x": 2.0, "y": 40.0},
+                "target": {"x": 42.0, "y": 40.0},
+            },
+        ),
+        (
+            "/api/layouts/event-companion-page-1/heatmap",
+            {
+                "source_region": {"x_min": 0, "y_min": 0, "x_max": 44, "y_max": 10},
+                "source_step": 10,
+                "target_grid": {"x_min": 2, "y_min": 4, "x_max": 42, "y_max": 24, "step": 10},
+            },
+        ),
+        (
+            "/api/layouts/event-companion-page-1/exposure",
+            {
+                "deployment_zone_id": "attacker",
+                "movement_distance": 2,
+                "threat_region": {"x_min": 42, "y_min": 20, "x_max": 42, "y_max": 20},
+                "sample_step": 10,
+            },
+        ),
+        (
+            "/api/layouts/event-companion-page-1/terrain/terrain-01/coverage",
+            {
+                "source_region": {"x_min": 2, "y_min": 4, "x_max": 2, "y_max": 4},
+                "target_grid": {"x_min": 42, "y_min": 4, "x_max": 42, "y_max": 4, "step": 1},
+            },
+        ),
+    ],
+)
+def test_accepted_warning_state_gates_all_analysis_endpoints(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    endpoint: str,
+    payload: dict[str, object],
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    detail_response = client.get("/api/layouts/event-companion-page-1")
+    warning_codes = [
+        record["code"]
+        for record in detail_response.json()["layout"]["validation_records"]
+        if record["severity"] == "warning"
+    ]
+    current_layout_hash = detail_response.json()["layout_hash"]
+
+    blocked_response = client.post(endpoint, json=payload)
+    assert blocked_response.status_code == 409
+
+    first_accept_response = client.post(
+        f"/api/layouts/event-companion-page-1/validation/{warning_codes[0]}/accept",
+        json={"layout_hash": current_layout_hash},
+    )
+    assert first_accept_response.status_code == 200
+    current_layout_hash = first_accept_response.json()["layout_hash"]
+
+    still_blocked_response = client.post(endpoint, json=payload)
+    assert still_blocked_response.status_code == 409
+    assert still_blocked_response.json()["detail"]["record_codes"] == warning_codes[1:]
+    assert still_blocked_response.json()["detail"]["accepted_warning_codes"] == [
+        warning_codes[0]
+    ]
+
+    for warning_code in warning_codes[1:]:
+        accept_response = client.post(
+            f"/api/layouts/event-companion-page-1/validation/{warning_code}/accept",
+            json={"layout_hash": current_layout_hash},
+        )
+        assert accept_response.status_code == 200
+        current_layout_hash = accept_response.json()["layout_hash"]
+
+    ready_response = client.post(endpoint, json=payload)
+    assert ready_response.status_code == 200
+    assert ready_response.json()["validation_state"]["status"] == "accepted_with_warnings"
+    assert ready_response.json()["validation_state"]["accepted_warning_codes"] == warning_codes
+    assert ready_response.json()["validation_state"]["unresolved_warning_codes"] == []
+
+
+def test_accept_validation_warning_requires_current_layout_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/event-companion-page-1/validation/placement_proxy_not_los_ready/accept",
+        json={"layout_hash": "0" * 64},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["status"] == "layout_hash_mismatch"
+
+
+def test_accept_validation_warning_rejects_missing_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/event-companion-page-1/validation/placement_proxy_not_los_ready/accept",
+        json={},
+    )
+
+    assert response.status_code == 422
+
+
 def test_terrain_footprint_evidence_api_returns_hash_matched_outlines(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

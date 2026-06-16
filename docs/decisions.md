@@ -137,6 +137,19 @@ Consequences:
 - Vision status is exposed as `not_run` until a credential-gated model verifier is added.
 - Browser evidence and tests must verify the Sanity panel separately from canonical extraction and LOS analysis.
 
+## 2026-06-16: Accepted Warnings Keep Analysis Degraded
+
+Decision: Let the local GUI accept validation warnings in memory so reviewers can intentionally run analysis on warning-state extracted layouts, while preserving degraded status in validation records and analysis responses.
+
+Reasoning: Official extraction still contains provisional footprint and wall semantics. A fail-closed default protects users from accidental overtrust, but the product also needs an auditable path to inspect strategy views once those warnings are consciously accepted. Keeping acceptance local and visible makes the workflow reversible by refresh/restart and avoids writing review decisions into the official PDF cache.
+
+Consequences:
+
+- Clean layouts keep the existing API response shape; degraded analysis responses include `validation_state`.
+- Acceptance requests must include the current visible layout hash and are rejected if the layout snapshot has changed.
+- Accepted warnings unblock LOS, heatmap, exposure, and terrain metrics only after every warning on the layout is accepted.
+- Layouts with accepted warnings keep `validation_status: warning` and show `accepted_with_warnings` in the GUI.
+
 ## 2026-06-16: Bounded Interactive Analysis Work
 
 Decision: Cap sampled analysis regions and pairwise LOS workloads before running heatmap, exposure, or terrain-coverage analysis.

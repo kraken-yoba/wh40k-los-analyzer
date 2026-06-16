@@ -16,7 +16,7 @@ from fortyk_los_backend.domain.manifest import (
     SourceKind,
     SourceManifest,
 )
-from fortyk_los_backend.domain.models import CanonicalLayout
+from fortyk_los_backend.domain.models import CanonicalLayout, ReviewStatus, ValidationSeverity
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 from fortyk_los_backend.domain.visual_sanity import (
     EventCompanionVisualSanityReport,
@@ -31,6 +31,7 @@ class FixtureRepository:
         self._layout_dir = repo_root / "fixtures" / "layouts"
         self._source_manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
         self._terrain_footprint_template_cache: tuple[TerrainFootprintTemplate, ...] | None = None
+        self._accepted_validation_records: dict[tuple[str, str], set[str]] = {}
 
     def list_layouts(self) -> list[dict[str, str]]:
         layouts: list[dict[str, str]] = []
@@ -51,7 +52,7 @@ class FixtureRepository:
         for layout_path in sorted(self._layout_dir.glob("*.layout.json")):
             layout = self.load_layout_by_path(layout_path)
             if layout.layout_id == layout_id:
-                return layout
+                return self._apply_accepted_validation_records(layout)
         return self.get_extracted_layout(layout_id)
 
     def list_extracted_layouts(self) -> list[dict[str, str]]:
@@ -87,12 +88,44 @@ class FixtureRepository:
         footprint_templates = self._terrain_footprint_templates()
         for page in list_event_companion_layout_pages(event_document_path):
             if page.layout_id == layout_id:
-                return extract_event_companion_layout(
+                layout = extract_event_companion_layout(
                     event_document_path,
                     page_number=page.page_number,
                     footprint_templates=footprint_templates,
                 )
+                return self._apply_accepted_validation_records(layout)
         return None
+
+    def accept_validation_record(
+        self,
+        layout_id: str,
+        record_code: str,
+        *,
+        layout_hash: str,
+    ) -> CanonicalLayout | None:
+        layout = self.get_layout(layout_id)
+        if layout is None:
+            return None
+        if stable_layout_hash(layout) != layout_hash:
+            raise StaleLayoutAcceptanceError(layout_id)
+
+        record = next(
+            (candidate for candidate in layout.validation_records if candidate.code == record_code),
+            None,
+        )
+        if record is None:
+            raise ValueError(f"Validation record not found: {record_code}")
+        if record.severity != ValidationSeverity.WARNING:
+            raise ValueError(f"Only warning validation records can be accepted: {record_code}")
+
+        review_scope_hash = _review_scope_hash(layout)
+        self._accepted_validation_records.setdefault((layout_id, review_scope_hash), set()).add(
+            record_code
+        )
+        accepted_layout = self.get_layout(layout_id)
+        if accepted_layout is None:
+            raise RuntimeError(f"Accepted layout disappeared: {layout_id}")
+        return accepted_layout
 
     def footprint_match_evidence(self, layout_id: str) -> dict[str, object] | None:
         layout = self.get_layout(layout_id)
@@ -215,6 +248,39 @@ class FixtureRepository:
             if document.kind == kind:
                 return document, statuses[document.document_id]
         return None
+
+    def _apply_accepted_validation_records(self, layout: CanonicalLayout) -> CanonicalLayout:
+        accepted_codes = self._accepted_validation_records.get(
+            (layout.layout_id, _review_scope_hash(layout)),
+            set(),
+        )
+        if not accepted_codes:
+            return layout
+
+        records = tuple(
+            record.model_copy(update={"review_status": ReviewStatus.ACCEPTED})
+            if record.code in accepted_codes and record.severity == ValidationSeverity.WARNING
+            else record
+            for record in layout.validation_records
+        )
+        return layout.model_copy(update={"validation_records": records})
+
+
+class StaleLayoutAcceptanceError(ValueError):
+    def __init__(self, layout_id: str) -> None:
+        super().__init__(f"Layout hash does not match current layout: {layout_id}")
+
+
+def _review_scope_hash(layout: CanonicalLayout) -> str:
+    review_scope_records = tuple(
+        record.model_copy(update={"review_status": ReviewStatus.UNREVIEWED})
+        if record.severity == ValidationSeverity.WARNING
+        else record
+        for record in layout.validation_records
+    )
+    return stable_layout_hash(
+        layout.model_copy(update={"validation_records": review_scope_records})
+    )
 
 
 def _unavailable_visual_sanity(layout: CanonicalLayout) -> dict[str, object]:

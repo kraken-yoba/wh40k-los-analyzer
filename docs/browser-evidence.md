@@ -13,6 +13,7 @@ Provisional blocker GUI run: 2026-06-16 on isolated port `http://127.0.0.1:18770
 Dense blocker/category GUI run: 2026-06-16 on isolated port `http://127.0.0.1:18771`; temporary server was stopped afterward.
 Visual sanity GUI run: 2026-06-16 on isolated port `http://127.0.0.1:18772`; temporary server was stopped afterward.
 Visual sanity review-fix GUI run: 2026-06-16 on isolated port `http://127.0.0.1:18775`; temporary server was stopped afterward.
+Accepted-warning workflow run: 2026-06-16 on isolated port `http://127.0.0.1:18777`; temporary server was stopped afterward.
 
 | Workflow | Fixture/Input | Endpoint/State | Playwright Test | Browser Evidence | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +29,7 @@ Visual sanity review-fix GUI run: 2026-06-16 on isolated port `http://127.0.0.1:
 | Extraction inspection | Event Companion page 9 from local hash-matched cache | `/api/layouts/event-companion-page-9` | `backend/tests/domain/test_event_companion_extraction.py`, `backend/tests/test_data_spine_api.py` | Browser loaded `Layout A`, rendered extraction/warning records, listed 45 extracted Event Companion layouts, and showed `Layout A (extracted warning)` with source document, page, and extraction method | Pass |
 | PDF underlay and overlays | Synthetic rendered page | Pending | Pending | Pending | Pending |
 | Feature provenance | Synthetic terrain feature | Pending | Pending | Pending | Pending |
-| Accepted warning state | Synthetic warning fixture | Pending | Pending | Pending | Pending |
+| Accepted warning state | Event Companion page 9 warning-state extraction | `/api/layouts/event-companion-page-9/validation/{code}/accept`, `/heatmap` | `backend/tests/test_data_spine_api.py` covers hash-bound acceptance and degraded analysis; `backend/tests/test_gui.py` covers client wiring | Browser selected page 9, accepted all five unresolved warning records from the validation panel through current-hash `Accept warning` controls, confirmed each warning rendered as `accepted_with_warnings`, ran Heatmap successfully, and the analysis JSON included `validation_state.status: accepted_with_warnings`; console errors were empty and there was no horizontal overflow | Pass |
 | Layout and deployment selection | Synthetic layout set | `/api/layouts`, `/api/layouts/synthetic-alpha` | `backend/tests/test_data_spine_api.py` | Browser selected `Synthetic Alpha` and rendered validation record `synthetic_fixture` | Pass |
 | Point LOS click | Synthetic blocker layout | `/api/layouts/synthetic-alpha/los` | `backend/tests/test_los_api.py` | Canvas click workflow selected two board points and populated LOS JSON | Pass |
 | Base-aware LOS | Synthetic blocker layout | `/api/layouts/synthetic-alpha/los` | `backend/tests/test_los_api.py` | Click workflow returned `method: disk-sample-v1`, `sample_count: 289`, `visible: true` | Pass |

@@ -77,6 +77,33 @@ def test_client_script_renders_layout_metadata() -> None:
     assert "source_document_id" in script
 
 
+def test_client_script_renders_validation_acceptance_controls() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function acceptValidationWarning" in script
+    assert "/validation/" in script
+    assert "/accept" in script
+    assert "layout_hash: state.layoutHash" in script
+    assert "Accept warning" in script
+    assert "review_status" in script
+    assert "accepted_with_warnings" in script
+
+
+def test_client_script_accepts_validation_warning_without_full_layout_reload() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    accept_body = script.split("async function acceptValidationWarning(recordCode)", 1)[1].split(
+        "async function loadLayout(layoutId)", 1
+    )[0]
+
+    assert "await postJson" in accept_body
+    assert "renderValidation()" in accept_body
+    assert "loadLayout(state.layout.layout_id)" not in accept_body
+
+
 def test_client_script_renders_terrain_footprint_evidence() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"

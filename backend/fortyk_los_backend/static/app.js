@@ -281,8 +281,42 @@ function renderValidation() {
     return;
   }
   for (const record of records) {
-    appendDenseItem(validationPanel, record.code, record.severity);
+    const item = window.document.createElement("div");
+    const labelNode = window.document.createElement("span");
+    const valueNode = window.document.createElement("strong");
+    const reviewStatus =
+      record.review_status === "accepted" ? "accepted_with_warnings" : record.review_status;
+    item.className = "dense-item validation-item";
+    labelNode.textContent = record.code;
+    valueNode.textContent = `${record.severity} ${reviewStatus || "not_required"}`;
+    item.append(labelNode, valueNode);
+    if (record.severity === "warning" && record.review_status !== "accepted") {
+      const acceptButton = window.document.createElement("button");
+      acceptButton.type = "button";
+      acceptButton.textContent = "Accept warning";
+      acceptButton.addEventListener("click", () => {
+        void runPanelAction(validationPanel, async () => {
+          await acceptValidationWarning(record.code);
+        });
+      });
+      item.appendChild(acceptButton);
+    }
+    validationPanel.appendChild(item);
   }
+}
+
+async function acceptValidationWarning(recordCode) {
+  if (!state.layout) return;
+  const payload = await postJson(
+    `/api/layouts/${state.layout.layout_id}/validation/${encodeURIComponent(recordCode)}/accept`,
+    { layout_hash: state.layoutHash },
+  );
+  state.layout = payload.layout;
+  state.layoutHash = payload.layout_hash;
+  losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
+  renderLayoutMetadata();
+  renderValidation();
+  renderBoard();
 }
 
 async function loadLayout(layoutId) {
