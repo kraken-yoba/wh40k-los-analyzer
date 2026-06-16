@@ -3,11 +3,13 @@ const context = canvas.getContext("2d");
 const layoutSelect = document.querySelector("#layout-select");
 const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
+const footprintEvidence = document.querySelector("#footprint-evidence");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
 const analysisResult = document.querySelector("#analysis-result");
 const baseDiameter = document.querySelector("#base-diameter");
 const movementDistance = document.querySelector("#movement-distance");
+const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
 
 const state = {
   layout: null,
@@ -159,6 +161,29 @@ function renderSources(payload) {
   }
 }
 
+function renderFootprintEvidence(payload) {
+  footprintEvidence.replaceChildren();
+  const cacheStatus = payload.cache_status ? payload.cache_status.status : "unavailable";
+  appendDenseItem(footprintEvidence, "Status", cacheStatus);
+  appendDenseItem(
+    footprintEvidence,
+    "Method",
+    payload.extraction_method || FOOTPRINT_EXTRACTION_METHOD,
+  );
+  appendDenseItem(footprintEvidence, "Outlines", String(payload.outlines.length));
+  for (const outline of payload.outlines) {
+    appendDenseItem(
+      footprintEvidence,
+      outline.footprint_id,
+      `p${outline.page_number} ${formatBounds(outline.bounds)}`,
+    );
+  }
+}
+
+function formatBounds(bounds) {
+  return bounds.map((value) => Number(value).toFixed(1)).join(", ");
+}
+
 function renderLayoutMetadata() {
   layoutMetadata.replaceChildren();
   if (!state.layout) return;
@@ -194,8 +219,13 @@ async function loadLayout(layoutId) {
 }
 
 async function initialize() {
-  const [layouts, sources] = await Promise.all([getJson("/api/layouts"), getJson("/api/sources")]);
+  const [layouts, sources, footprints] = await Promise.all([
+    getJson("/api/layouts"),
+    getJson("/api/sources"),
+    getJson("/api/extraction/terrain-footprints"),
+  ]);
   renderSources(sources);
+  renderFootprintEvidence(footprints);
   layoutSelect.replaceChildren();
   for (const layout of layouts.layouts) {
     const option = window.document.createElement("option");

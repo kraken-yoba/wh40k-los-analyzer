@@ -199,6 +199,11 @@ def source_status() -> dict[str, list[dict[str, object]]]:
     return {"documents": documents}
 
 
+@app.get("/api/extraction/terrain-footprints")
+def terrain_footprint_evidence() -> dict[str, object]:
+    return dict(jsonable_encoder(fixtures.terrain_footprint_evidence()))
+
+
 def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
     layout = fixtures.get_layout(layout_id)
     if layout is None:

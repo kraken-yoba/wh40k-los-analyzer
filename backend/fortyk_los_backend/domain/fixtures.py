@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fortyk_los_backend.domain.extraction import (
     extract_event_companion_layout,
+    extract_terrain_footprint_outlines,
     list_event_companion_layout_pages,
 )
 from fortyk_los_backend.domain.manifest import CacheStatus, SourceKind, SourceManifest
@@ -72,6 +73,36 @@ class FixtureRepository:
                     page_number=page.page_number,
                 )
         return None
+
+    def terrain_footprint_evidence(self) -> dict[str, object]:
+        manifest = self.source_manifest()
+        statuses = {
+            status.document_id: status
+            for status in manifest.cache_statuses(repo_root=self._repo_root)
+        }
+        for document in manifest.documents:
+            if document.kind != SourceKind.TERRAIN_LAYOUTS:
+                continue
+            status = statuses[document.document_id]
+            outlines = []
+            if status.status == CacheStatus.HASH_MATCH:
+                outlines = list(
+                    extract_terrain_footprint_outlines(
+                        (self._repo_root / document.cache_path).resolve()
+                    )
+                )
+            return {
+                "source_document_id": document.document_id,
+                "cache_status": status,
+                "extraction_method": "terrain-footprint-vector-v1",
+                "outlines": outlines,
+            }
+        return {
+            "source_document_id": None,
+            "cache_status": None,
+            "extraction_method": "terrain-footprint-vector-v1",
+            "outlines": [],
+        }
 
     def load_layout_by_path(self, layout_path: Path) -> CanonicalLayout:
         return CanonicalLayout.model_validate_json(layout_path.read_text(encoding="utf-8"))

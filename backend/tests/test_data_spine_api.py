@@ -137,6 +137,32 @@ def test_los_api_blocks_unreviewed_extracted_event_companion_layout(
     assert "placement_proxy_not_los_ready" in response.json()["detail"]["record_codes"]
 
 
+def test_terrain_footprint_evidence_api_returns_hash_matched_outlines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_terrain_footprint_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/extraction/terrain-footprints")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source_document_id"] == "terrain-layouts-2026-06-12"
+    assert payload["cache_status"]["status"] == "hash_match"
+    assert payload["extraction_method"] == "terrain-footprint-vector-v1"
+    assert payload["outlines"] == [
+        {
+            "bounds": [100.0, 100.0, 400.0, 420.0],
+            "footprint_id": "terrain-footprint-p1-01",
+            "page_number": 1,
+            "path_command_count": 1,
+            "point_count": 4,
+        }
+    ]
+
+
 def _write_temp_event_companion_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
     pdf_path.parent.mkdir(parents=True)
@@ -177,4 +203,53 @@ def _write_synthetic_event_layout_pdf(pdf_path: Path) -> None:
         width=0.3,
     )
     page.insert_text((158, 185), "AB")
+    document.save(pdf_path)
+
+
+def _write_temp_terrain_footprint_repo(repo_root: Path) -> None:
+    pdf_path = repo_root / "data" / "pdfs" / "terrainareafootprints.pdf"
+    pdf_path.parent.mkdir(parents=True)
+    _write_synthetic_terrain_footprint_pdf(pdf_path)
+    manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "cache_path": "data/pdfs/terrainareafootprints.pdf",
+                        "document_id": "terrain-layouts-2026-06-12",
+                        "expected_sha256": sha256(pdf_path.read_bytes()).hexdigest(),
+                        "kind": "terrain_layouts",
+                        "redistribution": "do-not-commit",
+                        "url": "https://assets.warhammer-community.com/example-terrain.pdf",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_synthetic_terrain_footprint_pdf(pdf_path: Path) -> None:
+    document = fitz.open()
+    page = document.new_page(width=500, height=500)
+    shape = page.new_shape()
+    shape.draw_polyline(
+        [
+            fitz.Point(100, 100),
+            fitz.Point(400, 100),
+            fitz.Point(400, 420),
+            fitz.Point(100, 420),
+            fitz.Point(100, 100),
+        ]
+    )
+    shape.finish(color=(0.0, 0.66, 0.31), width=2.0)
+    shape.commit()
+    page.draw_line(
+        fitz.Point(20, 20),
+        fitz.Point(35, 20),
+        color=(0.0, 0.66, 0.31),
+        width=2.0,
+    )
     document.save(pdf_path)

@@ -29,6 +29,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="base-diameter"',
         'id="board-canvas"',
         'id="source-status"',
+        'id="footprint-evidence"',
         'id="layout-metadata"',
         'id="validation-panel"',
         'id="los-result"',
@@ -60,6 +61,17 @@ def test_client_script_renders_layout_metadata() -> None:
     assert "function renderLayoutMetadata" in script
     assert "validation_status" in script
     assert "source_document_id" in script
+
+
+def test_client_script_renders_terrain_footprint_evidence() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const footprintEvidence" in script
+    assert "function renderFootprintEvidence" in script
+    assert "/api/extraction/terrain-footprints" in script
+    assert "terrain-footprint-vector-v1" in script
 
 
 def test_client_script_avoids_inner_html_for_api_derived_data() -> None:
