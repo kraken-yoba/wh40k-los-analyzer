@@ -27,6 +27,8 @@ DEFENDER_FILL = (0.000, 0.241, 0.408)
 TERRAIN_FILL = (0.820, 0.826, 0.832)
 TERRAIN_FOOTPRINT_STROKE = (0.000, 0.660, 0.310)
 COLOR_TOLERANCE = 0.035
+# Calibrated against the official terrain footprint PDF: large outline bounds are above
+# 80,000 page units, while decorative green marks are tiny line fragments.
 MIN_TERRAIN_FOOTPRINT_OUTLINE_AREA = 50_000.0
 INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
 
@@ -165,7 +167,17 @@ def extract_terrain_footprint_outlines(pdf_path: Path) -> tuple[TerrainFootprint
                 candidates.append((rect, drawing))
 
             for outline_index, (rect, drawing) in enumerate(
-                sorted(candidates, key=lambda candidate: (candidate[0].y0, candidate[0].x0)),
+                sorted(
+                    candidates,
+                    key=lambda candidate: (
+                        candidate[0].y0,
+                        candidate[0].x0,
+                        candidate[0].y1,
+                        candidate[0].x1,
+                        len(candidate[1].get("items", ())),
+                        _drawing_point_count(candidate[1]),
+                    ),
+                ),
                 start=1,
             ):
                 outlines.append(

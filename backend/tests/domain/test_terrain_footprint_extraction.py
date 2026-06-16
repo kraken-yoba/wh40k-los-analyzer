@@ -46,6 +46,7 @@ def test_extract_terrain_footprint_outlines_from_cached_official_pdf() -> None:
         (3, "terrain-footprint-p3-01"),
     ]
     assert [outline.path_command_count for outline in outlines] == [60, 86, 52, 38, 71]
+    assert [outline.point_count for outline in outlines] == [193, 246, 148, 111, 217]
     assert [outline.bounds for outline in outlines] == [
         pytest.approx((111.5, 74.9, 830.4, 340.7), abs=0.1),
         pytest.approx((288.8, 210.4, 1146.6, 784.0), abs=0.1),
@@ -53,7 +54,6 @@ def test_extract_terrain_footprint_outlines_from_cached_official_pdf() -> None:
         pytest.approx((620.9, 333.1, 1051.5, 527.1), abs=0.1),
         pytest.approx((227.7, 131.3, 1052.8, 676.9), abs=0.1),
     ]
-    assert all(outline.point_count > 10 for outline in outlines)
 
 
 def _write_synthetic_footprints_pdf(pdf_path: Path) -> None:
