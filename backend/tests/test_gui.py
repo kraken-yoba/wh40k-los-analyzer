@@ -33,6 +33,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="source-status"',
         'id="footprint-evidence"',
         'id="footprint-match-evidence"',
+        'id="visual-sanity-evidence"',
         'id="layout-metadata"',
         'id="validation-panel"',
         'id="los-result"',
@@ -97,6 +98,33 @@ def test_client_script_renders_footprint_match_evidence() -> None:
     assert "/footprint-matches" in script
     assert "terrain-footprint-match-v1" in script
     assert "score=" in script
+
+
+def test_client_script_renders_visual_sanity_evidence() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const visualSanityEvidence" in script
+    assert "function renderVisualSanity" in script
+    assert "/visual-sanity" in script
+    assert "event-companion-cv-sanity-v1" in script
+    assert "vision_advisory" in script
+
+
+def test_client_script_keeps_visual_sanity_advisory_fetch_out_of_layout_load_barrier() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_layout_body = script.split("async function loadLayout(layoutId)", 1)[1].split(
+        "async function initialize()", 1
+    )[0]
+    load_layout_barrier = load_layout_body.split("]);", 1)[0]
+
+    assert "/visual-sanity" not in load_layout_barrier
+    assert "async function loadVisualSanity(layoutId)" in script
+    assert "void loadVisualSanity(layoutId);" in load_layout_body
+    assert "renderError(visualSanityEvidence" in script
 
 
 def test_client_script_distinguishes_terrain_categories_and_provisional_blockers() -> None:

@@ -13,12 +13,13 @@ Implemented now:
 - Base-aware 2D LOS using deterministic disk sampling.
 - Event Companion vector extraction for board, deployment zones, terrain placement candidates, and terrain category markers.
 - Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional Dense/Solid wall/blocker segments from matched footprint fragments.
+- Deterministic raster/CV sanity reports that compare extracted Event Companion geometry against rendered PDF page shapes and expose advisory vision-review status.
 - Official extracted layouts remain warning-state and blocked for LOS/heatmap/exposure until footprint/wall semantics are reviewed and accepted.
 
 Not implemented yet:
 
 - Review-accepted LOS-ready official wall/blocker semantics for production analysis.
-- Vision-model sanity checks. Vision output is intended only for advisory verification, not canonical geometry.
+- Live vision-model advisory review of the deterministic CV sanity report. The current app prepares deterministic visual evidence and keeps model output out of canonical geometry.
 - Full 3D-aware LOS. The current scope is base-aware 2D; future builds can add height/3D semantics after the deterministic 2D extraction chain is accepted.
 
 ## Source Policy

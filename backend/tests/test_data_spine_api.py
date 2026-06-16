@@ -284,6 +284,37 @@ def test_footprint_match_evidence_api_returns_404_for_missing_layout() -> None:
     assert response.json()["detail"] == "Layout not found: missing-layout"
 
 
+def test_visual_sanity_api_returns_deterministic_shape_alignment_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/event-companion-page-1/visual-sanity")
+
+    assert response.status_code == 200
+    payload = response.json()
+    checks_by_code = {check["code"]: check for check in payload["checks"]}
+    assert payload["layout_id"] == "event-companion-page-1"
+    assert payload["status"] == "passed"
+    assert payload["extraction_method"] == "event-companion-cv-sanity-v1"
+    assert payload["vision_advisory"]["status"] == "not_run"
+    assert checks_by_code["board_raster_alignment"]["status"] == "passed"
+    assert checks_by_code["deployment_raster_alignment"]["match_count"] == 2
+    assert checks_by_code["terrain_raster_alignment"]["match_count"] == 1
+
+
+def test_visual_sanity_api_returns_404_for_missing_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/missing-layout/visual-sanity")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Layout not found: missing-layout"
+
+
 def _write_temp_event_companion_repo(repo_root: Path) -> None:
     pdf_path = repo_root / "data" / "pdfs" / "event_companion.pdf"
     pdf_path.parent.mkdir(parents=True)

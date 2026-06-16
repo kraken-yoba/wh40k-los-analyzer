@@ -18,6 +18,11 @@ from fortyk_los_backend.domain.manifest import (
 )
 from fortyk_los_backend.domain.models import CanonicalLayout
 from fortyk_los_backend.domain.serialization import stable_layout_hash
+from fortyk_los_backend.domain.visual_sanity import (
+    EventCompanionVisualSanityReport,
+    VisualSanityStatus,
+    run_event_companion_visual_sanity,
+)
 
 
 class FixtureRepository:
@@ -120,6 +125,26 @@ class FixtureRepository:
             "matches": matches,
         }
 
+    def visual_sanity_evidence(
+        self,
+        layout_id: str,
+    ) -> EventCompanionVisualSanityReport | dict[str, object] | None:
+        layout = self.get_layout(layout_id)
+        if layout is None:
+            return None
+        if layout.provenance.extraction_method != "event-companion-vector-v1":
+            return _unavailable_visual_sanity(layout)
+
+        event_document_path = self._hash_matched_event_companion_path()
+        if event_document_path is None:
+            return _unavailable_visual_sanity(layout)
+
+        return run_event_companion_visual_sanity(
+            event_document_path,
+            page_number=layout.provenance.source_page,
+            layout=layout,
+        )
+
     def terrain_footprint_evidence(self) -> dict[str, object]:
         document_status = self._source_document_status(SourceKind.TERRAIN_LAYOUTS)
         if document_status is not None:
@@ -190,3 +215,18 @@ class FixtureRepository:
             if document.kind == kind:
                 return document, statuses[document.document_id]
         return None
+
+
+def _unavailable_visual_sanity(layout: CanonicalLayout) -> dict[str, object]:
+    return {
+        "layout_id": layout.layout_id,
+        "source_page": layout.provenance.source_page,
+        "extraction_method": "event-companion-cv-sanity-v1",
+        "status": VisualSanityStatus.UNAVAILABLE,
+        "checks": [],
+        "vision_advisory": {
+            "status": "not_run",
+            "reason": "Visual sanity checks require a hash-matched Event Companion PDF layout.",
+            "input": "none",
+        },
+    }

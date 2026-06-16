@@ -6,6 +6,7 @@ const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
 const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
+const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
 const analysisResult = document.querySelector("#analysis-result");
@@ -224,6 +225,41 @@ function renderFootprintMatches(payload) {
   }
 }
 
+function renderVisualSanity(payload) {
+  visualSanityEvidence.replaceChildren();
+  appendDenseItem(visualSanityEvidence, "Status", payload.status || "unavailable");
+  appendDenseItem(
+    visualSanityEvidence,
+    "Method",
+    payload.extraction_method || "event-companion-cv-sanity-v1",
+  );
+  const advisoryStatus = payload.vision_advisory ? payload.vision_advisory.status : "not_run";
+  appendDenseItem(visualSanityEvidence, "Vision", advisoryStatus);
+  for (const check of payload.checks || []) {
+    const residual =
+      check.max_residual_inches === null || check.max_residual_inches === undefined
+        ? "n/a"
+        : `${Number(check.max_residual_inches).toFixed(2)}in`;
+    appendDenseItem(
+      visualSanityEvidence,
+      check.code,
+      `${check.status} ${check.match_count}/${check.expected_count} residual=${residual}`,
+    );
+  }
+}
+
+async function loadVisualSanity(layoutId) {
+  visualSanityEvidence.textContent = "Loading sanity evidence.";
+  try {
+    const payload = await getJson(`/api/layouts/${layoutId}/visual-sanity`);
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderVisualSanity(payload);
+  } catch (error) {
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderError(visualSanityEvidence, error);
+  }
+}
+
 function formatBounds(bounds) {
   return bounds.map((value) => Number(value).toFixed(1)).join(", ");
 }
@@ -264,6 +300,7 @@ async function loadLayout(layoutId) {
   renderValidation();
   renderFootprintMatches(matches);
   renderBoard();
+  void loadVisualSanity(layoutId);
 }
 
 async function initialize() {

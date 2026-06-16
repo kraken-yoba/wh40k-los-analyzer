@@ -125,6 +125,18 @@ Consequences:
 - Cubic Bezier fragment commands are tessellated into deterministic path samples rather than treating control points as wall vertices.
 - Official extracted layouts keep `terrain_footprint_blocker_review_required` warnings, so LOS/heatmap/exposure endpoints still fail closed until the review workflow accepts the geometry.
 
+## 2026-06-16: Visual Sanity Is Deterministic CV First
+
+Decision: Add an advisory Event Companion visual sanity report that renders the PDF page, segments raster evidence for board, deployment zones, and terrain features, and compares those shapes against canonical extraction geometry in board-inch residuals. Live vision-model review is a later advisory consumer of this deterministic report, not a source of canonical geometry.
+
+Reasoning: The user explicitly required robust deterministic computer vision and only advisory vision-model verification. A deterministic raster alignment report gives repeatable evidence that the extracted map shape resembles the source PDF image, while avoiding nondeterministic model output in the extraction pipeline.
+
+Consequences:
+
+- The visual sanity endpoint can pass or warn independently of layout readiness; it does not accept review warnings or unblock LOS analysis.
+- Vision status is exposed as `not_run` until a credential-gated model verifier is added.
+- Browser evidence and tests must verify the Sanity panel separately from canonical extraction and LOS analysis.
+
 ## 2026-06-16: Bounded Interactive Analysis Work
 
 Decision: Cap sampled analysis regions and pairwise LOS workloads before running heatmap, exposure, or terrain-coverage analysis.

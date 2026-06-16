@@ -223,6 +223,16 @@ def footprint_match_evidence(layout_id: str) -> dict[str, object]:
     return dict(jsonable_encoder(evidence))
 
 
+@app.get("/api/layouts/{layout_id}/visual-sanity")
+def visual_sanity_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.visual_sanity_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    payload = dict(jsonable_encoder(evidence))
+    payload.pop("layout", None)
+    return payload
+
+
 def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
     layout = fixtures.get_layout(layout_id)
     if layout is None:
