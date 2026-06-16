@@ -55,7 +55,7 @@
   - Expose fixture layout list, layout detail, validation records, and source manifest status through FastAPI.
   - Add endpoint tests.
 
-- [ ] **Step 9: Reviewer gate**
+- [x] **Step 9: Reviewer gate**
   - Run an adversarial data-spine reviewer subagent against models, validation rules, fixtures, and tests.
   - Fix valid findings before moving to LOS.
 

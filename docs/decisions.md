@@ -60,3 +60,16 @@ Consequences:
 - Each GUI workflow must map to a fixture, endpoint test, Browser-plugin check, and evidence note.
 - Layout QA and warning review are first-class views, not hidden debug surfaces.
 - Strategy views must show degraded status when accepted warnings or uncertain extraction records affect the result.
+
+## 2026-06-16: Canonical Inputs Must Be Strict
+
+Decision: Canonical layout and source-manifest models reject non-finite numbers, invalid/simple-polygon failures, duplicate IDs, blockers outside referenced footprints, untrusted source URLs, unsafe cache paths, malformed hashes, mutable post-validation state, and unsupported schema versions.
+
+Reasoning: LOS algorithms should consume trusted canonical geometry instead of defensively guessing what malformed inputs mean. Blocking bad canonical inputs early also makes reviewer findings reproducible through focused tests.
+
+Consequences:
+
+- Canonical model collections are immutable tuples after validation.
+- Source PDF cache paths must stay relative under `data/pdfs`.
+- Official source URLs are restricted to HTTPS assets from `assets.warhammer-community.com`.
+- Schema files must be regenerated whenever Pydantic model contracts change.

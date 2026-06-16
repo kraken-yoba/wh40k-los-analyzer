@@ -7,11 +7,16 @@ from fortyk_los_backend.domain.models import CanonicalLayout
 SORTABLE_ID_KEYS = ("feature_id", "blocker_id", "zone_id", "document_id", "code")
 
 
-def canonical_json_bytes(layout: CanonicalLayout) -> bytes:
-    payload = _normalize_for_canonical_json(layout.model_dump(mode="json"))
-    return json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode(
-        "utf-8"
-    )
+def canonical_json_bytes(layout: CanonicalLayout | dict[str, object]) -> bytes:
+    raw_payload = layout.model_dump(mode="json") if isinstance(layout, CanonicalLayout) else layout
+    payload = _normalize_for_canonical_json(raw_payload)
+    return json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
 
 
 def stable_layout_hash(layout: CanonicalLayout) -> str:
@@ -20,7 +25,8 @@ def stable_layout_hash(layout: CanonicalLayout) -> str:
 
 def _normalize_for_canonical_json(value: Any) -> Any:
     if isinstance(value, float):
-        return round(value, 4)
+        rounded = round(value, 4)
+        return 0.0 if rounded == 0 else rounded
     if isinstance(value, dict):
         return {key: _normalize_for_canonical_json(item) for key, item in value.items()}
     if isinstance(value, list):

@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -38,12 +39,12 @@ def _rectangle(
     y_max: float,
 ) -> PolygonGeometry:
     return PolygonGeometry(
-        points=[
+        points=(
             Point(x=x_min, y=y_min),
             Point(x=x_max, y=y_min),
             Point(x=x_max, y=y_max),
             Point(x=x_min, y=y_max),
-        ]
+        )
     )
 
 
@@ -52,7 +53,7 @@ def _layout() -> CanonicalLayout:
         layout_id="synthetic-alpha",
         name="Synthetic Alpha",
         board=Board(width=44.0, height=60.0, unit="inch"),
-        terrain_features=[
+        terrain_features=(
             TerrainFeature(
                 feature_id="ruin-b",
                 label="Ruin B",
@@ -63,8 +64,8 @@ def _layout() -> CanonicalLayout:
                 label="Ruin A",
                 footprint=_rectangle(x_min=4.0, y_min=4.0, x_max=12.0, y_max=14.0),
             ),
-        ],
-        blockers=[
+        ),
+        blockers=(
             Blocker(
                 blocker_id="wall-b",
                 feature_id="ruin-b",
@@ -79,26 +80,26 @@ def _layout() -> CanonicalLayout:
                 start=Point(x=4.0, y=4.0),
                 end=Point(x=12.0, y=4.0),
             ),
-        ],
-        deployments=[
+        ),
+        deployments=(
             DeploymentZone(
                 zone_id="attacker",
                 label="Attacker",
                 area=_rectangle(x_min=0.0, y_min=0.0, x_max=44.0, y_max=10.0),
-            )
-        ],
+            ),
+        ),
         provenance=LayoutProvenance(
             source_document_id="terrain-layouts-2026-06-12",
             source_page=2,
             extraction_method="synthetic-fixture",
         ),
-        validation_records=[
+        validation_records=(
             ValidationRecord(
                 code="synthetic_fixture",
                 severity=ValidationSeverity.INFO,
                 message="Fixture has deterministic ground truth.",
-            )
-        ],
+            ),
+        ),
         validation_status=ValidationStatus.PASSED,
     )
 
@@ -115,11 +116,70 @@ def test_canonical_layout_captures_required_domain_fields() -> None:
 
 
 def test_canonical_layout_rejects_geometry_outside_board_bounds() -> None:
-    payload = _layout().model_dump()
-    payload["terrain_features"][0]["footprint"]["points"][0]["x"] = 45.0
+    payload = _layout().model_dump(mode="json")
+    payload["deployments"][0]["area"]["points"][2]["x"] = 45.0
 
     with pytest.raises(ValidationError, match="outside board bounds"):
         CanonicalLayout.model_validate(payload)
+
+
+@pytest.mark.parametrize("bad_number", [float("nan"), float("inf"), float("-inf")])
+def test_geometry_rejects_non_finite_numbers(bad_number: float) -> None:
+    with pytest.raises(ValidationError):
+        Point(x=bad_number, y=0.0)
+
+    with pytest.raises(ValidationError):
+        Board(width=bad_number, height=60.0)
+
+
+def test_canonical_layout_rejects_unknown_schema_version() -> None:
+    payload = _layout().model_dump()
+    payload["schema_version"] = "2.0"
+
+    with pytest.raises(ValidationError):
+        CanonicalLayout.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("points", "case_name"),
+    [
+        (
+            (Point(x=0.0, y=0.0), Point(x=1.0, y=1.0), Point(x=2.0, y=2.0)),
+            "collinear",
+        ),
+        (
+            (Point(x=0.0, y=0.0), Point(x=2.0, y=0.0), Point(x=2.0, y=0.0)),
+            "duplicate",
+        ),
+        (
+            (
+                Point(x=0.0, y=0.0),
+                Point(x=2.0, y=2.0),
+                Point(x=0.0, y=2.0),
+                Point(x=2.0, y=0.0),
+            ),
+            "bow-tie",
+        ),
+        (
+            (
+                Point(x=0.0, y=0.0),
+                Point(x=4.0, y=0.0),
+                Point(x=4.0, y=4.0),
+                Point(x=0.0, y=4.0),
+                Point(x=0.0, y=2.0),
+                Point(x=2.0, y=2.0),
+                Point(x=2.0, y=0.0),
+            ),
+            "edge-touching",
+        ),
+    ],
+)
+def test_polygon_geometry_rejects_invalid_shapes(
+    points: tuple[Point, ...],
+    case_name: str,
+) -> None:
+    with pytest.raises(ValidationError, match="valid simple polygon"):
+        PolygonGeometry(points=points)
 
 
 def test_canonical_layout_rejects_duplicate_domain_ids() -> None:
@@ -135,6 +195,40 @@ def test_canonical_layout_rejects_blocker_referencing_unknown_feature() -> None:
     payload["blockers"][0]["feature_id"] = "missing-feature"
 
     with pytest.raises(ValidationError, match="unknown terrain feature"):
+        CanonicalLayout.model_validate(payload)
+
+
+def test_canonical_layout_rejects_zero_length_blocker() -> None:
+    payload = _layout().model_dump()
+    payload["blockers"][0]["end"] = payload["blockers"][0]["start"]
+
+    with pytest.raises(ValidationError, match="zero length"):
+        CanonicalLayout.model_validate(payload)
+
+
+def test_canonical_layout_rejects_blocker_outside_referenced_footprint() -> None:
+    payload = _layout().model_dump()
+    payload["blockers"][1]["start"] = {"x": 20.0, "y": 20.0}
+    payload["blockers"][1]["end"] = {"x": 25.0, "y": 20.0}
+
+    with pytest.raises(ValidationError, match="outside terrain footprint"):
+        CanonicalLayout.model_validate(payload)
+
+
+def test_canonical_layout_rejects_endpoint_only_blocker_footprint_overlap() -> None:
+    payload = _layout().model_dump()
+    payload["blockers"][1]["start"] = {"x": 12.0, "y": 4.0}
+    payload["blockers"][1]["end"] = {"x": 20.0, "y": 4.0}
+
+    with pytest.raises(ValidationError, match="outside terrain footprint"):
+        CanonicalLayout.model_validate(payload)
+
+
+def test_canonical_layout_rejects_duplicate_validation_record_codes() -> None:
+    payload = _layout().model_dump(mode="json")
+    payload["validation_records"].append(payload["validation_records"][0])
+
+    with pytest.raises(ValidationError, match="duplicate validation record code"):
         CanonicalLayout.model_validate(payload)
 
 
@@ -159,39 +253,189 @@ def test_canonical_json_and_hash_are_stable_across_domain_list_order() -> None:
     assert stable_layout_hash(first) == stable_layout_hash(second)
 
 
+def test_canonical_json_and_hash_are_stable_across_validation_record_order() -> None:
+    first_payload = _layout().model_dump()
+    first_payload["validation_records"] = [
+        {
+            "code": "zeta",
+            "severity": "info",
+            "message": "Later code.",
+        },
+        {
+            "code": "alpha",
+            "severity": "warning",
+            "message": "Earlier code.",
+        },
+    ]
+    second_payload = _layout().model_dump()
+    second_payload["validation_records"] = list(reversed(first_payload["validation_records"]))
+
+    first = CanonicalLayout.model_validate(first_payload)
+    second = CanonicalLayout.model_validate(second_payload)
+
+    assert canonical_json_bytes(first) == canonical_json_bytes(second)
+    assert stable_layout_hash(first) == stable_layout_hash(second)
+
+
 def test_canonical_json_uses_fixed_float_precision() -> None:
-    layout = _layout()
-    layout.terrain_features[0].footprint.points[0] = Point(x=1.23456789, y=2.34567891)
+    payload = _layout().model_dump(mode="json")
+    payload["deployments"][0]["area"]["points"][2] = {"x": 43.23456789, "y": 10.34567891}
+    layout = CanonicalLayout.model_validate(payload)
 
     canonical_json = canonical_json_bytes(layout).decode("utf-8")
 
-    assert "1.2346" in canonical_json
-    assert "2.3457" in canonical_json
-    assert "1.23456789" not in canonical_json
+    assert "43.2346" in canonical_json
+    assert "10.3457" in canonical_json
+    assert "43.23456789" not in canonical_json
+
+
+def test_canonical_json_normalizes_negative_zero() -> None:
+    payload = _layout().model_dump(mode="json")
+    payload["deployments"][0]["area"]["points"][0] = {"x": -0.0, "y": -0.0}
+    layout = CanonicalLayout.model_validate(payload)
+
+    canonical_json = canonical_json_bytes(layout).decode("utf-8")
+
+    assert "-0.0" not in canonical_json
+
+
+def test_canonical_json_rejects_non_standard_float_payloads() -> None:
+    with pytest.raises(ValueError):
+        canonical_json_bytes({"value": float("nan")})
+
+
+def test_canonical_models_are_immutable_after_validation() -> None:
+    layout = _layout()
+
+    with pytest.raises(ValidationError):
+        layout.name = "Mutated"
+
+    with pytest.raises(ValidationError):
+        layout.terrain_features[0].label = "Mutated"
+
+    assert isinstance(layout.terrain_features, tuple)
 
 
 def test_source_manifest_reports_cache_status_without_committing_pdfs(tmp_path: Path) -> None:
-    cached_pdf = tmp_path / "terrain-layouts.pdf"
+    relative_cache_path = Path("data/pdfs/terrain-layouts.pdf")
+    cached_pdf = tmp_path / relative_cache_path
+    cached_pdf.parent.mkdir(parents=True)
     cached_pdf.write_bytes(b"official bytes stay local")
 
     manifest = SourceManifest(
-        documents=[
+        documents=(
             SourceDocument(
                 document_id="terrain-layouts-2026-06-12",
                 kind=SourceKind.TERRAIN_LAYOUTS,
                 url="https://assets.warhammer-community.com/example-terrain.pdf",
                 expected_sha256="1cfc9e4bbcd4a4ad1fe2c6d096b30c6b28ebf057bb8b789f4d3c761b49ac11db",
-                cache_path=cached_pdf,
+                cache_path=relative_cache_path,
                 redistribution="do-not-commit",
-            )
-        ]
+            ),
+        )
     )
 
-    [status] = manifest.cache_statuses()
+    [status] = manifest.cache_statuses(repo_root=tmp_path)
 
     assert status.document_id == "terrain-layouts-2026-06-12"
     assert status.status == CacheStatus.HASH_MISMATCH
-    assert status.cache_path == cached_pdf
+    assert status.cache_path == relative_cache_path
+
+
+def test_source_manifest_resolves_cache_relative_to_repo_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relative_cache_path = Path("data/pdfs/rules.pdf")
+    cached_pdf = tmp_path / relative_cache_path
+    cached_pdf.parent.mkdir(parents=True)
+    cached_pdf.write_bytes(b"stable bytes")
+    outside_cwd = tmp_path / "outside-cwd"
+    outside_cwd.mkdir()
+    monkeypatch.chdir(outside_cwd)
+
+    manifest = SourceManifest(
+        documents=(
+            SourceDocument(
+                document_id="core-rules-2026-06-01",
+                kind=SourceKind.RULES,
+                url="https://assets.warhammer-community.com/example-rules.pdf",
+                expected_sha256=sha256(b"stable bytes").hexdigest(),
+                cache_path=relative_cache_path,
+                redistribution="do-not-commit",
+            ),
+        )
+    )
+
+    [status] = manifest.cache_statuses(repo_root=tmp_path)
+
+    assert status.status == CacheStatus.HASH_MATCH
+
+
+@pytest.mark.parametrize(
+    "cache_path",
+    [
+        Path.cwd() / "data" / "pdfs" / "absolute.pdf",
+        Path("../escape.pdf"),
+        Path("other/cache.pdf"),
+    ],
+)
+def test_source_manifest_rejects_unsafe_cache_paths(cache_path: Path) -> None:
+    with pytest.raises(ValidationError, match="relative path under data/pdfs"):
+        SourceDocument(
+            document_id="unsafe-cache",
+            kind=SourceKind.RULES,
+            url="https://assets.warhammer-community.com/example.pdf",
+            expected_sha256="1cfc9e4bbcd4a4ad1fe2c6d096b30c6b28ebf057bb8b789f4d3c761b49ac11db",
+            cache_path=cache_path,
+            redistribution="do-not-commit",
+        )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "not-a-url",
+        "http://assets.warhammer-community.com/example.pdf",
+        "https://example.com/example.pdf",
+    ],
+)
+def test_source_manifest_rejects_untrusted_urls(url: str) -> None:
+    with pytest.raises(ValidationError, match="official Warhammer Community asset URL"):
+        SourceDocument(
+            document_id="bad-url",
+            kind=SourceKind.RULES,
+            url=url,
+            expected_sha256="1cfc9e4bbcd4a4ad1fe2c6d096b30c6b28ebf057bb8b789f4d3c761b49ac11db",
+            cache_path=Path("data/pdfs/example.pdf"),
+            redistribution="do-not-commit",
+        )
+
+
+def test_source_manifest_rejects_malformed_sha256() -> None:
+    with pytest.raises(ValidationError, match="64 lowercase hex"):
+        SourceDocument(
+            document_id="bad-hash",
+            kind=SourceKind.RULES,
+            url="https://assets.warhammer-community.com/example.pdf",
+            expected_sha256="not-a-hash",
+            cache_path=Path("data/pdfs/example.pdf"),
+            redistribution="do-not-commit",
+        )
+
+
+def test_source_manifest_rejects_duplicate_document_ids() -> None:
+    document = SourceDocument(
+        document_id="duplicate",
+        kind=SourceKind.RULES,
+        url="https://assets.warhammer-community.com/example.pdf",
+        expected_sha256="1cfc9e4bbcd4a4ad1fe2c6d096b30c6b28ebf057bb8b789f4d3c761b49ac11db",
+        cache_path=Path("data/pdfs/example.pdf"),
+        redistribution="do-not-commit",
+    )
+
+    with pytest.raises(ValidationError, match="duplicate source document id"):
+        SourceManifest(documents=(document, document))
 
 
 def test_public_source_manifest_contains_official_documents() -> None:

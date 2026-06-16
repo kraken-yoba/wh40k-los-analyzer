@@ -54,6 +54,12 @@ def test_source_manifest_api_returns_public_safe_documents() -> None:
         "core-rules-2026-06-01",
     }
     assert documents["terrain-layouts-2026-06-12"]["redistribution"] == "do-not-commit"
+    assert documents["terrain-layouts-2026-06-12"]["cache_path"] == (
+        "data/pdfs/terrainareafootprints.pdf"
+    )
+    assert documents["terrain-layouts-2026-06-12"]["cache_status"]["cache_path"] == (
+        "data/pdfs/terrainareafootprints.pdf"
+    )
     assert documents["terrain-layouts-2026-06-12"]["cache_status"]["status"] in {
         "missing",
         "hash_match",

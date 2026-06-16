@@ -47,7 +47,9 @@ def get_layout(layout_id: str) -> dict[str, object]:
 @app.get("/api/sources")
 def source_status() -> dict[str, list[dict[str, object]]]:
     manifest = fixtures.source_manifest()
-    statuses = {status.document_id: status for status in manifest.cache_statuses()}
+    statuses = {
+        status.document_id: status for status in manifest.cache_statuses(repo_root=REPO_ROOT)
+    }
     documents: list[dict[str, object]] = []
     for document in manifest.documents:
         document_payload = jsonable_encoder(document)
