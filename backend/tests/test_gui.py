@@ -24,6 +24,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
 
     assert response.status_code == 200
     html = response.text
+    assert "Provisional Matches" in html
     for expected in [
         'id="layout-select"',
         'id="base-diameter"',
@@ -84,6 +85,7 @@ def test_client_script_renders_footprint_match_evidence() -> None:
     assert "function renderFootprintMatches" in script
     assert "/footprint-matches" in script
     assert "terrain-footprint-match-v1" in script
+    assert "score=" in script
 
 
 def test_client_script_avoids_inner_html_for_api_derived_data() -> None:

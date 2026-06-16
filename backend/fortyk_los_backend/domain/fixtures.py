@@ -25,6 +25,7 @@ class FixtureRepository:
         self._repo_root = repo_root
         self._layout_dir = repo_root / "fixtures" / "layouts"
         self._source_manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
+        self._terrain_footprint_template_cache: tuple[TerrainFootprintTemplate, ...] | None = None
 
     def list_layouts(self) -> list[dict[str, str]]:
         layouts: list[dict[str, str]] = []
@@ -161,15 +162,20 @@ class FixtureRepository:
         return (self._repo_root / document.cache_path).resolve()
 
     def _terrain_footprint_templates(self) -> tuple[TerrainFootprintTemplate, ...]:
+        if self._terrain_footprint_template_cache is not None:
+            return self._terrain_footprint_template_cache
         document_status = self._source_document_status(SourceKind.TERRAIN_LAYOUTS)
         if document_status is None:
+            self._terrain_footprint_template_cache = ()
             return ()
         document, status = document_status
         if status.status != CacheStatus.HASH_MATCH:
+            self._terrain_footprint_template_cache = ()
             return ()
-        return extract_terrain_footprint_templates(
+        self._terrain_footprint_template_cache = extract_terrain_footprint_templates(
             (self._repo_root / document.cache_path).resolve()
         )
+        return self._terrain_footprint_template_cache
 
     def _source_document_status(
         self,

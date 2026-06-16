@@ -193,10 +193,11 @@ function renderFootprintMatches(payload) {
   );
   appendDenseItem(footprintMatchEvidence, "Matches", String(payload.matches.length));
   for (const match of payload.matches) {
+    const score = Number(match.score).toFixed(3);
     appendDenseItem(
       footprintMatchEvidence,
       match.feature_id,
-      `${match.template_id} ${match.status} ${match.review_reason}`,
+      `${match.template_id} score=${score} ${match.status} ${match.review_reason}`,
     );
   }
 }

@@ -232,6 +232,31 @@ def test_footprint_match_evidence_api_returns_provisional_matches(
     assert "terrain_footprint_match_review_required" in record_codes
 
 
+def test_footprint_match_evidence_does_not_make_extracted_layout_analysis_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_and_terrain_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    match_response = client.get("/api/layouts/event-companion-page-1/footprint-matches")
+    los_response = client.post(
+        "/api/layouts/event-companion-page-1/los",
+        json={
+            "source": {"x": 2.0, "y": 40.0},
+            "target": {"x": 42.0, "y": 40.0},
+        },
+    )
+
+    assert match_response.status_code == 200
+    assert match_response.json()["matches"]
+    assert los_response.status_code == 409
+    assert "terrain_footprint_match_review_required" in los_response.json()["detail"][
+        "record_codes"
+    ]
+
+
 def test_footprint_match_evidence_api_does_not_parse_hash_mismatched_templates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
