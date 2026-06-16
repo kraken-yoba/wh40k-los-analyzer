@@ -93,6 +93,21 @@ def test_base_aware_los_api_rejects_illegal_base_center_without_500() -> None:
     assert response.json()["detail"] == "source base center is not legal"
 
 
+def test_point_los_api_rejects_out_of_board_point_without_500() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/layouts/synthetic-alpha/los",
+        json={
+            "source": {"x": -1.0, "y": 20.0},
+            "target": {"x": 42.0, "y": 20.0},
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "source is outside board"
+
+
 def test_los_api_rejects_non_finite_base_diameter_without_500() -> None:
     client = TestClient(app)
 

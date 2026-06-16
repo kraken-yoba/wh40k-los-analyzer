@@ -135,7 +135,10 @@ def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, o
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     else:
-        result = compute_point_los(layout, los_request)
+        try:
+            result = compute_point_los(layout, los_request)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return dict(jsonable_encoder(result))
 
