@@ -5,12 +5,13 @@ Browser-plugin workflow evidence for fixture-backed GUI slices.
 Positive workflow run: 2026-06-16 on `http://127.0.0.1:8000`.
 Reviewer-fix regression run: 2026-06-16 on `http://127.0.0.1:8765`.
 Official extraction readiness run: 2026-06-16 on `http://127.0.0.1:18765`.
+Layout metadata run: 2026-06-16 on `http://127.0.0.1:18766`.
 
 | Workflow | Fixture/Input | Endpoint/State | Playwright Test | Browser Evidence | Status |
 | --- | --- | --- | --- | --- | --- |
 | Dashboard loads offline | Synthetic fixture set | `/` | `backend/tests/test_gui.py` | DOM rendered heading, controls, sources, validation, LOS, and analysis panels | Pass |
 | Source manifest status | Synthetic manifest | `/api/sources` | `backend/tests/test_data_spine_api.py` | Browser showed terrain layouts, Event Companion, and core rules as `hash_match` | Pass |
-| Extraction inspection | Event Companion page 9 from local hash-matched cache | `/api/layouts/event-companion-page-9` | `backend/tests/domain/test_event_companion_extraction.py`, `backend/tests/test_data_spine_api.py` | Browser loaded `Layout A`, rendered extraction/warning records, and listed 45 extracted Event Companion layouts | Pass |
+| Extraction inspection | Event Companion page 9 from local hash-matched cache | `/api/layouts/event-companion-page-9` | `backend/tests/domain/test_event_companion_extraction.py`, `backend/tests/test_data_spine_api.py` | Browser loaded `Layout A`, rendered extraction/warning records, listed 45 extracted Event Companion layouts, and showed `Layout A (extracted warning)` with source document, page, and extraction method | Pass |
 | PDF underlay and overlays | Synthetic rendered page | Pending | Pending | Pending | Pending |
 | Feature provenance | Synthetic terrain feature | Pending | Pending | Pending | Pending |
 | Accepted warning state | Synthetic warning fixture | Pending | Pending | Pending | Pending |

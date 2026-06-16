@@ -1,6 +1,7 @@
 const canvas = document.querySelector("#board-canvas");
 const context = canvas.getContext("2d");
 const layoutSelect = document.querySelector("#layout-select");
+const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
@@ -158,6 +159,15 @@ function renderSources(payload) {
   }
 }
 
+function renderLayoutMetadata() {
+  layoutMetadata.replaceChildren();
+  if (!state.layout) return;
+  appendDenseItem(layoutMetadata, "Status", state.layout.validation_status);
+  appendDenseItem(layoutMetadata, "Document", state.layout.provenance.source_document_id);
+  appendDenseItem(layoutMetadata, "Page", String(state.layout.provenance.source_page));
+  appendDenseItem(layoutMetadata, "Method", state.layout.provenance.extraction_method);
+}
+
 function renderValidation() {
   validationPanel.replaceChildren();
   const records = state.layout.validation_records;
@@ -178,6 +188,7 @@ async function loadLayout(layoutId) {
   state.heatmap = null;
   losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
   analysisResult.textContent = "Run heatmap, exposure, or terrain coverage.";
+  renderLayoutMetadata();
   renderValidation();
   renderBoard();
 }
@@ -189,10 +200,16 @@ async function initialize() {
   for (const layout of layouts.layouts) {
     const option = window.document.createElement("option");
     option.value = layout.layout_id;
-    option.textContent = layout.name;
+    option.textContent = formatLayoutOption(layout);
     layoutSelect.appendChild(option);
   }
   await loadLayout(layouts.layouts[0].layout_id);
+}
+
+function formatLayoutOption(layout) {
+  const source = layout.source === "extracted" ? "extracted" : "fixture";
+  const status = layout.validation_status ? ` ${layout.validation_status}` : "";
+  return `${layout.name} (${source}${status})`;
 }
 
 canvas.addEventListener("click", (event) => {
