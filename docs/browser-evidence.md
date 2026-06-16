@@ -9,6 +9,7 @@ Layout metadata run: 2026-06-16 on `http://127.0.0.1:18766`.
 Footprint evidence run: 2026-06-16 on `http://127.0.0.1:18767`.
 Footprint match run: 2026-06-16 on `http://127.0.0.1:18768`.
 Post-security end-to-end run: 2026-06-16 on isolated port `http://127.0.0.1:18769`; temporary server was stopped afterward.
+Provisional blocker GUI run: 2026-06-16 on isolated port `http://127.0.0.1:18770`; temporary server was stopped afterward.
 
 | Workflow | Fixture/Input | Endpoint/State | Playwright Test | Browser Evidence | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -18,6 +19,7 @@ Post-security end-to-end run: 2026-06-16 on isolated port `http://127.0.0.1:1876
 | Provisional footprint matches | Event Companion page 9 plus official Terrain Area Footprints cache | `/api/layouts/event-companion-page-9/footprint-matches` | `backend/tests/test_data_spine_api.py`, `backend/tests/test_gui.py` | Browser selected `Layout A (extracted warning)`, showed 16 provisional match rows, and kept `terrain_footprint_match_review_required` visible in validation with no console errors | Pass |
 | Post-security synthetic workflow | Synthetic Alpha fixture | `/`, `/los`, `/heatmap`, `/exposure`, `/terrain/ruin-a/coverage` | `backend/tests/test_los_api.py`, `backend/tests/test_analysis_api.py`, `backend/tests/test_gui.py` | Browser click-on-map returned `disk-sample-v1` with 289 samples; Heatmap, Exposure, and Terrain buttons returned expected payload keys after the analysis-work caps landed | Pass |
 | Post-security official workflow | Event Companion page 9 plus Terrain Area Footprints cache | `/api/layouts/event-companion-page-9`, `/footprint-matches`, `/los` | `backend/tests/test_data_spine_api.py`, `backend/tests/test_gui.py` | Browser showed 16 provisional match rows with scores and `needs_review` reasons; map-click LOS stayed blocked with unresolved warning codes including `terrain_footprint_match_review_required` | Pass |
+| Provisional official blockers | Event Companion page 9 plus Terrain Area Footprints cache | `/api/layouts/event-companion-page-9`, `/footprint-matches`, `/los` | `backend/tests/domain/test_terrain_footprint_templates.py`, `backend/tests/test_gui.py` | Browser used the explicit Load button to select page 9, showed 16 provisional match rows, visible `terrain_footprint_blocker_review_required`, API payload contained 376 provisional blockers, map-click LOS stayed blocked by unresolved review warnings, and console errors were empty | Pass |
 | Extraction inspection | Event Companion page 9 from local hash-matched cache | `/api/layouts/event-companion-page-9` | `backend/tests/domain/test_event_companion_extraction.py`, `backend/tests/test_data_spine_api.py` | Browser loaded `Layout A`, rendered extraction/warning records, listed 45 extracted Event Companion layouts, and showed `Layout A (extracted warning)` with source document, page, and extraction method | Pass |
 | PDF underlay and overlays | Synthetic rendered page | Pending | Pending | Pending | Pending |
 | Feature provenance | Synthetic terrain feature | Pending | Pending | Pending | Pending |

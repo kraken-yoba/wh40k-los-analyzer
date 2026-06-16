@@ -12,12 +12,12 @@ Implemented now:
 - Deterministic canonical geometry models, validation records, source manifests, stable layout hashing, and JSON schema export.
 - Base-aware 2D LOS using deterministic disk sampling.
 - Event Companion vector extraction for board, deployment zones, and terrain placement candidates.
-- Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, and provisional terrain-placement matches.
+- Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional wall/blocker segments from matched footprint fragments.
 - Official extracted layouts remain warning-state and blocked for LOS/heatmap/exposure until footprint/wall semantics are reviewed and accepted.
 
 Not implemented yet:
 
-- Full LOS-ready official wall/blocker generation.
+- Review-accepted LOS-ready official wall/blocker semantics for production analysis.
 - Vision-model sanity checks. Vision output is intended only for advisory verification, not canonical geometry.
 - Full 3D-aware LOS. The current scope is base-aware 2D; future builds can add height/3D semantics after the deterministic 2D extraction chain is accepted.
 

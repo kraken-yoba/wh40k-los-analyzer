@@ -9,9 +9,11 @@ from fortyk_los_backend.domain.extraction import (
     TerrainFootprintTemplate,
     extract_event_companion_layout,
     extract_terrain_footprint_templates,
+    generate_terrain_blockers_from_footprint_matches,
     match_terrain_features_to_footprints,
 )
 from fortyk_los_backend.domain.models import (
+    BlockerKind,
     Board,
     CanonicalLayout,
     DeploymentZone,
@@ -143,6 +145,90 @@ def test_match_terrain_features_to_footprints_prefers_best_aspect_candidate() ->
     assert match.template_id == "square"
     assert match.status == FootprintMatchStatus.CANDIDATE
     assert match.aspect_delta == pytest.approx(0.0)
+    assert match.rotation_degrees == 0
+
+
+def test_match_terrain_features_to_footprints_records_reciprocal_orientation() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 30.0),
+            ),
+        )
+    )
+
+    matches = match_terrain_features_to_footprints(
+        layout,
+        (_template("wide", aspect_ratio=2.0),),
+    )
+
+    assert matches[0].template_id == "wide"
+    assert matches[0].rotation_degrees == 90
+    assert matches[0].aspect_delta == pytest.approx(0.0)
+
+
+def test_generate_terrain_blockers_from_footprint_matches_maps_fragments_to_board_inches() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+            ),
+        )
+    )
+    templates = (
+        _template(
+            "square",
+            aspect_ratio=1.0,
+            fragments=((Point(x=0.25, y=0.25), Point(x=0.75, y=0.25)),),
+        ),
+    )
+    matches = match_terrain_features_to_footprints(layout, templates)
+
+    blockers = generate_terrain_blockers_from_footprint_matches(layout, templates, matches)
+
+    assert len(blockers) == 1
+    [blocker] = blockers
+    assert blocker.blocker_id == "terrain-01-footprint-wall-01-01"
+    assert blocker.feature_id == "terrain-01"
+    assert blocker.kind == BlockerKind.WALL
+    assert blocker.start.x == pytest.approx(12.5)
+    assert blocker.start.y == pytest.approx(17.5)
+    assert blocker.end.x == pytest.approx(17.5)
+    assert blocker.end.y == pytest.approx(17.5)
+
+
+def test_generate_terrain_blockers_from_footprint_matches_rotates_reciprocal_fragments() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="AB",
+                footprint=_rectangle(10.0, 10.0, 20.0, 30.0),
+            ),
+        )
+    )
+    templates = (
+        _template(
+            "wide",
+            aspect_ratio=2.0,
+            fragments=((Point(x=0.25, y=0.5), Point(x=0.75, y=0.5)),),
+        ),
+    )
+    matches = match_terrain_features_to_footprints(layout, templates)
+
+    blockers = generate_terrain_blockers_from_footprint_matches(layout, templates, matches)
+
+    assert matches[0].rotation_degrees == 90
+    assert len(blockers) == 1
+    [blocker] = blockers
+    assert blocker.start.x == pytest.approx(15.0)
+    assert blocker.start.y == pytest.approx(15.0)
+    assert blocker.end.x == pytest.approx(15.0)
+    assert blocker.end.y == pytest.approx(25.0)
 
 
 def test_match_terrain_features_to_footprints_marks_close_scores_for_review() -> None:
@@ -274,12 +360,14 @@ def test_official_page_9_gets_provisional_matches_but_stays_blocked() -> None:
     matches = match_terrain_features_to_footprints(layout, templates)
 
     assert len(matches) == len(layout.terrain_features)
-    assert layout.blockers == ()
+    assert len(layout.blockers) > 0
     assert layout.validation_status == ValidationStatus.WARNING
     assert any(match.status == FootprintMatchStatus.NEEDS_REVIEW for match in matches)
     record_codes = {record.code for record in layout.validation_records}
     assert "terrain_footprint_match_candidates" in record_codes
     assert "terrain_footprint_match_review_required" in record_codes
+    assert "terrain_footprint_blocker_candidates" in record_codes
+    assert "terrain_footprint_blocker_review_required" in record_codes
 
 
 def _write_synthetic_template_pdf(pdf_path: Path) -> None:
@@ -355,7 +443,12 @@ def _write_crossing_fragment_pdf(pdf_path: Path) -> None:
     document.save(pdf_path)
 
 
-def _template(template_id: str, *, aspect_ratio: float) -> TerrainFootprintTemplate:
+def _template(
+    template_id: str,
+    *,
+    aspect_ratio: float,
+    fragments: tuple[tuple[Point, ...], ...] = (),
+) -> TerrainFootprintTemplate:
     return TerrainFootprintTemplate(
         template_id=template_id,
         page_number=1,
@@ -363,14 +456,14 @@ def _template(template_id: str, *, aspect_ratio: float) -> TerrainFootprintTempl
         aspect_ratio=aspect_ratio,
         outline_path_command_count=4,
         outline_point_count=4,
-        fragment_count=0,
+        fragment_count=len(fragments),
         normalized_outline_points=(
             Point(x=0.0, y=0.0),
             Point(x=1.0, y=0.0),
             Point(x=1.0, y=1.0),
             Point(x=0.0, y=1.0),
         ),
-        normalized_fragment_paths=(),
+        normalized_fragment_paths=fragments,
     )
 
 

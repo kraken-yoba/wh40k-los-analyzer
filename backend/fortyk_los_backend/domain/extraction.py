@@ -1,13 +1,15 @@
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from math import isfinite, log
+from math import hypot, isfinite, log
 from pathlib import Path
 from typing import Any
 
 import fitz
 
 from fortyk_los_backend.domain.models import (
+    Blocker,
+    BlockerKind,
     Board,
     CanonicalLayout,
     DeploymentZone,
@@ -156,6 +158,7 @@ class TerrainFootprintMatch:
     template_id: str
     score: float
     aspect_delta: float
+    rotation_degrees: int
     status: FootprintMatchStatus
     review_reason: str
 
@@ -243,6 +246,14 @@ def match_terrain_features_to_footprints(
     return _match_terrain_features_to_footprints(layout.terrain_features, templates)
 
 
+def generate_terrain_blockers_from_footprint_matches(
+    layout: CanonicalLayout,
+    templates: tuple[TerrainFootprintTemplate, ...],
+    matches: tuple[TerrainFootprintMatch, ...],
+) -> tuple[Blocker, ...]:
+    return _terrain_blockers_from_footprint_matches(layout.terrain_features, templates, matches)
+
+
 def extract_event_companion_layout(
     pdf_path: Path,
     *,
@@ -281,11 +292,17 @@ def extract_event_companion_layout(
         terrain_features,
         footprint_templates,
     )
+    blockers = _terrain_blockers_from_footprint_matches(
+        terrain_features,
+        footprint_templates,
+        footprint_matches,
+    )
     validation_records = _validation_records(
         terrain_features,
         deployments,
         words,
         footprint_matches,
+        len(blockers),
     )
 
     return CanonicalLayout(
@@ -293,7 +310,7 @@ def extract_event_companion_layout(
         name=_layout_name(words, fallback=f"Event Companion Page {page_number}"),
         board=Board(width=BOARD_WIDTH_INCHES, height=BOARD_HEIGHT_INCHES),
         terrain_features=terrain_features,
-        blockers=(),
+        blockers=blockers,
         deployments=deployments,
         provenance=LayoutProvenance(
             source_document_id=source_document_id,
@@ -422,6 +439,7 @@ def _validation_records(
     deployments: tuple[DeploymentZone, ...],
     words: list[tuple[Any, ...]],
     footprint_matches: tuple[TerrainFootprintMatch, ...],
+    blocker_count: int,
 ) -> tuple[ValidationRecord, ...]:
     records: list[ValidationRecord] = [
         ValidationRecord(
@@ -484,6 +502,7 @@ def _validation_records(
             )
         )
     records.extend(_footprint_match_validation_records(footprint_matches))
+    records.extend(_footprint_blocker_validation_records(blocker_count))
     return tuple(records)
 
 
@@ -524,7 +543,30 @@ def _footprint_match_validation_records(
             severity=ValidationSeverity.WARNING,
             message=(
                 "Terrain-footprint template matches are provisional evidence and require "
-                "review before emitting LOS blockers or accepting wall semantics."
+                "review before accepting LOS blocker placement or wall semantics."
+            ),
+        ),
+    ]
+
+
+def _footprint_blocker_validation_records(blocker_count: int) -> list[ValidationRecord]:
+    if blocker_count <= 0:
+        return []
+    return [
+        ValidationRecord(
+            code="terrain_footprint_blocker_candidates",
+            severity=ValidationSeverity.INFO,
+            message=(
+                f"Generated {blocker_count} provisional wall segments from matched "
+                "official terrain-footprint fragments."
+            ),
+        ),
+        ValidationRecord(
+            code="terrain_footprint_blocker_review_required",
+            severity=ValidationSeverity.WARNING,
+            message=(
+                "Terrain-footprint wall segments are deterministic provisional geometry and "
+                "require review before enabling official-layout LOS analysis."
             ),
         ),
     ]
@@ -544,12 +586,12 @@ def _match_terrain_features_to_footprints(
         feature_aspect_ratio = _feature_aspect_ratio(feature)
         scored_templates = sorted(
             (
-                (_template_aspect_delta(feature_aspect_ratio, template), template)
+                (*_template_aspect_score(feature_aspect_ratio, template), template)
                 for template in valid_templates
             ),
-            key=lambda scored: (scored[0], scored[1].template_id),
+            key=lambda scored: (scored[0], scored[1], scored[2].template_id),
         )
-        best_delta, best_template = scored_templates[0]
+        best_delta, rotation_degrees, best_template = scored_templates[0]
         second_delta = scored_templates[1][0] if len(scored_templates) > 1 else None
         status, review_reason = _footprint_match_status(feature, best_delta, second_delta)
         matches.append(
@@ -559,11 +601,52 @@ def _match_terrain_features_to_footprints(
                 template_id=best_template.template_id,
                 score=round(max(0.0, 1.0 - best_delta), 6),
                 aspect_delta=round(best_delta, 6),
+                rotation_degrees=rotation_degrees,
                 status=status,
                 review_reason=review_reason,
             )
         )
     return tuple(matches)
+
+
+def _terrain_blockers_from_footprint_matches(
+    terrain_features: tuple[TerrainFeature, ...],
+    templates: tuple[TerrainFootprintTemplate, ...],
+    matches: tuple[TerrainFootprintMatch, ...],
+) -> tuple[Blocker, ...]:
+    feature_by_id = {feature.feature_id: feature for feature in terrain_features}
+    template_by_id = {template.template_id: template for template in templates}
+    blockers: list[Blocker] = []
+    for match in matches:
+        feature = feature_by_id.get(match.feature_id)
+        template = template_by_id.get(match.template_id)
+        if feature is None or template is None:
+            continue
+        feature_bounds = _feature_bounds(feature)
+        for fragment_index, fragment_path in enumerate(template.normalized_fragment_paths, start=1):
+            transformed_path = tuple(
+                _template_point_to_feature(point, feature_bounds, match.rotation_degrees)
+                for point in fragment_path
+            )
+            for segment_index, (start, end) in enumerate(
+                zip(transformed_path, transformed_path[1:], strict=False),
+                start=1,
+            ):
+                if _point_distance(start, end) <= 1e-6:
+                    continue
+                blockers.append(
+                    Blocker(
+                        blocker_id=(
+                            f"{feature.feature_id}-footprint-wall-"
+                            f"{fragment_index:02d}-{segment_index:02d}"
+                        ),
+                        feature_id=feature.feature_id,
+                        kind=BlockerKind.WALL,
+                        start=start,
+                        end=end,
+                    )
+                )
+    return tuple(blockers)
 
 
 def _footprint_match_status(
@@ -584,22 +667,59 @@ def _footprint_match_status(
 
 
 def _feature_aspect_ratio(feature: TerrainFeature) -> float:
+    x_min, y_min, x_max, y_max = _feature_bounds(feature)
+    return (x_max - x_min) / (y_max - y_min)
+
+
+def _feature_bounds(feature: TerrainFeature) -> tuple[float, float, float, float]:
     xs = [point.x for point in feature.footprint.points]
     ys = [point.y for point in feature.footprint.points]
-    width = max(xs) - min(xs)
-    height = max(ys) - min(ys)
-    return width / height
+    return min(xs), min(ys), max(xs), max(ys)
 
 
-def _template_aspect_delta(
+def _template_aspect_score(
     feature_aspect_ratio: float,
     template: TerrainFootprintTemplate,
-) -> float:
+) -> tuple[float, int]:
     template_aspect_ratio = template.aspect_ratio
-    return min(
-        abs(log(feature_aspect_ratio / template_aspect_ratio)),
-        abs(log(feature_aspect_ratio / (1.0 / template_aspect_ratio))),
+    as_drawn_delta = abs(log(feature_aspect_ratio / template_aspect_ratio))
+    rotated_delta = abs(log(feature_aspect_ratio / (1.0 / template_aspect_ratio)))
+    if rotated_delta < as_drawn_delta:
+        return rotated_delta, 90
+    return as_drawn_delta, 0
+
+
+def _template_point_to_feature(
+    point: Point,
+    bounds: tuple[float, float, float, float],
+    rotation_degrees: int,
+) -> Point:
+    x_min, y_min, x_max, y_max = bounds
+    width = x_max - x_min
+    height = y_max - y_min
+    oriented_point = _orient_template_point(point, rotation_degrees)
+    x = round(x_min + oriented_point.x * width, 4)
+    y = round(y_max - oriented_point.y * height, 4)
+    return Point(
+        x=_clamp(x, low=x_min, high=x_max),
+        y=_clamp(y, low=y_min, high=y_max),
     )
+
+
+def _orient_template_point(point: Point, rotation_degrees: int) -> Point:
+    if rotation_degrees == 90:
+        return Point(
+            x=_clamp(point.y, low=0.0, high=1.0),
+            y=_clamp(1.0 - point.x, low=0.0, high=1.0),
+        )
+    return Point(
+        x=_clamp(point.x, low=0.0, high=1.0),
+        y=_clamp(point.y, low=0.0, high=1.0),
+    )
+
+
+def _point_distance(start: Point, end: Point) -> float:
+    return hypot(end.x - start.x, end.y - start.y)
 
 
 def _is_valid_template_aspect(aspect_ratio: float) -> bool:

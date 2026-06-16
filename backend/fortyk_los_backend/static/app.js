@@ -1,6 +1,7 @@
 const canvas = document.querySelector("#board-canvas");
 const context = canvas.getContext("2d");
 const layoutSelect = document.querySelector("#layout-select");
+const loadLayoutButton = document.querySelector("#load-layout-button");
 const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
 const footprintEvidence = document.querySelector("#footprint-evidence");
@@ -292,10 +293,18 @@ canvas.addEventListener("click", (event) => {
 });
 
 layoutSelect.addEventListener("change", () => {
+  void loadSelectedLayout();
+});
+
+loadLayoutButton.addEventListener("click", () => {
+  void loadSelectedLayout();
+});
+
+async function loadSelectedLayout() {
   void runPanelAction(losResult, async () => {
     await loadLayout(layoutSelect.value);
   });
-});
+}
 
 document.querySelector("#heatmap-button").addEventListener("click", () => {
   void runPanelAction(analysisResult, async () => {

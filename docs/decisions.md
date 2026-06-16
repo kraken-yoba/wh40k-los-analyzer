@@ -110,7 +110,19 @@ Consequences:
 
 - Footprint matches can add validation records, but they cannot unblock official-layout LOS analysis by themselves.
 - Ambiguous template scores, weak aspect matches, fallback labels, and slash labels must remain `needs_review`.
-- `extract_event_companion_layout(..., footprint_templates=...)` still emits no blockers and keeps official layouts warning-state.
+- `extract_event_companion_layout(..., footprint_templates=...)` keeps official layouts warning-state. Later work may emit blocker candidates only when they remain review-gated.
+
+## 2026-06-16: Footprint Fragment Walls Are Provisional Blocker Candidates
+
+Decision: Convert matched Terrain Area Footprints fragment paths into deterministic board-inch wall segments, but keep those segments provisional and analysis-blocked until review.
+
+Reasoning: The official footprint PDF exposes stable green internal fragment paths that are useful wall/blocker evidence once a footprint template is matched to an Event Companion terrain placement. The match itself can still be ambiguous or label-weak, and the PDF does not explicitly encode gameplay opacity semantics, so generated wall segments must improve inspection without unblocking official-layout LOS.
+
+Consequences:
+
+- Template matches record whether reciprocal aspect matching requires a 90 degree rotation before fragment points are transformed into board inches.
+- Fragment-derived wall segments are validated inside the referenced terrain footprint and surfaced in layout payloads and the GUI.
+- Official extracted layouts keep `terrain_footprint_blocker_review_required` warnings, so LOS/heatmap/exposure endpoints still fail closed until the review workflow accepts the geometry.
 
 ## 2026-06-16: Bounded Interactive Analysis Work
 

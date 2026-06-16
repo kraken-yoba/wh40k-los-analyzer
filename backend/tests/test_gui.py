@@ -27,6 +27,7 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
     assert "Provisional Matches" in html
     for expected in [
         'id="layout-select"',
+        'id="load-layout-button"',
         'id="base-diameter"',
         'id="board-canvas"',
         'id="source-status"',
@@ -52,6 +53,16 @@ def test_client_script_handles_async_action_errors_in_panels() -> None:
     assert "async function runPanelAction" in script
     assert "runPanelAction(losResult" in script
     assert "runPanelAction(analysisResult" in script
+
+
+def test_client_script_wires_explicit_layout_load_button() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const loadLayoutButton" in script
+    assert "loadLayoutButton.addEventListener" in script
+    assert "loadSelectedLayout()" in script
 
 
 def test_client_script_renders_layout_metadata() -> None:
