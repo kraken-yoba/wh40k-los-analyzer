@@ -29,3 +29,6 @@
 - Verified the GUI/API checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 74 pytest tests passed.
 - Browser-tested the fixture-backed GUI on `http://127.0.0.1:8000`: dashboard loaded, all three source PDFs showed `hash_match`, map clicks returned `disk-sample-v1` LOS with 289 samples, heatmap/exposure/terrain/export controls returned JSON, mobile-width layout had no horizontal overflow, and there were no browser console errors.
 - Updated the dev launcher to default to `127.0.0.1:8765` and support `FORTYK_LOS_HOST` / `FORTYK_LOS_PORT` overrides so parallel Codex threads can avoid local port collisions.
+- Ran an independent adversarial GUI/API review. The reviewer blocked approval on uncaught API validation errors in click-on-map LOS, stale browser-evidence test filenames, and `innerHTML` use for API-derived text.
+- Fixed the reviewer findings with panel-level async error handling, explicit `textContent` DOM construction, browser-evidence path validation, and corrected evidence file references. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 78 pytest tests passed.
+- Browser-tested the reviewer regression on `http://127.0.0.1:8765`: an illegal base-center click rendered `Error: source base center is not legal`, emitted no error-level console logs, and a subsequent legal click still returned `disk-sample-v1` LOS with 289 samples.

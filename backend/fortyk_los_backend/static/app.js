@@ -48,9 +48,47 @@ async function postJson(url, body) {
   });
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.detail || `${url} returned ${response.status}`);
+    throw new Error(formatApiDetail(payload.detail) || `${url} returned ${response.status}`);
   }
   return payload;
+}
+
+function formatApiDetail(detail) {
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (item && typeof item === "object" && "msg" in item) return item.msg;
+        if (item && typeof item === "object") return JSON.stringify(item);
+        return String(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") return JSON.stringify(detail);
+  if (detail) return String(detail);
+  return "";
+}
+
+function renderError(panel, error) {
+  panel.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
+}
+
+async function runPanelAction(panel, action) {
+  try {
+    await action();
+  } catch (error) {
+    renderError(panel, error);
+  }
+}
+
+function appendDenseItem(container, label, value) {
+  const item = window.document.createElement("div");
+  const labelNode = window.document.createElement("span");
+  const valueNode = window.document.createElement("strong");
+  item.className = "dense-item";
+  labelNode.textContent = label;
+  valueNode.textContent = value;
+  item.append(labelNode, valueNode);
+  container.appendChild(item);
 }
 
 function renderBoard() {
@@ -110,27 +148,25 @@ function renderBoard() {
 }
 
 function renderSources(payload) {
-  sourceStatus.innerHTML = "";
+  sourceStatus.replaceChildren();
   for (const sourceDocument of payload.documents) {
-    const item = window.document.createElement("div");
-    item.className = "dense-item";
-    item.innerHTML = `<span>${sourceDocument.document_id}</span><strong>${sourceDocument.cache_status.status}</strong>`;
-    sourceStatus.appendChild(item);
+    appendDenseItem(
+      sourceStatus,
+      sourceDocument.document_id,
+      sourceDocument.cache_status.status,
+    );
   }
 }
 
 function renderValidation() {
-  validationPanel.innerHTML = "";
+  validationPanel.replaceChildren();
   const records = state.layout.validation_records;
   if (!records.length) {
     validationPanel.textContent = "No validation records.";
     return;
   }
   for (const record of records) {
-    const item = window.document.createElement("div");
-    item.className = "dense-item";
-    item.innerHTML = `<span>${record.code}</span><strong>${record.severity}</strong>`;
-    validationPanel.appendChild(item);
+    appendDenseItem(validationPanel, record.code, record.severity);
   }
 }
 
@@ -149,7 +185,7 @@ async function loadLayout(layoutId) {
 async function initialize() {
   const [layouts, sources] = await Promise.all([getJson("/api/layouts"), getJson("/api/sources")]);
   renderSources(sources);
-  layoutSelect.innerHTML = "";
+  layoutSelect.replaceChildren();
   for (const layout of layouts.layouts) {
     const option = window.document.createElement("option");
     option.value = layout.layout_id;
@@ -159,63 +195,81 @@ async function initialize() {
   await loadLayout(layouts.layouts[0].layout_id);
 }
 
-canvas.addEventListener("click", async (event) => {
-  if (!state.layout) return;
-  state.selectedPoints.push(canvasToBoard(event));
-  if (state.selectedPoints.length > 2) state.selectedPoints.shift();
-  renderBoard();
-  if (state.selectedPoints.length === 2) {
-    const payload = await postJson(`/api/layouts/${state.layout.layout_id}/los`, {
-      source: state.selectedPoints[0],
-      target: state.selectedPoints[1],
-      source_base_diameter: Number(baseDiameter.value),
-      target_base_diameter: Number(baseDiameter.value),
-      boundary_sample_count: 16,
+canvas.addEventListener("click", (event) => {
+  void runPanelAction(losResult, async () => {
+    if (!state.layout) return;
+    state.selectedPoints.push(canvasToBoard(event));
+    if (state.selectedPoints.length > 2) state.selectedPoints.shift();
+    renderBoard();
+    if (state.selectedPoints.length === 1) {
+      losResult.textContent = `Source selected at ${JSON.stringify(state.selectedPoints[0])}`;
+      return;
+    }
+    if (state.selectedPoints.length === 2) {
+      const payload = await postJson(`/api/layouts/${state.layout.layout_id}/los`, {
+        source: state.selectedPoints[0],
+        target: state.selectedPoints[1],
+        source_base_diameter: Number(baseDiameter.value),
+        target_base_diameter: Number(baseDiameter.value),
+        boundary_sample_count: 16,
+      });
+      losResult.textContent = JSON.stringify(payload, null, 2);
+    }
+  });
+});
+
+layoutSelect.addEventListener("change", () => {
+  void runPanelAction(losResult, async () => {
+    await loadLayout(layoutSelect.value);
+  });
+});
+
+document.querySelector("#heatmap-button").addEventListener("click", () => {
+  void runPanelAction(analysisResult, async () => {
+    const payload = await postJson(`/api/layouts/${state.layout.layout_id}/heatmap`, {
+      source_region: { x_min: 0, y_min: 0, x_max: state.layout.board.width, y_max: 10 },
+      source_step: 10,
+      target_grid: { x_min: 2, y_min: 4, x_max: state.layout.board.width - 2, y_max: 24, step: 10 },
     });
-    losResult.textContent = JSON.stringify(payload, null, 2);
-  }
+    state.heatmap = payload;
+    analysisResult.textContent = JSON.stringify(payload, null, 2);
+    renderBoard();
+  });
 });
 
-layoutSelect.addEventListener("change", () => loadLayout(layoutSelect.value));
-
-document.querySelector("#heatmap-button").addEventListener("click", async () => {
-  const payload = await postJson(`/api/layouts/${state.layout.layout_id}/heatmap`, {
-    source_region: { x_min: 0, y_min: 0, x_max: state.layout.board.width, y_max: 10 },
-    source_step: 10,
-    target_grid: { x_min: 2, y_min: 4, x_max: state.layout.board.width - 2, y_max: 24, step: 10 },
+document.querySelector("#exposure-button").addEventListener("click", () => {
+  void runPanelAction(analysisResult, async () => {
+    const payload = await postJson(`/api/layouts/${state.layout.layout_id}/exposure`, {
+      deployment_zone_id: "attacker",
+      movement_distance: Number(movementDistance.value),
+      threat_region: { x_min: state.layout.board.width - 2, y_min: 20, x_max: state.layout.board.width - 2, y_max: 20 },
+      sample_step: 10,
+    });
+    analysisResult.textContent = JSON.stringify(payload, null, 2);
   });
-  state.heatmap = payload;
-  analysisResult.textContent = JSON.stringify(payload, null, 2);
-  renderBoard();
 });
 
-document.querySelector("#exposure-button").addEventListener("click", async () => {
-  const payload = await postJson(`/api/layouts/${state.layout.layout_id}/exposure`, {
-    deployment_zone_id: "attacker",
-    movement_distance: Number(movementDistance.value),
-    threat_region: { x_min: state.layout.board.width - 2, y_min: 20, x_max: state.layout.board.width - 2, y_max: 20 },
-    sample_step: 10,
+document.querySelector("#terrain-coverage-button").addEventListener("click", () => {
+  void runPanelAction(analysisResult, async () => {
+    const featureId = state.layout.terrain_features[0].feature_id;
+    const payload = await postJson(`/api/layouts/${state.layout.layout_id}/terrain/${featureId}/coverage`, {
+      source_region: { x_min: 2, y_min: 4, x_max: 2, y_max: 4 },
+      target_grid: { x_min: state.layout.board.width - 2, y_min: 4, x_max: state.layout.board.width - 2, y_max: 4, step: 1 },
+    });
+    analysisResult.textContent = JSON.stringify(payload, null, 2);
   });
-  analysisResult.textContent = JSON.stringify(payload, null, 2);
-});
-
-document.querySelector("#terrain-coverage-button").addEventListener("click", async () => {
-  const featureId = state.layout.terrain_features[0].feature_id;
-  const payload = await postJson(`/api/layouts/${state.layout.layout_id}/terrain/${featureId}/coverage`, {
-    source_region: { x_min: 2, y_min: 4, x_max: 2, y_max: 4 },
-    target_grid: { x_min: state.layout.board.width - 2, y_min: 4, x_max: state.layout.board.width - 2, y_max: 4, step: 1 },
-  });
-  analysisResult.textContent = JSON.stringify(payload, null, 2);
 });
 
 document.querySelector("#export-button").addEventListener("click", () => {
-  const bundle = {
-    layout_id: state.layout.layout_id,
-    layout_hash: state.layoutHash,
-    selected_points: state.selectedPoints,
-    heatmap: state.heatmap,
-  };
-  analysisResult.textContent = JSON.stringify(bundle, null, 2);
+  void runPanelAction(analysisResult, async () => {
+    const bundle = {
+      layout_id: state.layout.layout_id,
+      layout_hash: state.layoutHash,
+      selected_points: state.selectedPoints,
+      heatmap: state.heatmap,
+    };
+    analysisResult.textContent = JSON.stringify(bundle, null, 2);
+  });
 });
 
 initialize().catch((error) => {

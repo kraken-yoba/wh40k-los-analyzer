@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from fortyk_los_backend.app import app
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_index_serves_local_gui_shell() -> None:
@@ -33,3 +37,22 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="export-button"',
     ]:
         assert expected in html
+
+
+def test_client_script_handles_async_action_errors_in_panels() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "function renderError" in script
+    assert "async function runPanelAction" in script
+    assert "runPanelAction(losResult" in script
+    assert "runPanelAction(analysisResult" in script
+
+
+def test_client_script_avoids_inner_html_for_api_derived_data() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".innerHTML" not in script
