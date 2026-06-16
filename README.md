@@ -1,6 +1,6 @@
 # Warhammer 40k LOS Analyzer
 
-Local tooling for deterministic visual analysis of Warhammer 40k table layouts, terrain footprints, deployment zones, and base-aware 2D line of sight.
+Local Python tooling for deterministic visual analysis of Warhammer 40k table layouts, terrain footprints, deployment zones, and base-aware 2D line of sight.
 
 ## Status
 
@@ -12,8 +12,8 @@ Official Warhammer PDFs and rules text are third-party source material and are n
 
 ## Planned Stack
 
-- Python 3.12 backend with FastAPI, Pydantic, PyMuPDF, OpenCV, Shapely, pytest, Ruff, and mypy.
-- TypeScript frontend with React, Vite, Zod, Vitest, and Playwright.
+- Python 3.12 local web app with FastAPI, Jinja2, Pydantic, PyMuPDF, OpenCV, Shapely, pytest, Ruff, mypy, and Python Playwright.
+- Browser GUI served by FastAPI using templates, CSS, vanilla JavaScript, SVG, and Canvas.
 - Public-safe GitHub Actions for linting, typing, unit tests, and synthetic fixtures.
 
 ## Development Commands

@@ -2,64 +2,41 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Create the public-ready monorepo infrastructure for the Warhammer 40k LOS analysis tool.
+**Goal:** Create the public-ready Python-only monorepo infrastructure for the Warhammer 40k LOS analysis tool.
 
-**Architecture:** This plan creates the repository shell, documentation, Python backend scaffolding, frontend scaffolding, shared schemas, scripts, and CI definitions without implementing the PDF extraction or LOS algorithms. The resulting repo should be ready for future TDD feature slices and safe for public publication without redistributing official PDF binaries.
+**Architecture:** FastAPI serves both backend APIs and the local browser GUI. The GUI uses Jinja2 templates, CSS, and small vanilla JavaScript modules for SVG/Canvas interaction, with no Node/npm build chain.
 
-**Tech Stack:** Python 3.12, FastAPI, Pydantic, pytest, Ruff, mypy, TypeScript, React, Vite, Vitest, Playwright, GitHub Actions, npm, uv.
+**Tech Stack:** Python 3.12, uv, FastAPI, Jinja2, Pydantic, pytest, pytest-cov, pytest-playwright, Ruff, mypy, PyMuPDF, OpenCV, Shapely, GitHub Actions.
 
 ---
 
 ## File Structure
 
-- Bootstrap local development tools: `uv` for Python and Node/npm for frontend lockfile generation.
-- Create `.gitignore` for generated outputs, official PDF caches, local tool caches, Python artifacts, and frontend artifacts.
-- Create `.editorconfig` and `.gitattributes` for consistent formatting and line endings.
-- Create `README.md`, `LICENSE`, `NOTICE.md`, and `.env.example` for public repository readiness.
-- Create `pyproject.toml`, `backend/fortyk_los_backend/`, and `backend/tests/` for Python scaffolding.
-- Create `frontend/package.json`, `frontend/tsconfig*.json`, `frontend/vite.config.ts`, `frontend/src/`, and `frontend/tests/` for frontend scaffolding.
-- Create `schemas/README.md`, `fixtures/README.md`, and `scripts/` entry points.
-- Create `.github/workflows/ci.yml` for public-safe CI.
+- `.gitignore`, `.editorconfig`, `.gitattributes`, `README.md`, `LICENSE`, `NOTICE.md`, and `.env.example` define public repository metadata.
+- `pyproject.toml`, `uv.lock`, `backend/fortyk_los_backend/`, and `backend/tests/` define the Python app and tests.
+- `backend/fortyk_los_backend/templates/` contains server-rendered GUI pages.
+- `backend/fortyk_los_backend/static/` contains CSS and vanilla JavaScript assets.
+- `schemas/` and `fixtures/` document generated schemas and safe fixtures.
+- `scripts/` contains setup, dev, and verification commands.
+- `.github/workflows/ci.yml` runs public-safe Python-only CI.
 
 ## Task 0: Toolchain Bootstrap
 
 **Files:**
 - Modify: local user Python environment for `uv`.
-- Modify: `C:\tmp\fortyk-los-tools\` for portable Node if system Node/npm is unavailable.
 
 - [ ] **Step 1: Install uv if missing**
 
 Run:
 
 ```powershell
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+if (-not (python -m uv --version 2>$null)) {
   python -m pip install --user uv
 }
-uv --version
+python -m uv --version
 ```
 
-Expected: `uv --version` prints an installed version.
-
-- [ ] **Step 2: Install portable Node/npm if missing**
-
-Run:
-
-```powershell
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  New-Item -ItemType Directory -Force C:\tmp\fortyk-los-tools | Out-Null
-  Invoke-WebRequest `
-    -Uri https://nodejs.org/dist/v22.22.1/node-v22.22.1-win-x64.zip `
-    -OutFile C:\tmp\fortyk-los-tools\node-v22.22.1-win-x64.zip
-  Expand-Archive `
-    -Path C:\tmp\fortyk-los-tools\node-v22.22.1-win-x64.zip `
-    -DestinationPath C:\tmp\fortyk-los-tools `
-    -Force
-  $env:PATH = "C:\tmp\fortyk-los-tools\node-v22.22.1-win-x64;$env:PATH"
-}
-npm --version
-```
-
-Expected: `npm --version` prints an installed version.
+Expected: `python -m uv --version` prints an installed version.
 
 ## Task 1: Branch And Repository Metadata
 
@@ -100,13 +77,6 @@ htmlcov/
 dist/
 build/
 *.egg-info/
-
-# Node / frontend
-node_modules/
-frontend/dist/
-frontend/coverage/
-frontend/playwright-report/
-frontend/test-results/
 
 # Local source assets and generated outputs
 .cache/
@@ -165,7 +135,7 @@ Create `README.md`:
 ```markdown
 # Warhammer 40k LOS Analyzer
 
-Local tooling for deterministic visual analysis of Warhammer 40k table layouts, terrain footprints, deployment zones, and base-aware 2D line of sight.
+Local Python tooling for deterministic visual analysis of Warhammer 40k table layouts, terrain footprints, deployment zones, and base-aware 2D line of sight.
 
 ## Status
 
@@ -177,8 +147,8 @@ Official Warhammer PDFs and rules text are third-party source material and are n
 
 ## Planned Stack
 
-- Python 3.12 backend with FastAPI, Pydantic, PyMuPDF, OpenCV, Shapely, pytest, Ruff, and mypy.
-- TypeScript frontend with React, Vite, Zod, Vitest, and Playwright.
+- Python 3.12 local web app with FastAPI, Jinja2, Pydantic, PyMuPDF, OpenCV, Shapely, pytest, Ruff, mypy, and Python Playwright.
+- Browser GUI served by FastAPI using templates, CSS, vanilla JavaScript, SVG, and Canvas.
 - Public-safe GitHub Actions for linting, typing, unit tests, and synthetic fixtures.
 
 ## Development Commands
@@ -266,6 +236,7 @@ Expected: commit succeeds.
 
 **Files:**
 - Create: `pyproject.toml`
+- Create: `uv.lock`
 - Create: `backend/fortyk_los_backend/__init__.py`
 - Create: `backend/fortyk_los_backend/app.py`
 - Create: `backend/tests/test_app.py`
@@ -291,59 +262,14 @@ def test_health_returns_ok() -> None:
 
 - [ ] **Step 2: Create Python project config**
 
-Create `pyproject.toml`:
-
-```toml
-[project]
-name = "fortyk-los-analyzer"
-version = "0.1.0"
-description = "Local deterministic Warhammer 40k LOS analysis tooling"
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-  "fastapi>=0.115.0",
-  "httpx>=0.27.0",
-  "opencv-python-headless>=4.10.0.84",
-  "pydantic>=2.8.0",
-  "pymupdf>=1.24.0",
-  "shapely>=2.0.0",
-  "uvicorn>=0.30.0",
-]
-
-[dependency-groups]
-dev = [
-  "mypy>=1.10.0",
-  "pytest>=8.2.0",
-  "pytest-cov>=5.0.0",
-  "ruff>=0.5.0",
-]
-
-[tool.uv]
-package = false
-
-[tool.pytest.ini_options]
-testpaths = ["backend/tests"]
-pythonpath = ["backend"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-mypy_path = "backend"
-```
+Create `pyproject.toml` with FastAPI, Jinja2, PyMuPDF, OpenCV, Shapely, Pydantic, pytest, pytest-cov, pytest-playwright, Ruff, and mypy dependencies.
 
 - [ ] **Step 3: Run the test and verify it fails**
 
 Run:
 
 ```powershell
-python -m pytest backend/tests/test_app.py -q
+python -m uv run pytest backend/tests/test_app.py -q
 ```
 
 Expected: fails because `fortyk_los_backend.app` does not exist.
@@ -374,228 +300,179 @@ def health() -> dict[str, str]:
 Run:
 
 ```powershell
-python -m pytest backend/tests/test_app.py -q
+python -m uv run pytest backend/tests/test_app.py -q
 ```
 
-Expected: one passing test.
+Expected: one passing test and no warnings.
 
 - [ ] **Step 6: Commit backend skeleton**
 
 Run:
 
 ```powershell
-git add pyproject.toml backend
+git add pyproject.toml uv.lock backend
 git commit -m "chore: add backend tooling skeleton"
 ```
 
 Expected: commit succeeds.
 
-## Task 3: Frontend Tooling Skeleton
+## Task 3: Python-Served GUI Skeleton
 
 **Files:**
-- Create: `frontend/package.json`
-- Create: `frontend/index.html`
-- Create: `frontend/tsconfig.json`
-- Create: `frontend/tsconfig.node.json`
-- Create: `frontend/vite.config.ts`
-- Create: `frontend/src/main.tsx`
-- Create: `frontend/src/App.tsx`
-- Create: `frontend/src/App.test.tsx`
-- Create: `frontend/src/test/setup.ts`
+- Create: `backend/fortyk_los_backend/templates/index.html`
+- Create: `backend/fortyk_los_backend/static/styles.css`
+- Create: `backend/fortyk_los_backend/static/app.js`
+- Modify: `backend/fortyk_los_backend/app.py`
+- Create: `backend/tests/test_gui.py`
 
-- [ ] **Step 1: Create frontend package metadata**
+- [ ] **Step 1: Write the GUI route test first**
 
-Create `frontend/package.json`:
+Create `backend/tests/test_gui.py`:
 
-```json
-{
-  "name": "fortyk-los-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "format:check": "prettier --check .",
-    "test": "vitest run",
-    "test:e2e": "playwright test"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.0",
-    "vite": "^5.4.0",
-    "typescript": "^5.5.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "zod": "^3.23.0"
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "^6.4.0",
-    "@testing-library/react": "^16.0.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "eslint": "^9.8.0",
-    "prettier": "^3.3.0",
-    "vitest": "^2.0.0",
-    "jsdom": "^24.1.0",
-    "@playwright/test": "^1.45.0"
-  }
-}
+```python
+from fastapi.testclient import TestClient
+
+from fortyk_los_backend.app import app
+
+
+def test_index_serves_local_gui_shell() -> None:
+    client = TestClient(app)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Warhammer 40k LOS Analyzer" in response.text
+    assert "Infrastructure ready" in response.text
+    assert "/static/app.js" in response.text
 ```
 
-- [ ] **Step 2: Write the frontend smoke test first**
+- [ ] **Step 2: Run the GUI test and verify it fails**
 
-Create `frontend/src/App.test.tsx`:
+Run:
 
-```tsx
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-
-import { App } from "./App";
-
-describe("App", () => {
-  it("renders the infrastructure-ready shell", () => {
-    render(<App />);
-
-    expect(screen.getByRole("heading", { name: "Warhammer 40k LOS Analyzer" })).toBeInTheDocument();
-    expect(screen.getByText("Infrastructure ready")).toBeInTheDocument();
-  });
-});
+```powershell
+python -m uv run pytest backend/tests/test_gui.py -q
 ```
 
-- [ ] **Step 3: Create minimal frontend source**
+Expected: fails because `/` is not implemented.
 
-Create `frontend/src/App.tsx`:
+- [ ] **Step 3: Add templates and static assets**
 
-```tsx
-export function App() {
-  return (
-    <main>
-      <h1>Warhammer 40k LOS Analyzer</h1>
-      <p>Infrastructure ready</p>
-    </main>
-  );
-}
-```
-
-Create `frontend/src/main.tsx`:
-
-```tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-
-import { App } from "./App";
-
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-```
-
-Create `frontend/src/test/setup.ts`:
-
-```ts
-import "@testing-library/jest-dom/vitest";
-```
-
-Create `frontend/index.html`:
+Create `backend/fortyk_los_backend/templates/index.html`:
 
 ```html
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Warhammer 40k LOS Analyzer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <main class="app-shell">
+      <h1>Warhammer 40k LOS Analyzer</h1>
+      <p id="status">Infrastructure ready</p>
+      <section class="board-placeholder" aria-label="Board analysis canvas">
+        <canvas id="board-canvas" width="880" height="1200"></canvas>
+      </section>
+    </main>
+    <script type="module" src="/static/app.js"></script>
   </body>
 </html>
 ```
 
-Create `frontend/tsconfig.json`:
+Create `backend/fortyk_los_backend/static/styles.css`:
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ES2020"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "types": ["vitest/globals", "@testing-library/jest-dom"]
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+```css
+:root {
+  color: #202124;
+  background: #f7f5ef;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.board-placeholder {
+  border: 1px solid #79756d;
+  background: #fffdf7;
+  max-width: 440px;
+}
+
+#board-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 ```
 
-Create `frontend/tsconfig.node.json`:
+Create `backend/fortyk_los_backend/static/app.js`:
 
-```json
-{
-  "compilerOptions": {
-    "composite": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "allowSyntheticDefaultImports": true
-  },
-  "include": ["vite.config.ts"]
-}
+```javascript
+const canvas = document.querySelector("#board-canvas");
+const context = canvas.getContext("2d");
+
+context.fillStyle = "#fffaf0";
+context.fillRect(0, 0, canvas.width, canvas.height);
+context.strokeStyle = "#2f2f2f";
+context.lineWidth = 8;
+context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
 ```
 
-Create `frontend/vite.config.ts`:
+- [ ] **Step 4: Serve the GUI from FastAPI**
 
-```ts
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+Modify `backend/fortyk_los_backend/app.py`:
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
-  },
-});
+```python
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+PACKAGE_DIR = Path(__file__).resolve().parent
+
+app = FastAPI(title="Warhammer 40k LOS Analyzer")
+app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "index.html")
 ```
 
-- [ ] **Step 4: Verify frontend dependency blocker or tests**
+- [ ] **Step 5: Verify GUI and backend tests pass**
 
 Run:
 
 ```powershell
-npm --version
+python -m uv run pytest backend/tests -q
 ```
 
-Expected: `npm --version` prints a version. Then run:
+Expected: two passing tests and no warnings.
 
-```powershell
-npm install --package-lock-only --prefix frontend
-npm test --prefix frontend
-```
-
-Expected: `frontend/package-lock.json` exists and the smoke test passes.
-
-- [ ] **Step 5: Commit frontend skeleton**
+- [ ] **Step 6: Commit Python GUI skeleton**
 
 Run:
 
 ```powershell
-git add frontend
-git commit -m "chore: add frontend tooling skeleton"
+git add backend
+git commit -m "chore: add python-served GUI skeleton"
 ```
 
 Expected: commit succeeds.
@@ -606,8 +483,7 @@ Expected: commit succeeds.
 - Create: `schemas/README.md`
 - Create: `fixtures/README.md`
 - Create: `scripts/verify.ps1`
-- Create: `scripts/verify_backend.ps1`
-- Create: `scripts/verify_frontend.ps1`
+- Create: `scripts/dev.ps1`
 - Create: `.github/workflows/ci.yml`
 
 - [ ] **Step 1: Create schema and fixture notes**
@@ -632,32 +508,22 @@ This directory is for synthetic fixtures and copyright-safe golden outputs.
 Official PDFs are not committed here. They belong in the local gitignored cache documented by `pdf_manifest.json`.
 ```
 
-- [ ] **Step 2: Create verification scripts**
-
-Create `scripts/verify_backend.ps1`:
-
-```powershell
-$ErrorActionPreference = "Stop"
-python -m pytest backend/tests -q
-```
-
-Create `scripts/verify_frontend.ps1`:
-
-```powershell
-$ErrorActionPreference = "Stop"
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  Write-Host "npm is not installed; skipping frontend verification."
-  exit 0
-}
-npm test --prefix frontend
-```
+- [ ] **Step 2: Create scripts**
 
 Create `scripts/verify.ps1`:
 
 ```powershell
 $ErrorActionPreference = "Stop"
-& "$PSScriptRoot\verify_backend.ps1"
-& "$PSScriptRoot\verify_frontend.ps1"
+python -m uv run ruff check .
+python -m uv run mypy backend
+python -m uv run pytest backend/tests -q
+```
+
+Create `scripts/dev.ps1`:
+
+```powershell
+$ErrorActionPreference = "Stop"
+python -m uv run uvicorn fortyk_los_backend.app:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
 ```
 
 - [ ] **Step 3: Create public-safe CI**
@@ -672,7 +538,7 @@ on:
   pull_request:
 
 jobs:
-  backend:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -684,22 +550,6 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy backend
       - run: uv run pytest backend/tests -q
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-        working-directory: frontend
-      - run: npm run build
-        working-directory: frontend
-      - run: npm test
-        working-directory: frontend
 ```
 
 - [ ] **Step 4: Verify scripts**
@@ -710,7 +560,7 @@ Run:
 .\scripts\verify.ps1
 ```
 
-Expected: backend tests pass; frontend verification runs with npm and the frontend smoke test passes.
+Expected: Ruff, mypy, and pytest pass.
 
 - [ ] **Step 5: Commit scripts and CI**
 
@@ -736,7 +586,11 @@ Run:
 gh auth status
 ```
 
-Expected: authenticated account. If the token is invalid, stop GitHub publication and report the exact re-authentication command.
+Expected: authenticated account. If the token is invalid, stop GitHub publication and report:
+
+```powershell
+gh auth login -h github.com
+```
 
 - [ ] **Step 2: Create the public repository after auth works**
 
@@ -750,20 +604,9 @@ Use these defaults unless the user overrides them before this task runs:
 Run:
 
 ```powershell
-gh repo create wh40k-los-analyzer --public --source . --remote origin --description "Deterministic local Warhammer 40k LOS and terrain-layout analysis tool"
+gh repo create wh40k-los-analyzer --public --source . --remote origin --description "Python local Warhammer 40k LOS and terrain-layout analysis tool"
 git push -u origin main
 git push -u origin codex/project-infrastructure
 ```
 
 Expected: remote `origin` exists, `main` and `codex/project-infrastructure` are pushed.
-
-- [ ] **Step 3: Verify remote**
-
-Run:
-
-```powershell
-git remote -v
-gh repo view --web
-```
-
-Expected: repository exists and opens in browser if GUI access is available.

@@ -1,0 +1,27 @@
+:root {
+  color: #202124;
+  background: #f7f5ef;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.board-placeholder {
+  border: 1px solid #79756d;
+  background: #fffdf7;
+  max-width: 440px;
+}
+
+#board-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}

@@ -32,7 +32,7 @@ Future builds may add height-aware or full 3D-aware LOS, but the first release s
 
 ## Architecture
 
-Use a Python extraction and simulation backend with a TypeScript local web frontend.
+Use a Python-only local web application. FastAPI owns the extraction and simulation APIs, serves the local GUI, and hosts static browser assets. The browser UI should use server-rendered HTML templates, CSS, and small vanilla JavaScript modules for Canvas/SVG interaction; no Node, npm, React, Vite, or TypeScript build chain is required for the first release.
 
 The backend owns:
 
@@ -46,7 +46,7 @@ The backend owns:
 - Optional vision-model sanity checks.
 - LOS and heatmap computation APIs.
 
-The frontend owns:
+The Python-served browser UI owns:
 
 - Local GUI shell.
 - Board rendering.
@@ -98,7 +98,7 @@ Public repository workflows must not assume the official PDF binaries can be red
 
 ## Canonical Data Model
 
-Each extracted layout should be stored as versioned canonical JSON with sorted keys, fixed float precision, explicit units, required status enums, and `schema_version`. The backend must generate JSON Schema from Pydantic models, and the frontend must consume mirrored or generated Zod schemas.
+Each extracted layout should be stored as versioned canonical JSON with sorted keys, fixed float precision, explicit units, required status enums, and `schema_version`. The backend must generate JSON Schema from Pydantic models. The browser UI consumes JSON directly from FastAPI endpoints and does not require a separate generated frontend schema package.
 
 Canonical layout hashes must exclude timestamps, absolute local paths, and machine-specific metadata. Those volatile values belong in `run_metadata`, not in the canonical layout object.
 
@@ -297,7 +297,8 @@ The project should be set up as a public-ready monorepo after the spec is approv
 Repository layout:
 
 - `backend/`: Python FastAPI extraction, validation, geometry, and LOS services.
-- `frontend/`: TypeScript React/Vite local GUI.
+- `backend/fortyk_los_backend/templates/`: server-rendered HTML templates for the local GUI.
+- `backend/fortyk_los_backend/static/`: CSS and vanilla JavaScript modules for browser-side Canvas/SVG interaction.
 - `schemas/`: generated JSON Schema and shared schema documentation.
 - `fixtures/`: synthetic fixtures, small copyright-safe regression inputs, expected JSON, and expected overlay snapshots.
 - `scripts/`: cross-platform setup, download, extraction, verification, and dev-server entry points.
@@ -308,9 +309,7 @@ Repository layout:
 Coding tools:
 
 - Python dependency management should use `uv` with a checked-in `uv.lock`.
-- Python quality gates should include Ruff formatting/linting, mypy type checks, pytest, coverage reporting, and schema-generation checks.
-- Frontend dependency management should use npm with a checked-in `package-lock.json`.
-- Frontend quality gates should include TypeScript type checks, ESLint, Prettier, Vitest unit tests, and Playwright GUI tests.
+- Python quality gates should include Ruff formatting/linting, mypy type checks, pytest, coverage reporting, schema-generation checks, and Playwright GUI tests through the Python Playwright package.
 - Repository-level commands should provide one obvious setup command, one dev command, one deterministic verification command, and one full local release-gate command.
 - Generated caches, downloaded PDFs, rendered pages, heatmap rasters, model responses, and temporary analysis outputs must be ignored by git unless they are intentional fixtures.
 
@@ -346,7 +345,7 @@ Fixture manifests must include `pdf_sha256`, `page_number`, `layout_id`, expecte
 
 Geometry fixtures must explicitly cover center-to-center blocked but disk-to-disk visible, exact tangent to blocker endpoint, collinear overlap with wall segment, target base clipped by board edge, zero valid heatmap sources, narrow lanes, grid-origin artifacts, and contextual footprint overlap that does not block LOS.
 
-Frontend tests:
+GUI tests:
 
 - Layout loading.
 - Overlay toggles.
@@ -362,7 +361,7 @@ Frontend tests:
 - Selected-entity provenance panel.
 - Heatmap normalization legend and tooltip values.
 
-Frontend tests use Playwright with a fixture backend, no network, fixed viewport matrix, deterministic canvas/SVG rendering, screenshot thresholds for PDF underlay/overlay alignment, and DOM assertions for warning/status state.
+GUI tests use Python Playwright with a fixture backend, no network, fixed viewport matrix, deterministic canvas/SVG rendering, screenshot thresholds for PDF underlay/overlay alignment, and DOM assertions for warning/status state.
 
 Vision-model checks:
 
@@ -407,13 +406,13 @@ The app should prefer stale-but-visible extracted layouts over blank states when
 The implementation plan should start from these defaults unless a concrete blocker appears:
 
 - Backend: Python with FastAPI for local APIs.
-- Supported local/CI runtime: pinned Python and Node versions, pinned dependency lockfiles, and documented OS support.
+- Supported local/CI runtime: pinned Python version, pinned `uv.lock`, and documented OS support.
 - PDF rendering, text, and vector extraction: PyMuPDF.
 - Computer vision: OpenCV plus NumPy.
 - Geometry operations: Shapely.
 - Backend schema validation: Pydantic.
-- Frontend: TypeScript, React, and Vite.
-- Frontend schema validation: Zod generated or mirrored from backend schemas.
+- Local GUI: FastAPI templates with CSS and vanilla JavaScript served from the Python app.
+- Browser schema handling: consume backend JSON directly; keep Pydantic-generated JSON Schema as the source of truth.
 - Rendering: SVG for editable overlays and Canvas2D for dense heatmaps.
 - Heatmaps: computed server-side first, returned as arrays or raster tiles for frontend display.
 - Sampling density: 2 inch preview grid, 1 inch default grid, 0.5 inch high-resolution grid.
