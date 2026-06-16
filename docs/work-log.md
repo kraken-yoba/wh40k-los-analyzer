@@ -15,3 +15,5 @@
 - Verified the data-spine checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 17 pytest tests passed.
 - Ran a targeted adversarial data-spine reviewer. The reviewer blocked LOS work until canonical inputs were hardened against non-finite coordinates, invalid polygons, blockers outside footprints, unsafe manifest paths/URLs/hashes, duplicate validation records, mutable models, and unpinned schema versions.
 - Fixed the accepted data-spine review findings with regression tests. Verification passed with `scripts\verify.cmd`: Ruff, mypy, and 42 pytest tests passed.
+- Implemented the first LOS slice: point LOS blocker intersection, base-center legality, deterministic disk-sampled base-aware LOS, and `/api/layouts/{layout_id}/los`.
+- Verified the LOS checkpoint with `scripts\verify.cmd`: Ruff, mypy, and 54 pytest tests passed.
