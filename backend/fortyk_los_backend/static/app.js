@@ -2,11 +2,13 @@ const canvas = document.querySelector("#board-canvas");
 const context = canvas.getContext("2d");
 const layoutSelect = document.querySelector("#layout-select");
 const loadLayoutButton = document.querySelector("#load-layout-button");
+const interactionMode = document.querySelector("#interaction-mode");
 const layoutMetadata = document.querySelector("#layout-metadata");
 const sourceStatus = document.querySelector("#source-status");
 const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
 const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
+const featureProvenance = document.querySelector("#feature-provenance");
 const validationPanel = document.querySelector("#validation-panel");
 const losResult = document.querySelector("#los-result");
 const analysisResult = document.querySelector("#analysis-result");
@@ -19,6 +21,7 @@ const state = {
   layout: null,
   layoutHash: null,
   selectedPoints: [],
+  selectedFeatureId: null,
   heatmap: null,
 };
 
@@ -116,6 +119,38 @@ function hasValidationCode(code) {
   return state.layout.validation_records.some((record) => record.code === code);
 }
 
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  const vertices = polygon.points;
+  for (let index = 0, previousIndex = vertices.length - 1; index < vertices.length; previousIndex = index, index += 1) {
+    const current = vertices[index];
+    const previous = vertices[previousIndex];
+    const crosses =
+      current.y > point.y !== previous.y > point.y &&
+      point.x < ((previous.x - current.x) * (point.y - current.y)) / (previous.y - current.y) + current.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function featureAtPoint(point) {
+  if (!state.layout) return null;
+  const features = state.layout.terrain_features;
+  for (let index = features.length - 1; index >= 0; index -= 1) {
+    if (pointInPolygon(point, features[index].footprint)) return features[index];
+  }
+  return null;
+}
+
+function selectedFeature() {
+  if (!state.layout || !state.selectedFeatureId) return null;
+  return (
+    state.layout.terrain_features.find(
+      (feature) => feature.feature_id === state.selectedFeatureId,
+    ) || null
+  );
+}
+
 function renderBoard() {
   if (!state.layout) return;
   const provisionalBlockers = hasValidationCode("terrain_footprint_blocker_review_required");
@@ -139,6 +174,13 @@ function renderBoard() {
     context.strokeStyle = "#746a5c";
     context.lineWidth = 2;
     context.stroke();
+    if (feature.feature_id === state.selectedFeatureId) {
+      context.setLineDash([8, 5]);
+      context.strokeStyle = "#1f5f99";
+      context.lineWidth = 5;
+      context.stroke();
+      context.setLineDash([]);
+    }
   }
 
   for (const blocker of state.layout.blockers) {
@@ -248,6 +290,38 @@ function renderVisualSanity(payload) {
   }
 }
 
+function renderFeatureProvenance(feature, point = null) {
+  featureProvenance.replaceChildren();
+  if (!feature) {
+    const suffix = point ? ` at ${point.x}, ${point.y}` : "";
+    featureProvenance.textContent = `No feature selected${suffix}.`;
+    return;
+  }
+  const blockers = state.layout.blockers.filter(
+    (blocker) => blocker.feature_id === feature.feature_id,
+  );
+  const reviewCodes = state.layout.validation_records
+    .filter((record) => record.severity === "warning")
+    .map((record) => `${record.code}:${record.review_status}`);
+  appendDenseItem(featureProvenance, "Feature", feature.feature_id);
+  appendDenseItem(featureProvenance, "Label", feature.label);
+  appendDenseItem(featureProvenance, "Category", feature.terrain_category);
+  appendDenseItem(featureProvenance, "blocker count", String(blockers.length));
+  appendDenseItem(featureProvenance, "Footprint points", String(feature.footprint.points.length));
+  appendDenseItem(featureProvenance, "Document", state.layout.provenance.source_document_id);
+  appendDenseItem(featureProvenance, "Page", String(state.layout.provenance.source_page));
+  appendDenseItem(featureProvenance, "Method", state.layout.provenance.extraction_method);
+  appendDenseItem(
+    featureProvenance,
+    "Layout warnings",
+    reviewCodes.length ? reviewCodes.join(", ") : "not_required",
+  );
+}
+
+function renderSelectedFeatureProvenance() {
+  renderFeatureProvenance(selectedFeature());
+}
+
 async function loadVisualSanity(layoutId) {
   visualSanityEvidence.textContent = "Loading sanity evidence.";
   try {
@@ -316,6 +390,7 @@ async function acceptValidationWarning(recordCode) {
   losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
   renderLayoutMetadata();
   renderValidation();
+  renderSelectedFeatureProvenance();
   renderBoard();
 }
 
@@ -327,11 +402,13 @@ async function loadLayout(layoutId) {
   state.layout = payload.layout;
   state.layoutHash = payload.layout_hash;
   state.selectedPoints = [];
+  state.selectedFeatureId = null;
   state.heatmap = null;
   losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
   analysisResult.textContent = "Run heatmap, exposure, or terrain coverage.";
   renderLayoutMetadata();
   renderValidation();
+  renderFeatureProvenance(null);
   renderFootprintMatches(matches);
   renderBoard();
   void loadVisualSanity(layoutId);
@@ -364,7 +441,15 @@ function formatLayoutOption(layout) {
 canvas.addEventListener("click", (event) => {
   void runPanelAction(losResult, async () => {
     if (!state.layout) return;
-    state.selectedPoints.push(canvasToBoard(event));
+    const boardPoint = canvasToBoard(event);
+    if (interactionMode.value === "inspect") {
+      const feature = featureAtPoint(boardPoint);
+      state.selectedFeatureId = feature ? feature.feature_id : null;
+      renderFeatureProvenance(feature, boardPoint);
+      renderBoard();
+      return;
+    }
+    state.selectedPoints.push(boardPoint);
     if (state.selectedPoints.length > 2) state.selectedPoints.shift();
     renderBoard();
     if (state.selectedPoints.length === 1) {

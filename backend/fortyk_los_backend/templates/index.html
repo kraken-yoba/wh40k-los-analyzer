@@ -23,6 +23,13 @@
         </label>
         <button id="load-layout-button" type="button">Load</button>
         <label>
+          Mode
+          <select id="interaction-mode">
+            <option value="los">LOS</option>
+            <option value="inspect">Inspect</option>
+          </select>
+        </label>
+        <label>
           Base diameter
           <input id="base-diameter" type="number" min="0.5" step="0.01" value="1.26" />
         </label>
@@ -60,6 +67,10 @@
           <section>
             <h2>Sanity</h2>
             <div id="visual-sanity-evidence" class="dense-list"></div>
+          </section>
+          <section>
+            <h2>Feature</h2>
+            <div id="feature-provenance" class="dense-list"></div>
           </section>
           <section>
             <h2>Validation</h2>
