@@ -46,6 +46,8 @@
 - Task 5 layout extraction uses vector-first board/deployment/grey-terrain extraction from `event-companion.pdf`. Dense/light terrain features are raster HSV candidates clipped to each grey footprint because green/yellow vector fills on layout pages are mostly labels/icons rather than reliable feature geometry.
 - Task 5 official page-9 smoke detects board `(127.99, 277.77, 468.15, 740.18)`, 2 deployment zones, 16 terrain areas, and raster dense/light feature candidates.
 - Task 5 official aggregate smoke over pages 9-53 detects 45 layouts; every layout has 2 deployment zones, 16 terrain areas, and at least one raster feature candidate.
+- Task 6 packet builder converts extracted layouts into `MapPacket` JSON, using grey terrain footprints as LOS-blocking terrain areas and raster dense candidates as dense blockers. Light feature candidates stay in layout extraction artifacts/reports for review rather than becoming LOS blockers in the MVP packet.
+- Task 6 official page-9 smoke wrote one valid packet under `data/processed/map-packets/` and `data/processed/ingestion-report.json`.
 
 ### Exit Criteria
 

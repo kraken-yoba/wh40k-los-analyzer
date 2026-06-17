@@ -21,5 +21,25 @@ class IngestionPaths:
         return self.processed_dir / "source-manifest.json"
 
     @property
+    def footprint_library_path(self) -> Path:
+        return self.processed_dir / "footprint-library.json"
+
+    @property
+    def layout_library_path(self) -> Path:
+        return self.processed_dir / "layout-library.json"
+
+    @property
+    def ingestion_report_path(self) -> Path:
+        return self.processed_dir / "ingestion-report.json"
+
+    @property
+    def footprint_review_dir(self) -> Path:
+        return self.processed_dir / "review" / "footprints"
+
+    @property
+    def layout_review_dir(self) -> Path:
+        return self.processed_dir / "review" / "layouts"
+
+    @property
     def map_packets_dir(self) -> Path:
         return self.processed_dir / "map-packets"
