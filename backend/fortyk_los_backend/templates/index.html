@@ -53,30 +53,38 @@
         </section>
 
         <aside class="side-panel" aria-label="Analysis details">
-          <section>
-            <h2>Layout</h2>
+          <details class="evidence-section" open>
+            <summary>Layout</summary>
             <div id="layout-metadata" class="dense-list"></div>
-          </section>
-          <section>
-            <h2>Sources</h2>
+          </details>
+          <details class="evidence-section">
+            <summary>Sources</summary>
             <div id="source-status" class="dense-list"></div>
-          </section>
-          <section>
-            <h2>Rules</h2>
+          </details>
+          <details class="evidence-section">
+            <summary>Rules</summary>
             <div id="rules-evidence" class="dense-list"></div>
-          </section>
-          <section>
-            <h2>Footprints</h2>
+          </details>
+          <details class="evidence-section">
+            <summary>Footprints</summary>
             <div id="footprint-evidence" class="dense-list"></div>
-          </section>
-          <section>
-            <h2>Provisional Matches</h2>
+          </details>
+          <details class="evidence-section">
+            <summary>Provisional Matches</summary>
             <div id="footprint-match-evidence" class="dense-list"></div>
-          </section>
-          <section>
-            <h2>Sanity</h2>
+          </details>
+          <details class="evidence-section">
+            <summary>Footprint Normalization</summary>
+            <div id="footprint-normalization-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Symmetry</summary>
+            <div id="terrain-symmetry-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Sanity</summary>
             <div id="visual-sanity-evidence" class="dense-list"></div>
-          </section>
+          </details>
           <section>
             <h2>Terrain</h2>
             <div id="terrain-semantics" class="terrain-semantics"></div>
@@ -85,10 +93,10 @@
             <h2>Feature</h2>
             <div id="feature-provenance" class="dense-list"></div>
           </section>
-          <section>
-            <h2>Validation</h2>
+          <details class="evidence-section">
+            <summary>Validation</summary>
             <div id="validation-panel" class="dense-list"></div>
-          </section>
+          </details>
           <section>
             <h2>LOS</h2>
             <pre id="los-result">Click the board to set source and target.</pre>

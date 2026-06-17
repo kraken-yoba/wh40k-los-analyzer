@@ -8,6 +8,8 @@ const sourceStatus = document.querySelector("#source-status");
 const rulesEvidence = document.querySelector("#rules-evidence");
 const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
+const footprintNormalizationEvidence = document.querySelector("#footprint-normalization-evidence");
+const terrainSymmetryEvidence = document.querySelector("#terrain-symmetry-evidence");
 const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
 const terrainSemantics = document.querySelector("#terrain-semantics");
 const featureProvenance = document.querySelector("#feature-provenance");
@@ -20,6 +22,8 @@ const sourceUnderlayToggle = document.querySelector("#source-underlay-toggle");
 const sourceUnderlayStatus = document.querySelector("#source-underlay-status");
 const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
 const FOOTPRINT_MATCH_METHOD = "terrain-footprint-match-v1";
+const FOOTPRINT_NORMALIZATION_METHOD = "terrain-footprint-normalization-v1";
+const TERRAIN_SYMMETRY_METHOD = "terrain-symmetry-v1";
 const RULES_TERRAIN_SEMANTICS_METHOD = "core-rules-terrain-semantics-v1";
 
 const state = {
@@ -382,6 +386,75 @@ function renderFootprintMatches(payload) {
   }
 }
 
+function renderFootprintNormalization(payload) {
+  footprintNormalizationEvidence.replaceChildren();
+  appendDenseItem(footprintNormalizationEvidence, "Status", payload.status || "unavailable");
+  appendDenseItem(
+    footprintNormalizationEvidence,
+    "Method",
+    payload.extraction_method || FOOTPRINT_NORMALIZATION_METHOD,
+  );
+  appendDenseItem(footprintNormalizationEvidence, "Options", String(payload.options.length));
+  appendDenseItem(
+    footprintNormalizationEvidence,
+    "Detected",
+    String(payload.detected_elements.length),
+  );
+  appendDenseItem(footprintNormalizationEvidence, "Matches", String(payload.matches.length));
+  for (const option of payload.options || []) {
+    appendDenseItem(
+      footprintNormalizationEvidence,
+      option.option_id,
+      `${Number(option.width_inches).toFixed(1)}x${Number(option.height_inches).toFixed(1)}in count=${option.count}`,
+    );
+  }
+  for (const match of payload.matches || []) {
+    appendDenseItem(
+      footprintNormalizationEvidence,
+      match.feature_id || match.element_id,
+      `${match.option_id} ${match.status} ${match.review_reason} rot=${match.rotation_degrees} delta=${Number(match.dimension_delta_inches).toFixed(2)}in x=${Number(match.width_delta_inches).toFixed(2)}in y=${Number(match.height_delta_inches).toFixed(2)}in`,
+    );
+  }
+  for (const code of payload.warning_codes || []) {
+    appendDenseItem(footprintNormalizationEvidence, "Warning", code);
+  }
+}
+
+function renderTerrainSymmetry(payload) {
+  terrainSymmetryEvidence.replaceChildren();
+  appendDenseItem(terrainSymmetryEvidence, "Status", payload.status || "warning");
+  appendDenseItem(
+    terrainSymmetryEvidence,
+    "Method",
+    payload.extraction_method || TERRAIN_SYMMETRY_METHOD,
+  );
+  appendDenseItem(terrainSymmetryEvidence, "Kind", payload.symmetry_kind || "rotational_180");
+  appendDenseItem(
+    terrainSymmetryEvidence,
+    "Matched",
+    `${payload.matched_feature_count}/${payload.feature_count}`,
+  );
+  const residual =
+    payload.max_residual_inches === null || payload.max_residual_inches === undefined
+      ? "n/a"
+      : `${Number(payload.max_residual_inches).toFixed(2)}in`;
+  appendDenseItem(terrainSymmetryEvidence, "Max residual", residual);
+  if ((payload.unmatched_feature_ids || []).length) {
+    appendDenseItem(
+      terrainSymmetryEvidence,
+      "Unmatched",
+      payload.unmatched_feature_ids.join(", "),
+    );
+  }
+  for (const match of payload.matches || []) {
+    appendDenseItem(
+      terrainSymmetryEvidence,
+      match.feature_id,
+      `${match.status} mirror=${match.mirrored_feature_id || "none"} residual=${Number(match.residual_inches).toFixed(2)}in`,
+    );
+  }
+}
+
 function renderVisualSanity(payload) {
   visualSanityEvidence.replaceChildren();
   appendDenseItem(visualSanityEvidence, "Status", payload.status || "unavailable");
@@ -446,6 +519,30 @@ async function loadVisualSanity(layoutId) {
   } catch (error) {
     if (!state.layout || state.layout.layout_id !== layoutId) return;
     renderError(visualSanityEvidence, error);
+  }
+}
+
+async function loadFootprintNormalization(layoutId) {
+  footprintNormalizationEvidence.textContent = "Loading normalization evidence.";
+  try {
+    const payload = await getJson(`/api/layouts/${layoutId}/footprint-normalization`);
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderFootprintNormalization(payload);
+  } catch (error) {
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderError(footprintNormalizationEvidence, error);
+  }
+}
+
+async function loadTerrainSymmetry(layoutId) {
+  terrainSymmetryEvidence.textContent = "Loading symmetry evidence.";
+  try {
+    const payload = await getJson(`/api/layouts/${layoutId}/terrain-symmetry`);
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderTerrainSymmetry(payload);
+  } catch (error) {
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderError(terrainSymmetryEvidence, error);
   }
 }
 
@@ -557,6 +654,8 @@ async function loadLayout(layoutId) {
   renderFeatureProvenance(null);
   renderFootprintMatches(matches);
   renderBoard();
+  void loadFootprintNormalization(layoutId);
+  void loadTerrainSymmetry(layoutId);
   void loadVisualSanity(layoutId);
 }
 

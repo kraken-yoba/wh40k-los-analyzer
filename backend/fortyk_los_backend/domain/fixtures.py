@@ -9,6 +9,12 @@ from fortyk_los_backend.domain.extraction import (
     list_event_companion_layout_pages,
     match_terrain_features_to_footprints,
 )
+from fortyk_los_backend.domain.footprint_normalization import (
+    FOOTPRINT_NORMALIZATION_METHOD,
+    FootprintNormalizationStatus,
+    TerrainFootprintNormalizationReport,
+    run_terrain_footprint_normalization,
+)
 from fortyk_los_backend.domain.manifest import (
     CacheStatus,
     SourceCacheStatus,
@@ -23,6 +29,10 @@ from fortyk_los_backend.domain.rules import (
 )
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 from fortyk_los_backend.domain.source_underlay import render_event_companion_board_underlay
+from fortyk_los_backend.domain.terrain_symmetry import (
+    TerrainSymmetryReport,
+    analyze_terrain_symmetry,
+)
 from fortyk_los_backend.domain.visual_sanity import (
     EventCompanionVisualSanityReport,
     VisualSanityStatus,
@@ -182,6 +192,39 @@ class FixtureRepository:
             page_number=layout.provenance.source_page,
             layout=layout,
         )
+
+    def footprint_normalization_evidence(
+        self,
+        layout_id: str,
+    ) -> TerrainFootprintNormalizationReport | dict[str, object] | None:
+        layout = self.get_layout(layout_id)
+        if layout is None:
+            return None
+        if layout.provenance.extraction_method != "event-companion-vector-v1":
+            return _unavailable_footprint_normalization(layout)
+
+        document_status = self._source_document_status(SourceKind.EVENT_COMPANION)
+        if document_status is None:
+            return _unavailable_footprint_normalization(layout)
+        document, status = document_status
+        if status.status != CacheStatus.HASH_MATCH:
+            return _unavailable_footprint_normalization(layout, cache_status=status)
+
+        report = run_terrain_footprint_normalization(
+            (self._repo_root / document.cache_path).resolve(),
+            page_number=layout.provenance.source_page,
+            layout=layout,
+        )
+        return {
+            **report.__dict__,
+            "cache_status": status,
+        }
+
+    def terrain_symmetry_evidence(self, layout_id: str) -> TerrainSymmetryReport | None:
+        layout = self.get_layout(layout_id)
+        if layout is None:
+            return None
+        return analyze_terrain_symmetry(layout)
 
     def source_underlay_png(self, layout: CanonicalLayout) -> bytes | None:
         if layout.provenance.extraction_method != "event-companion-vector-v1":
@@ -356,6 +399,25 @@ def _unavailable_visual_sanity(layout: CanonicalLayout) -> dict[str, object]:
             "reason": "Visual sanity checks require a hash-matched Event Companion PDF layout.",
             "input": "none",
         },
+    }
+
+
+def _unavailable_footprint_normalization(
+    layout: CanonicalLayout,
+    *,
+    cache_status: SourceCacheStatus | None = None,
+) -> dict[str, object]:
+    return {
+        "layout_id": layout.layout_id,
+        "source_document_id": layout.provenance.source_document_id,
+        "cache_status": cache_status,
+        "source_page": layout.provenance.source_page,
+        "extraction_method": FOOTPRINT_NORMALIZATION_METHOD,
+        "status": FootprintNormalizationStatus.UNAVAILABLE,
+        "options": [],
+        "detected_elements": [],
+        "matches": [],
+        "warning_codes": ["terrain_footprint_normalization_source_unavailable"],
     }
 
 

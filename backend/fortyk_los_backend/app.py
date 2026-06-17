@@ -246,6 +246,22 @@ def visual_sanity_evidence(layout_id: str) -> dict[str, object]:
     return payload
 
 
+@app.get("/api/layouts/{layout_id}/footprint-normalization")
+def footprint_normalization_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.footprint_normalization_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
+@app.get("/api/layouts/{layout_id}/terrain-symmetry")
+def terrain_symmetry_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.terrain_symmetry_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
 @app.get("/api/layouts/{layout_id}/source-underlay.png")
 def source_underlay(layout_id: str) -> Response:
     layout = fixtures.get_layout(layout_id)

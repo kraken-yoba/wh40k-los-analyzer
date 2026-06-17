@@ -575,6 +575,74 @@ def test_visual_sanity_api_returns_404_for_missing_layout() -> None:
     assert response.json()["detail"] == "Layout not found: missing-layout"
 
 
+def test_footprint_normalization_api_returns_size_option_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_temp_event_companion_repo(tmp_path)
+    monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/event-companion-page-1/footprint-normalization")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["layout_id"] == "event-companion-page-1"
+    assert payload["source_document_id"] == "event-companion-2026-06-12"
+    assert payload["cache_status"]["status"] == "hash_match"
+    assert payload["source_page"] == 1
+    assert payload["status"] == "passed"
+    assert payload["extraction_method"] == "terrain-footprint-normalization-v1"
+    assert payload["options"] == [
+        {
+            "count": 1,
+            "feature_ids": ["terrain-01"],
+            "height_inches": 10.0,
+            "option_id": "footprint-size-10x10",
+            "width_inches": 10.0,
+        }
+    ]
+    assert payload["detected_elements"][0]["element_id"] == "terrain-image-01"
+    assert payload["detected_elements"][0]["feature_id"] == "terrain-01"
+    assert payload["matches"][0]["option_id"] == "footprint-size-10x10"
+    assert payload["matches"][0]["feature_id"] == "terrain-01"
+    assert payload["matches"][0]["status"] == "matched"
+
+
+def test_footprint_normalization_api_returns_404_for_missing_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/missing-layout/footprint-normalization")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Layout not found: missing-layout"
+
+
+def test_terrain_symmetry_api_returns_advisory_report() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/synthetic-alpha/terrain-symmetry")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["layout_id"] == "synthetic-alpha"
+    assert payload["extraction_method"] == "terrain-symmetry-v1"
+    assert payload["symmetry_kind"] == "rotational_180"
+    assert payload["feature_count"] == 2
+    assert payload["matched_feature_count"] >= 0
+    assert "max_residual_inches" in payload
+    assert "matches" in payload
+
+
+def test_terrain_symmetry_api_returns_404_for_missing_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/missing-layout/terrain-symmetry")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Layout not found: missing-layout"
+
+
 def test_source_underlay_api_returns_board_cropped_png_for_extracted_layout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

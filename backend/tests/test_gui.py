@@ -37,6 +37,8 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="rules-evidence"',
         'id="footprint-evidence"',
         'id="footprint-match-evidence"',
+        'id="footprint-normalization-evidence"',
+        'id="terrain-symmetry-evidence"',
         'id="visual-sanity-evidence"',
         'id="terrain-semantics"',
         'id="feature-provenance"',
@@ -169,6 +171,33 @@ def test_client_script_renders_footprint_match_evidence() -> None:
     assert "score=" in script
 
 
+def test_client_script_renders_footprint_normalization_evidence() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const footprintNormalizationEvidence" in script
+    assert "function renderFootprintNormalization" in script
+    assert "/footprint-normalization" in script
+    assert "terrain-footprint-normalization-v1" in script
+    assert "Detected" in script
+    assert "review_reason" in script
+    assert "width_delta_inches" in script
+    assert "height_delta_inches" in script
+
+
+def test_client_script_renders_terrain_symmetry_evidence() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const terrainSymmetryEvidence" in script
+    assert "function renderTerrainSymmetry" in script
+    assert "/terrain-symmetry" in script
+    assert "terrain-symmetry-v1" in script
+    assert "rotational_180" in script
+
+
 def test_client_script_renders_visual_sanity_evidence() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
@@ -289,6 +318,38 @@ def test_client_script_keeps_visual_sanity_advisory_fetch_out_of_layout_load_bar
     assert "renderError(visualSanityEvidence" in script
 
 
+def test_client_script_keeps_footprint_normalization_fetch_out_of_layout_load_barrier() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_layout_body = script.split("async function loadLayout(layoutId)", 1)[1].split(
+        "async function initialize()",
+        1,
+    )[0]
+    load_layout_barrier = load_layout_body.split("]);", 1)[0]
+
+    assert "/footprint-normalization" not in load_layout_barrier
+    assert "async function loadFootprintNormalization(layoutId)" in script
+    assert "void loadFootprintNormalization(layoutId);" in load_layout_body
+    assert "renderError(footprintNormalizationEvidence" in script
+
+
+def test_client_script_keeps_terrain_symmetry_fetch_out_of_layout_load_barrier() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_layout_body = script.split("async function loadLayout(layoutId)", 1)[1].split(
+        "async function initialize()",
+        1,
+    )[0]
+    load_layout_barrier = load_layout_body.split("]);", 1)[0]
+
+    assert "/terrain-symmetry" not in load_layout_barrier
+    assert "async function loadTerrainSymmetry(layoutId)" in script
+    assert "void loadTerrainSymmetry(layoutId);" in load_layout_body
+    assert "renderError(terrainSymmetryEvidence" in script
+
+
 def test_client_script_distinguishes_terrain_categories_and_solid_dense_walls() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
@@ -309,3 +370,35 @@ def test_client_script_avoids_inner_html_for_api_derived_data() -> None:
     )
 
     assert ".innerHTML" not in script
+
+
+def test_dense_evidence_rows_wrap_long_values_on_mobile() -> None:
+    styles = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "styles.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".dense-item span" in styles
+    assert ".dense-item strong" in styles
+    assert "overflow-wrap: anywhere" in styles
+    assert "min-width: 0" in styles
+
+
+def test_technical_evidence_sections_are_collapsible() -> None:
+    html = (REPO_ROOT / "backend" / "fortyk_los_backend" / "templates" / "index.html").read_text(
+        encoding="utf-8"
+    )
+
+    for panel_id in [
+        "layout-metadata",
+        "source-status",
+        "rules-evidence",
+        "footprint-evidence",
+        "footprint-match-evidence",
+        "footprint-normalization-evidence",
+        "terrain-symmetry-evidence",
+        "visual-sanity-evidence",
+        "validation-panel",
+    ]:
+        assert '<details class="evidence-section"' in html
+        assert f'id="{panel_id}"' in html
+    assert "open" in html

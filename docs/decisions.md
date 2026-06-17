@@ -215,3 +215,40 @@ Consequences:
 - Dense terrain footprint fragment paths are rendered as solid 2D LOS wall segments only after their footprint-template match is an accepted deterministic candidate; Light, Exposed, and Unknown terrain remain non-blocking context.
 - Warning records resolved by deterministic checks are emitted with `review_status: accepted`, so LOS, heatmap, exposure, and terrain-coverage analysis can run without a manual GUI accept step.
 - Ambiguous, weak, or low-confidence template matches remain `needs_review`, do not generate wall blockers, and keep official-layout analysis blocked until a future deterministic disambiguation pass resolves them. The legacy accept endpoint remains for compatibility and debugging, but the GUI no longer exposes manual warning-acceptance controls.
+
+## 2026-06-17: Footprint Normalization Is Evidence-Only
+
+Decision: Add terrain footprint normalization as a deterministic evidence report that extracts per-layout canonical footprint size options from snapped canonical terrain geometry, detects terrain footprint elements separately from the rendered Event Companion page image, and matches each raster element to the closest size option with 90 degree rotation allowed. Canonical size options collapse rotated equivalents, so `8x12` and `12x8` are one option.
+
+Reasoning: GW layouts appear to reuse standard footprint sizes, but the current app only has one layout page normalized at a time. Per-layout size options give an auditable first normalization layer without inventing a global catalog before enough official pages have been cross-checked. Keeping the report evidence-only prevents CV segmentation errors or ambiguous size matches from mutating canonical layout geometry or LOS blockers.
+
+Consequences:
+
+- `/api/layouts/{layout_id}/footprint-normalization` exposes `options`, `detected_elements`, `matches`, and warning codes.
+- The GUI shows Footprint Normalization as an advisory panel outside the blocking layout-load path.
+- Ambiguous close-size matches and count mismatches report warnings instead of changing terrain footprints.
+- A later global GW footprint catalog can aggregate repeated dimensions across all extracted pages once enough per-layout reports are stable.
+
+## 2026-06-17: Symmetry Checks Are Advisory Evidence
+
+Decision: Add a deterministic 180 degree rotational terrain symmetry report for every canonical layout, but keep it advisory and separate from validation readiness.
+
+Reasoning: Official matched-play maps tend to be symmetric or near-symmetric, so symmetry is a useful extraction sanity check. It should not by itself mutate footprints, accept warnings, or block analysis because some official layouts can intentionally vary terrain size, category, or placement.
+
+Consequences:
+
+- `/api/layouts/{layout_id}/terrain-symmetry` reports matched feature count, max residual, unmatched feature IDs, and per-feature mirror matches.
+- The GUI shows Symmetry in a collapsible technical evidence panel.
+- Symmetry warnings support reviewer inspection but do not alter LOS, heatmap, exposure, or terrain-coverage behavior.
+
+## 2026-06-17: Technical Evidence Panels Collapse By Default
+
+Decision: Use native collapsible sections for dense technical evidence in the side panel, keeping only Layout open by default.
+
+Reasoning: Source hashes, extraction methods, provisional match rows, normalization diagnostics, symmetry residuals, sanity checks, and validation records are important audit evidence but are not the first things a strategy user needs while interacting with the map.
+
+Consequences:
+
+- Sources, Rules, Footprints, Provisional Matches, Footprint Normalization, Symmetry, Sanity, and Validation remain available without dominating the viewport.
+- Workflow panels for Terrain, Feature, LOS, and Analysis stay visible.
+- Expanded technical rows must still wrap on mobile without horizontal overflow.
