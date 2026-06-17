@@ -354,6 +354,9 @@ button,
 }
 
 .model-base {
+  pointer-events: all;
+  cursor: grab;
+  touch-action: none;
   fill: rgba(230, 244, 238, 0.88);
   stroke: #1f5948;
   stroke-width: 2;
@@ -381,3 +384,13 @@ button,
   }
 }
 
+
+.model-base.dragging {
+  cursor: grabbing;
+}
+
+.coverage-cell,
+.ray-visible,
+.ray-blocked {
+  pointer-events: none;
+}

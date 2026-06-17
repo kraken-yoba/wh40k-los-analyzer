@@ -12,7 +12,7 @@
         <div class="brand">
           <div class="brand-mark">LOS</div>
           <div class="brand-title">Warhammer Tournament Companion</div>
-          <div class="brand-subtitle">Python-only MVP</div>
+          <div class="brand-subtitle">Python-first MVP</div>
         </div>
         <nav class="nav" aria-label="Primary">
           <a href="/settings" class="{{ 'active' if active_page == 'settings' else '' }}">Settings</a>
@@ -26,6 +26,7 @@
         {% block content %}{% endblock %}
       </main>
     </div>
+      <script src="{{ url_for('static', path='/app.js') }}"></script>
   </body>
 </html>
 

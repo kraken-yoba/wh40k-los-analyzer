@@ -12,7 +12,7 @@ The MVP is a web app only because it is the fastest local GUI shell. The product
 - No frontend JavaScript in the MVP.
 - Official Games Workshop PDFs are source inputs, not committed assets.
 - Map, LOS, and ingestion logic must be isolated from web routes.
-- Every visual artifact used by the MVP should be renderable server-side.
+- Every LOS visual artifact used by the MVP should be generated server-side.
 
 ## MVP Screens
 

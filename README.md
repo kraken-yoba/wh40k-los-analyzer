@@ -1,8 +1,8 @@
 # Warhammer Tournament Companion
 
-Python-only MVP for Warhammer 40,000 terrain/map analysis, focused first on line-of-sight tooling.
+Python-first MVP for Warhammer 40,000 terrain/map analysis, focused first on line-of-sight tooling.
 
-The MVP is a lightweight server-rendered web app. It deliberately avoids frontend JavaScript so the core product remains portable to a later standalone Python desktop app.
+The MVP is a lightweight server-rendered web app. LOS, ingestion, geometry, and rendering are Python-owned so the core product remains portable to a later standalone Python desktop app. A tiny static JavaScript layer is used only where the browser needs direct manipulation, such as dragging a model base.
 
 ## Current Scope
 
