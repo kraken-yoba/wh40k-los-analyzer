@@ -180,7 +180,7 @@ input {
 
 .terrain-line-swatch {
   width: 18px;
-  border-top: 4px dashed #b7791f;
+  border-top: 4px solid #8f2f2f;
 }
 
 .dense-item {

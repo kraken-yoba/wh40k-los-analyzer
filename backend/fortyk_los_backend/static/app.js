@@ -215,7 +215,6 @@ function selectedFeature() {
 
 function renderBoard() {
   if (!state.layout) return;
-  const provisionalBlockers = hasValidationCode("terrain_footprint_blocker_review_required");
   context.clearRect(0, 0, canvas.width, canvas.height);
   if (state.sourceUnderlayImage) {
     context.drawImage(state.sourceUnderlayImage, 0, 0, canvas.width, canvas.height);
@@ -259,9 +258,9 @@ function renderBoard() {
     context.beginPath();
     context.moveTo(start.x, start.y);
     context.lineTo(end.x, end.y);
-    context.setLineDash(provisionalBlockers ? [10, 7] : []);
-    context.strokeStyle = provisionalBlockers ? "#b7791f" : "#8f2f2f";
-    context.lineWidth = provisionalBlockers ? 4 : 6;
+    context.setLineDash([]);
+    context.strokeStyle = "#8f2f2f";
+    context.lineWidth = 6;
     context.stroke();
   }
   context.setLineDash([]);
@@ -535,35 +534,8 @@ function renderValidation() {
     labelNode.textContent = record.code;
     valueNode.textContent = `${record.severity} ${reviewStatus || "not_required"}`;
     item.append(labelNode, valueNode);
-    if (record.severity === "warning" && record.review_status !== "accepted") {
-      const acceptButton = window.document.createElement("button");
-      acceptButton.type = "button";
-      acceptButton.textContent = "Accept warning";
-      acceptButton.addEventListener("click", () => {
-        void runPanelAction(validationPanel, async () => {
-          await acceptValidationWarning(record.code);
-        });
-      });
-      item.appendChild(acceptButton);
-    }
     validationPanel.appendChild(item);
   }
-}
-
-async function acceptValidationWarning(recordCode) {
-  if (!state.layout) return;
-  const payload = await postJson(
-    `/api/layouts/${state.layout.layout_id}/validation/${encodeURIComponent(recordCode)}/accept`,
-    { layout_hash: state.layoutHash },
-  );
-  state.layout = payload.layout;
-  state.layoutHash = payload.layout_hash;
-  losResult.textContent = `Loaded ${state.layout.name}\n${state.layoutHash}`;
-  renderLayoutMetadata();
-  renderValidation();
-  renderSelectedFeatureProvenance();
-  renderTerrainSemantics();
-  renderBoard();
 }
 
 async function loadLayout(layoutId) {
@@ -609,8 +581,9 @@ async function initialize() {
 
 function formatLayoutOption(layout) {
   const source = layout.source === "extracted" ? "extracted" : "fixture";
+  const page = layout.source === "extracted" && layout.source_page ? ` p${layout.source_page}` : "";
   const status = layout.validation_status ? ` ${layout.validation_status}` : "";
-  return `${layout.name} (${source}${status})`;
+  return `${layout.name} (${source}${page}${status})`;
 }
 
 canvas.addEventListener("click", (event) => {

@@ -245,7 +245,7 @@ def test_layout_api_includes_extracted_event_companion_layout_when_cache_matches
     )
 
 
-def test_los_api_blocks_unreviewed_extracted_event_companion_layout(
+def test_los_api_runs_for_grid_snapped_extracted_event_companion_layout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -261,45 +261,30 @@ def test_los_api_blocks_unreviewed_extracted_event_companion_layout(
         },
     )
 
-    assert response.status_code == 409
-    assert response.json()["detail"]["status"] == "blocked"
-    assert "placement_proxy_not_los_ready" in response.json()["detail"]["record_codes"]
+    assert response.status_code == 200
+    detail_response = client.get("/api/layouts/event-companion-page-1")
+    record_codes = {
+        record["code"] for record in detail_response.json()["layout"]["validation_records"]
+    }
+    assert "terrain_footprint_grid_snap_verified" in record_codes
+    assert "placement_proxy_not_los_ready" not in record_codes
 
 
-def test_accepting_validation_warnings_unblocks_analysis_with_degraded_state(
+def test_extracted_layout_validation_warnings_are_auto_processed_without_acceptance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write_temp_event_companion_repo(tmp_path)
+    _write_temp_event_and_terrain_repo(tmp_path)
     monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
     client = TestClient(app)
 
     detail_response = client.get("/api/layouts/event-companion-page-1")
-    warning_codes = [
+    accepted_warning_codes = [
         record["code"]
         for record in detail_response.json()["layout"]["validation_records"]
-        if record["severity"] == "warning"
+        if record["severity"] == "warning" and record["review_status"] == "accepted"
     ]
-    assert warning_codes
-
-    blocked_response = client.post(
-        "/api/layouts/event-companion-page-1/los",
-        json={
-            "source": {"x": 2.0, "y": 40.0},
-            "target": {"x": 42.0, "y": 40.0},
-        },
-    )
-    assert blocked_response.status_code == 409
-
-    current_layout_hash = detail_response.json()["layout_hash"]
-    for warning_code in warning_codes:
-        accept_response = client.post(
-            f"/api/layouts/event-companion-page-1/validation/{warning_code}/accept",
-            json={"layout_hash": current_layout_hash},
-        )
-        assert accept_response.status_code == 200
-        assert accept_response.json()["layout"]["validation_status"] == "warning"
-        current_layout_hash = accept_response.json()["layout_hash"]
+    assert accepted_warning_codes
 
     ready_response = client.post(
         "/api/layouts/event-companion-page-1/los",
@@ -313,17 +298,9 @@ def test_accepting_validation_warnings_unblocks_analysis_with_degraded_state(
     payload = ready_response.json()
     assert payload["validation_state"] == {
         "status": "accepted_with_warnings",
-        "accepted_warning_codes": warning_codes,
+        "accepted_warning_codes": accepted_warning_codes,
         "unresolved_warning_codes": [],
     }
-
-    accepted_detail_response = client.get("/api/layouts/event-companion-page-1")
-    accepted_records = {
-        record["code"]: record["review_status"]
-        for record in accepted_detail_response.json()["layout"]["validation_records"]
-        if record["severity"] == "warning"
-    }
-    assert accepted_records == {code: "accepted" for code in warning_codes}
 
 
 @pytest.mark.parametrize(
@@ -362,54 +339,30 @@ def test_accepting_validation_warnings_unblocks_analysis_with_degraded_state(
         ),
     ],
 )
-def test_accepted_warning_state_gates_all_analysis_endpoints(
+def test_auto_reviewed_warning_state_allows_all_analysis_endpoints(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     endpoint: str,
     payload: dict[str, object],
 ) -> None:
-    _write_temp_event_companion_repo(tmp_path)
+    _write_temp_event_and_terrain_repo(tmp_path)
     monkeypatch.setattr(app_module, "fixtures", FixtureRepository(tmp_path))
     client = TestClient(app)
 
     detail_response = client.get("/api/layouts/event-companion-page-1")
-    warning_codes = [
+    accepted_warning_codes = [
         record["code"]
         for record in detail_response.json()["layout"]["validation_records"]
-        if record["severity"] == "warning"
+        if record["severity"] == "warning" and record["review_status"] == "accepted"
     ]
-    current_layout_hash = detail_response.json()["layout_hash"]
+    assert accepted_warning_codes
 
-    blocked_response = client.post(endpoint, json=payload)
-    assert blocked_response.status_code == 409
+    response = client.post(endpoint, json=payload)
 
-    first_accept_response = client.post(
-        f"/api/layouts/event-companion-page-1/validation/{warning_codes[0]}/accept",
-        json={"layout_hash": current_layout_hash},
-    )
-    assert first_accept_response.status_code == 200
-    current_layout_hash = first_accept_response.json()["layout_hash"]
-
-    still_blocked_response = client.post(endpoint, json=payload)
-    assert still_blocked_response.status_code == 409
-    assert still_blocked_response.json()["detail"]["record_codes"] == warning_codes[1:]
-    assert still_blocked_response.json()["detail"]["accepted_warning_codes"] == [
-        warning_codes[0]
-    ]
-
-    for warning_code in warning_codes[1:]:
-        accept_response = client.post(
-            f"/api/layouts/event-companion-page-1/validation/{warning_code}/accept",
-            json={"layout_hash": current_layout_hash},
-        )
-        assert accept_response.status_code == 200
-        current_layout_hash = accept_response.json()["layout_hash"]
-
-    ready_response = client.post(endpoint, json=payload)
-    assert ready_response.status_code == 200
-    assert ready_response.json()["validation_state"]["status"] == "accepted_with_warnings"
-    assert ready_response.json()["validation_state"]["accepted_warning_codes"] == warning_codes
-    assert ready_response.json()["validation_state"]["unresolved_warning_codes"] == []
+    assert response.status_code == 200
+    assert response.json()["validation_state"]["status"] == "accepted_with_warnings"
+    assert response.json()["validation_state"]["accepted_warning_codes"] == accepted_warning_codes
+    assert response.json()["validation_state"]["unresolved_warning_codes"] == []
 
 
 def test_accept_validation_warning_requires_current_layout_hash(
@@ -539,7 +492,7 @@ def test_footprint_match_evidence_api_returns_provisional_matches(
     assert "terrain_footprint_match_review_required" in record_codes
 
 
-def test_footprint_match_evidence_does_not_make_extracted_layout_analysis_ready(
+def test_auto_reviewed_footprint_match_evidence_makes_extracted_layout_analysis_ready(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -558,10 +511,11 @@ def test_footprint_match_evidence_does_not_make_extracted_layout_analysis_ready(
 
     assert match_response.status_code == 200
     assert match_response.json()["matches"]
-    assert los_response.status_code == 409
-    assert "terrain_footprint_match_review_required" in los_response.json()["detail"][
-        "record_codes"
+    assert los_response.status_code == 200
+    assert "terrain_footprint_match_review_required" in los_response.json()["validation_state"][
+        "accepted_warning_codes"
     ]
+    assert los_response.json()["validation_state"]["unresolved_warning_codes"] == []
 
 
 def test_footprint_match_evidence_api_does_not_parse_hash_mismatched_templates(

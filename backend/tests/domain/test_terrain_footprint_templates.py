@@ -287,6 +287,32 @@ def test_generate_terrain_blockers_from_footprint_matches_skips_non_dense_featur
     assert blockers == ()
 
 
+def test_generate_terrain_blockers_from_footprint_matches_skips_needs_review_matches() -> None:
+    layout = _layout_with_features(
+        (
+            TerrainFeature(
+                feature_id="terrain-01",
+                label="Terrain 01",
+                footprint=_rectangle(10.0, 10.0, 20.0, 20.0),
+                terrain_category=TerrainCategory.DENSE,
+            ),
+        )
+    )
+    templates = (
+        _template(
+            "square",
+            aspect_ratio=1.0,
+            fragments=((Point(x=0.25, y=0.25), Point(x=0.75, y=0.25)),),
+        ),
+    )
+    matches = match_terrain_features_to_footprints(layout, templates)
+
+    blockers = generate_terrain_blockers_from_footprint_matches(layout, templates, matches)
+
+    assert matches[0].status == FootprintMatchStatus.NEEDS_REVIEW
+    assert blockers == ()
+
+
 def test_match_terrain_features_to_footprints_marks_close_scores_for_review() -> None:
     layout = _layout_with_features(
         (
@@ -416,20 +442,16 @@ def test_official_page_9_gets_provisional_matches_but_stays_blocked() -> None:
     matches = match_terrain_features_to_footprints(layout, templates)
 
     assert len(matches) == len(layout.terrain_features)
-    assert len(layout.blockers) > 0
-    dense_feature_ids = {
-        feature.feature_id
-        for feature in layout.terrain_features
-        if feature.terrain_category == TerrainCategory.DENSE
-    }
-    assert {blocker.feature_id for blocker in layout.blockers} <= dense_feature_ids
+    assert layout.blockers == ()
     assert layout.validation_status == ValidationStatus.WARNING
     assert any(match.status == FootprintMatchStatus.NEEDS_REVIEW for match in matches)
-    record_codes = {record.code for record in layout.validation_records}
+    record_by_code = {record.code: record for record in layout.validation_records}
+    record_codes = set(record_by_code)
     assert "terrain_footprint_match_candidates" in record_codes
     assert "terrain_footprint_match_review_required" in record_codes
-    assert "terrain_footprint_blocker_candidates" in record_codes
-    assert "terrain_footprint_blocker_review_required" in record_codes
+    assert record_by_code["terrain_footprint_match_review_required"].review_status == "unreviewed"
+    assert "terrain_footprint_blocker_candidates" not in record_codes
+    assert "terrain_footprint_blocker_review_required" not in record_codes
 
 
 def _write_synthetic_template_pdf(pdf_path: Path) -> None:

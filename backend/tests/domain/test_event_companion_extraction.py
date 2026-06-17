@@ -39,9 +39,9 @@ def test_extract_event_companion_layout_from_synthetic_vector_pdf(tmp_path: Path
         "AB": TerrainCategory.DENSE,
         "CD": TerrainCategory.LIGHT,
     }
+    assert _all_footprint_corners_are_on_inch_grid(layout)
     record_codes = {record.code for record in layout.validation_records}
-    assert "placement_proxy_not_los_ready" in record_codes
-    assert "terrain_measurement_crosscheck_pending" in record_codes
+    assert "terrain_footprint_grid_snap_verified" in record_codes
 
     deployments = {deployment.zone_id: deployment for deployment in layout.deployments}
     attacker_y_values = [point.y for point in deployments["attacker"].area.points]
@@ -71,6 +71,64 @@ def test_extract_event_companion_layout_prefers_dense_when_markers_overlap(
     assert categories_by_label["CD"] == TerrainCategory.LIGHT
 
 
+def test_extract_event_companion_layout_removes_overlapping_duplicate_candidates(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "synthetic-event-layout-overlap.pdf"
+    _write_synthetic_event_layout_pdf(pdf_path, include_overlapping_duplicate=True)
+
+    layout = extract_event_companion_layout(
+        pdf_path,
+        page_number=1,
+        source_document_id="synthetic-event-companion",
+    )
+
+    assert len(layout.terrain_features) == 2
+    assert _all_footprint_corners_are_on_inch_grid(layout)
+    assert _overlapping_footprint_pairs(layout) == []
+    record_by_code = {record.code: record for record in layout.validation_records}
+    assert record_by_code["terrain_footprint_grid_snap_verified"].severity == "info"
+    assert "terrain_footprint_overlap_duplicate_removed" in record_by_code
+
+
+def test_extract_event_companion_layout_flags_unmatched_printed_measurements(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "synthetic-event-layout-bogus-measurement.pdf"
+    _write_synthetic_event_layout_pdf(pdf_path, terrain_measurement_annotation='99"')
+
+    layout = extract_event_companion_layout(
+        pdf_path,
+        page_number=1,
+        source_document_id="synthetic-event-companion",
+    )
+
+    record_by_code = {record.code: record for record in layout.validation_records}
+    assert "terrain_measurement_crosscheck" not in record_by_code
+    assert record_by_code["terrain_measurement_crosscheck_failed"].severity == "warning"
+    assert record_by_code["terrain_measurement_crosscheck_failed"].review_status == "unreviewed"
+
+
+def test_extract_event_companion_layout_flags_high_snap_residual_without_measurements(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "synthetic-event-layout-off-grid.pdf"
+    _write_synthetic_event_layout_pdf(pdf_path, off_grid_first_feature=True)
+
+    layout = extract_event_companion_layout(
+        pdf_path,
+        page_number=1,
+        source_document_id="synthetic-event-companion",
+    )
+
+    record_by_code = {record.code: record for record in layout.validation_records}
+    assert "terrain_footprint_grid_snap_verified" not in record_by_code
+    assert record_by_code["terrain_footprint_grid_snap_review_required"].severity == "warning"
+    assert record_by_code["terrain_footprint_grid_snap_review_required"].review_status == (
+        "unreviewed"
+    )
+
+
 @pytest.mark.skipif(
     not OFFICIAL_EVENT_COMPANION.exists(),
     reason="official Event Companion PDF is kept in the local gitignored cache",
@@ -86,8 +144,10 @@ def test_extract_event_companion_layout_from_cached_official_page_9() -> None:
     assert layout.provenance.source_document_id == "event-companion-2026-06-12"
     assert layout.provenance.source_page == 9
     assert len(layout.deployments) == 2
-    assert len(layout.terrain_features) == 16
+    assert len(layout.terrain_features) == 14
     assert layout.blockers == ()
+    assert _all_footprint_corners_are_on_inch_grid(layout)
+    assert _overlapping_footprint_pairs(layout) == []
     categories_by_id = {
         feature.feature_id: feature.terrain_category for feature in layout.terrain_features
     }
@@ -95,37 +155,40 @@ def test_extract_event_companion_layout_from_cached_official_page_9() -> None:
         feature_id
         for feature_id, category in categories_by_id.items()
         if category == TerrainCategory.DENSE
-    } == {"terrain-01", "terrain-03", "terrain-07", "terrain-08", "terrain-12", "terrain-14"}
+    } == {"terrain-01", "terrain-03", "terrain-06", "terrain-10", "terrain-12"}
     assert any(category == TerrainCategory.UNKNOWN for category in categories_by_id.values())
     assert _bounds_by_zone(layout) == {
         "attacker": pytest.approx((0.0, 40.02, 44.0, 59.95), abs=0.01),
         "defender": pytest.approx((0.0, 0.0, 44.0, 19.91), abs=0.01),
     }
     assert _rounded_feature_summaries(layout) == [
-        ("terrain-01", "CD", (13.97, 42.48, 21.62, 54.12)),
-        ("terrain-02", "Terrain 02", (26.33, 47.13, 32.94, 51.51)),
-        ("terrain-03", "EF/GH", (32.4, 35.38, 40.05, 47.02)),
-        ("terrain-04", "Terrain 04", (2.02, 42.84, 12.05, 46.61)),
-        ("terrain-05", "Terrain 05", (21.04, 39.99, 27.09, 42.78)),
-        ("terrain-06", "Terrain 06", (8.13, 31.98, 12.5, 38.61)),
-        ("terrain-07", "AB", (15.78, 26.89, 27.8, 35.02)),
-        ("terrain-08", "AB", (16.21, 24.89, 28.22, 33.02)),
-        ("terrain-09", "Terrain 09", (4.02, 29.45, 10.07, 32.25)),
-        ("terrain-10", "Terrain 10", (33.94, 27.72, 39.99, 30.51)),
-        ("terrain-11", "Terrain 11", (31.51, 21.35, 35.88, 27.99)),
-        ("terrain-12", "EF/GH", (3.94, 12.9, 11.59, 24.53)),
-        ("terrain-13", "Terrain 13", (16.97, 17.18, 23.02, 19.98)),
-        ("terrain-14", "CD", (22.4, 5.83, 30.05, 17.46)),
-        ("terrain-15", "Terrain 15", (31.91, 13.26, 41.94, 17.03)),
-        ("terrain-16", "Terrain 16", (10.99, 8.5, 17.6, 12.88)),
+        ("terrain-01", "CD", (14.0, 42.0, 22.0, 54.0)),
+        ("terrain-02", "Terrain 02", (26.0, 47.0, 33.0, 52.0)),
+        ("terrain-03", "EF/GH", (32.0, 35.0, 40.0, 47.0)),
+        ("terrain-04", "Terrain 04", (2.0, 43.0, 12.0, 47.0)),
+        ("terrain-05", "Terrain 05", (8.0, 32.0, 13.0, 39.0)),
+        ("terrain-06", "AB", (16.0, 27.0, 28.0, 35.0)),
+        ("terrain-07", "Terrain 07", (4.0, 29.0, 10.0, 32.0)),
+        ("terrain-08", "Terrain 08", (34.0, 28.0, 40.0, 31.0)),
+        ("terrain-09", "Terrain 09", (32.0, 21.0, 36.0, 28.0)),
+        ("terrain-10", "EF/GH", (4.0, 13.0, 12.0, 25.0)),
+        ("terrain-11", "Terrain 11", (17.0, 17.0, 23.0, 20.0)),
+        ("terrain-12", "CD", (22.0, 6.0, 30.0, 17.0)),
+        ("terrain-13", "Terrain 13", (32.0, 13.0, 42.0, 17.0)),
+        ("terrain-14", "Terrain 14", (11.0, 8.0, 18.0, 13.0)),
     ]
     record_codes = {record.code for record in layout.validation_records}
     assert {
         "deployment_depth_measurement_crosscheck",
-        "placement_proxy_not_los_ready",
+        "terrain_footprint_grid_snap_verified",
+        "terrain_footprint_overlap_duplicate_removed",
         "terrain_label_review_required",
-        "terrain_measurement_crosscheck_pending",
     }.issubset(record_codes)
+    record_by_code = {record.code: record for record in layout.validation_records}
+    assert "12/14 features" in record_by_code["terrain_measurement_crosscheck"].message
+    assert "8 with two or more" in record_by_code["terrain_measurement_crosscheck"].message
+    assert "placement_proxy_not_los_ready" not in record_codes
+    assert "terrain_measurement_crosscheck_pending" not in record_codes
 
 
 def _bounds_by_zone(layout: CanonicalLayout) -> dict[str, tuple[float, float, float, float]]:
@@ -154,10 +217,33 @@ def _rounded_feature_summaries(
     return summaries
 
 
+def _all_footprint_corners_are_on_inch_grid(layout: CanonicalLayout) -> bool:
+    return all(
+        coordinate == pytest.approx(round(coordinate))
+        for feature in layout.terrain_features
+        for point in feature.footprint.points
+        for coordinate in (point.x, point.y)
+    )
+
+
+def _overlapping_footprint_pairs(layout: CanonicalLayout) -> list[tuple[str, str]]:
+    overlaps: list[tuple[str, str]] = []
+    features = list(layout.terrain_features)
+    for first_index, first_feature in enumerate(features):
+        first_polygon = first_feature.footprint.to_shapely()
+        for second_feature in features[first_index + 1 :]:
+            if first_polygon.intersection(second_feature.footprint.to_shapely()).area > 1e-6:
+                overlaps.append((first_feature.feature_id, second_feature.feature_id))
+    return overlaps
+
+
 def _write_synthetic_event_layout_pdf(
     pdf_path: Path,
     *,
     conflict_first_feature_category: bool = False,
+    include_overlapping_duplicate: bool = False,
+    off_grid_first_feature: bool = False,
+    terrain_measurement_annotation: str | None = None,
 ) -> None:
     document = fitz.open()
     page = document.new_page(width=500, height=700)
@@ -166,12 +252,24 @@ def _write_synthetic_event_layout_pdf(
     page.draw_rect(board, color=(0.137, 0.122, 0.125), width=2.4)
     page.draw_rect(fitz.Rect(100, 100, 320, 200), color=None, fill=(0.618, 0.040, 0.056))
     page.draw_rect(fitz.Rect(100, 300, 320, 400), color=None, fill=(0.000, 0.241, 0.408))
+    first_feature_rect = (
+        fitz.Rect(142, 158, 192, 208)
+        if off_grid_first_feature
+        else fitz.Rect(140, 160, 190, 210)
+    )
     page.draw_rect(
-        fitz.Rect(140, 160, 190, 210),
+        first_feature_rect,
         color=(0.137, 0.122, 0.125),
         fill=(0.820, 0.826, 0.832),
         width=0.3,
     )
+    if include_overlapping_duplicate:
+        page.draw_rect(
+            fitz.Rect(160, 180, 210, 230),
+            color=(0.137, 0.122, 0.125),
+            fill=(0.820, 0.826, 0.832),
+            width=0.3,
+        )
     page.draw_rect(
         fitz.Rect(150, 190, 162, 202),
         color=(1.0, 1.0, 1.0),
@@ -195,6 +293,8 @@ def _write_synthetic_event_layout_pdf(
         color=None,
         fill=(0.687, 0.253, 0.171),
     )
+    if terrain_measurement_annotation is not None:
+        page.insert_text((25, 80), terrain_measurement_annotation)
     page.insert_text((158, 185), "AB")
     page.insert_text((238, 285), "CD")
     document.save(pdf_path)

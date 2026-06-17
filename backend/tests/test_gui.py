@@ -83,31 +83,24 @@ def test_client_script_renders_layout_metadata() -> None:
     assert "source_document_id" in script
 
 
-def test_client_script_renders_validation_acceptance_controls() -> None:
+def test_client_script_renders_automatic_validation_review_state() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
     )
 
-    assert "function acceptValidationWarning" in script
-    assert "/validation/" in script
-    assert "/accept" in script
-    assert "layout_hash: state.layoutHash" in script
-    assert "Accept warning" in script
     assert "review_status" in script
     assert "accepted_with_warnings" in script
+    assert "Accept warning" not in script
 
 
-def test_client_script_accepts_validation_warning_without_full_layout_reload() -> None:
+def test_client_script_does_not_wire_manual_warning_acceptance_flow() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
     )
-    accept_body = script.split("async function acceptValidationWarning(recordCode)", 1)[1].split(
-        "async function loadLayout(layoutId)", 1
-    )[0]
 
-    assert "await postJson" in accept_body
-    assert "renderValidation()" in accept_body
-    assert "loadLayout(state.layout.layout_id)" not in accept_body
+    assert "function acceptValidationWarning" not in script
+    assert "/validation/" not in script
+    assert "/accept" not in script
 
 
 def test_client_script_renders_terrain_footprint_evidence() -> None:
@@ -149,6 +142,19 @@ def test_client_script_keeps_rules_fetch_out_of_layout_load_barrier() -> None:
     assert "async function loadRulesEvidence()" in script
     assert "void loadRulesEvidence();" in initialize_body
     assert "renderError(rulesEvidence" in script
+
+
+def test_client_script_includes_source_page_in_extracted_layout_options() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    format_body = script.split("function formatLayoutOption(layout)", 1)[1].split(
+        'canvas.addEventListener("click"',
+        1,
+    )[0]
+
+    assert "layout.source_page" in format_body
+    assert "p${layout.source_page}" in format_body
 
 
 def test_client_script_renders_footprint_match_evidence() -> None:
@@ -259,15 +265,11 @@ def test_client_script_renders_dense_only_terrain_semantics() -> None:
     assert "renderTerrainSemantics()" in script
 
 
-def test_client_script_refreshes_selected_feature_after_warning_acceptance() -> None:
+def test_client_script_refreshes_selected_feature_on_layout_load() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
     )
-    accept_body = script.split("async function acceptValidationWarning(recordCode)", 1)[1].split(
-        "async function loadLayout(layoutId)", 1
-    )[0]
 
-    assert "renderSelectedFeatureProvenance()" in accept_body
     assert "function selectedFeature()" in script
     assert "function renderSelectedFeatureProvenance()" in script
 
@@ -287,7 +289,7 @@ def test_client_script_keeps_visual_sanity_advisory_fetch_out_of_layout_load_bar
     assert "renderError(visualSanityEvidence" in script
 
 
-def test_client_script_distinguishes_terrain_categories_and_provisional_blockers() -> None:
+def test_client_script_distinguishes_terrain_categories_and_solid_dense_walls() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
     )
@@ -296,9 +298,9 @@ def test_client_script_distinguishes_terrain_categories_and_provisional_blockers
     assert "terrain_category" in script
     assert 'case "dense"' in script
     assert 'case "light"' in script
-    assert "terrain_footprint_blocker_review_required" in script
-    assert "function hasValidationCode" in script
-    assert "context.setLineDash" in script
+    assert "provisionalBlockers" not in script
+    assert "terrain_footprint_blocker_review_required" not in script
+    assert "context.setLineDash(provisionalBlockers" not in script
 
 
 def test_client_script_avoids_inner_html_for_api_derived_data() -> None:

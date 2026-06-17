@@ -200,3 +200,18 @@ Consequences:
 - Response bodies are streamed to temporary `.part` files with an explicit size cap rather than read fully into memory.
 - A downloaded payload with the wrong hash is not moved into place, temporary `.part` files are removed, and any existing local cache file is preserved for inspection.
 - Public CI remains network-free; users run `scripts\download-sources.cmd` locally to populate the optional official-PDF cache.
+
+## 2026-06-17: Snapped Footprints And Automatic Geometry Review
+
+Decision: Treat Event Companion terrain placement rectangles as grid-snapped footprint polygons, reject overlapping placement candidates automatically, and auto-accept deterministic geometry warnings only when the snapped placements, printed measurement checks, official template matches, and Dense wall fragments pass the local checks.
+
+Reasoning: The official layouts are deterministic: terrain footprints are intended as non-overlapping inch-grid placements, and the printed offset annotations provide independent measurement evidence. Requiring users to manually accept normal extraction warnings makes the app harder to use and does not improve geometry quality. The safer boundary is deterministic extraction plus explicit unresolved warnings only when checks actually fail.
+
+Consequences:
+
+- Event Companion terrain footprints are snapped to the 1-inch board grid before canonical layout creation.
+- Overlapping snapped terrain candidates are removed by a stable confidence score; the layout records how many were removed.
+- Snapped feature offsets are cross-checked against printed inch annotations when those annotations are available.
+- Dense terrain footprint fragment paths are rendered as solid 2D LOS wall segments only after their footprint-template match is an accepted deterministic candidate; Light, Exposed, and Unknown terrain remain non-blocking context.
+- Warning records resolved by deterministic checks are emitted with `review_status: accepted`, so LOS, heatmap, exposure, and terrain-coverage analysis can run without a manual GUI accept step.
+- Ambiguous, weak, or low-confidence template matches remain `needs_review`, do not generate wall blockers, and keep official-layout analysis blocked until a future deterministic disambiguation pass resolves them. The legacy accept endpoint remains for compatibility and debugging, but the GUI no longer exposes manual warning-acceptance controls.

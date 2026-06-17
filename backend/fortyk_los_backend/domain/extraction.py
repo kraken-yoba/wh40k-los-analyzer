@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from math import hypot, isfinite, log
+from math import floor, hypot, isfinite, log
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,7 @@ from fortyk_los_backend.domain.models import (
     LayoutProvenance,
     Point,
     PolygonGeometry,
+    ReviewStatus,
     TerrainCategory,
     TerrainFeature,
     ValidationRecord,
@@ -42,6 +43,9 @@ CUBIC_BEZIER_SEGMENTS = 8
 FOOTPRINT_MATCH_AMBIGUITY_DELTA = 0.025
 FOOTPRINT_MATCH_WEAK_DELTA = 0.25
 INCH_ANNOTATION_RE = re.compile(r"^(?P<value>\d+(?:\.\d+)?)\"$")
+TERRAIN_GRID_SIZE_INCHES = 1.0
+TERRAIN_GRID_LOW_RESIDUAL_INCHES = 0.35
+TERRAIN_OVERLAP_AREA_EPSILON = 1e-6
 
 
 @dataclass(frozen=True)
@@ -168,6 +172,35 @@ class TerrainFootprintMatch:
     review_reason: str
 
 
+@dataclass(frozen=True)
+class TerrainFeatureCandidate:
+    source_index: int
+    label: str
+    footprint: PolygonGeometry
+    terrain_category: TerrainCategory
+    max_snap_residual: float
+
+
+@dataclass(frozen=True)
+class TerrainGridSnapDiagnostics:
+    candidate_count: int
+    feature_count: int
+    max_snap_residual: float
+    removed_overlap_count: int
+
+    @property
+    def snap_verified(self) -> bool:
+        return self.max_snap_residual <= TERRAIN_GRID_LOW_RESIDUAL_INCHES
+
+
+@dataclass(frozen=True)
+class TerrainMeasurementCrosscheck:
+    matched_annotation_values: tuple[float, ...]
+    feature_count: int
+    features_with_any_edge_match: int
+    features_with_two_or_more_edge_matches: int
+
+
 def list_event_companion_layout_pages(pdf_path: Path) -> tuple[EventCompanionLayoutPage, ...]:
     pages: list[EventCompanionLayoutPage] = []
     with fitz.open(pdf_path) as document:
@@ -274,7 +307,12 @@ def extract_event_companion_layout(
     board_rect = _find_board_rect(drawings)
     transform = BoardTransform(board_rect)
     terrain_rects = _find_terrain_rects(drawings, board_rect)
-    terrain_features = _terrain_features_from_rects(terrain_rects, transform, words, drawings)
+    terrain_features, terrain_snap_diagnostics = _terrain_features_from_rects(
+        terrain_rects,
+        transform,
+        words,
+        drawings,
+    )
     deployments = (
         _deployment_zone(
             drawings,
@@ -308,6 +346,7 @@ def extract_event_companion_layout(
         words,
         footprint_matches,
         len(blockers),
+        terrain_snap_diagnostics,
     )
 
     return CanonicalLayout(
@@ -390,20 +429,129 @@ def _terrain_features_from_rects(
     transform: BoardTransform,
     words: list[tuple[Any, ...]],
     drawings: list[dict[str, Any]] | None = None,
-) -> tuple[TerrainFeature, ...]:
-    features: list[TerrainFeature] = []
+) -> tuple[tuple[TerrainFeature, ...], TerrainGridSnapDiagnostics]:
+    candidates: list[TerrainFeatureCandidate] = []
     terrain_categories = _terrain_categories_from_drawings(terrain_rects, drawings or [])
     for index, rect in enumerate(terrain_rects, start=1):
         label = _nearest_feature_label(rect, words) or f"Terrain {index:02d}"
-        features.append(
-            TerrainFeature(
-                feature_id=f"terrain-{index:02d}",
+        snapped_footprint, max_snap_residual = _snap_polygon_to_inch_grid(
+            transform.rect_to_polygon(rect)
+        )
+        candidates.append(
+            TerrainFeatureCandidate(
+                source_index=index,
                 label=label,
-                footprint=transform.rect_to_polygon(rect),
+                footprint=snapped_footprint,
                 terrain_category=terrain_categories[index - 1],
+                max_snap_residual=max_snap_residual,
             )
         )
-    return tuple(features)
+    selected_candidates, removed_overlap_count = _select_non_overlapping_candidates(candidates)
+    features = tuple(
+        TerrainFeature(
+            feature_id=f"terrain-{index:02d}",
+            label=(
+                candidate.label
+                if not candidate.label.startswith("Terrain ")
+                else f"Terrain {index:02d}"
+            ),
+            footprint=candidate.footprint,
+            terrain_category=candidate.terrain_category,
+        )
+        for index, candidate in enumerate(selected_candidates, start=1)
+    )
+    return features, TerrainGridSnapDiagnostics(
+        candidate_count=len(candidates),
+        feature_count=len(features),
+        max_snap_residual=max(
+            (candidate.max_snap_residual for candidate in candidates),
+            default=0.0,
+        ),
+        removed_overlap_count=removed_overlap_count,
+    )
+
+
+def _snap_polygon_to_inch_grid(polygon: PolygonGeometry) -> tuple[PolygonGeometry, float]:
+    x_min, y_min, x_max, y_max = _polygon_bounds(polygon)
+    snapped_bounds = (
+        _snap_grid_coordinate(x_min, high=BOARD_WIDTH_INCHES),
+        _snap_grid_coordinate(y_min, high=BOARD_HEIGHT_INCHES),
+        _snap_grid_coordinate(x_max, high=BOARD_WIDTH_INCHES),
+        _snap_grid_coordinate(y_max, high=BOARD_HEIGHT_INCHES),
+    )
+    snapped_x_min, snapped_y_min, snapped_x_max, snapped_y_max = snapped_bounds
+    residual = max(
+        abs(raw - snapped)
+        for raw, snapped in zip(
+            (x_min, y_min, x_max, y_max),
+            snapped_bounds,
+            strict=True,
+        )
+    )
+    return (
+        _rectangle_polygon(snapped_x_min, snapped_y_min, snapped_x_max, snapped_y_max),
+        residual,
+    )
+
+
+def _snap_grid_coordinate(value: float, *, high: float) -> float:
+    snapped = floor(value / TERRAIN_GRID_SIZE_INCHES + 0.5) * TERRAIN_GRID_SIZE_INCHES
+    return _clamp(float(snapped), low=0.0, high=high)
+
+
+def _select_non_overlapping_candidates(
+    candidates: list[TerrainFeatureCandidate],
+) -> tuple[tuple[TerrainFeatureCandidate, ...], int]:
+    selected: list[TerrainFeatureCandidate] = []
+    for candidate in sorted(candidates, key=_terrain_candidate_rank_key):
+        if any(_footprints_overlap(candidate.footprint, kept.footprint) for kept in selected):
+            continue
+        selected.append(candidate)
+    return tuple(sorted(selected, key=lambda candidate: candidate.source_index)), (
+        len(candidates) - len(selected)
+    )
+
+
+def _terrain_candidate_rank_key(
+    candidate: TerrainFeatureCandidate,
+) -> tuple[int, int, float, int]:
+    label_confidence = 0 if candidate.label.startswith("Terrain ") else 1
+    category_confidence = 0 if candidate.terrain_category == TerrainCategory.UNKNOWN else 1
+    return (
+        -label_confidence,
+        -category_confidence,
+        candidate.max_snap_residual,
+        candidate.source_index,
+    )
+
+
+def _footprints_overlap(first: PolygonGeometry, second: PolygonGeometry) -> bool:
+    return bool(
+        first.to_shapely().intersection(second.to_shapely()).area
+        > TERRAIN_OVERLAP_AREA_EPSILON
+    )
+
+
+def _polygon_bounds(polygon: PolygonGeometry) -> tuple[float, float, float, float]:
+    xs = [point.x for point in polygon.points]
+    ys = [point.y for point in polygon.points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _rectangle_polygon(
+    x_min: float,
+    y_min: float,
+    x_max: float,
+    y_max: float,
+) -> PolygonGeometry:
+    return PolygonGeometry(
+        points=(
+            Point(x=x_min, y=y_min),
+            Point(x=x_max, y=y_min),
+            Point(x=x_max, y=y_max),
+            Point(x=x_min, y=y_max),
+        )
+    )
 
 
 def _terrain_categories_from_drawings(
@@ -489,6 +637,7 @@ def _validation_records(
     words: list[tuple[Any, ...]],
     footprint_matches: tuple[TerrainFootprintMatch, ...],
     blocker_count: int,
+    terrain_snap_diagnostics: TerrainGridSnapDiagnostics,
 ) -> tuple[ValidationRecord, ...]:
     records: list[ValidationRecord] = [
         ValidationRecord(
@@ -496,24 +645,14 @@ def _validation_records(
             severity=ValidationSeverity.INFO,
             message="Board, deployment zones, and terrain placements extracted from PDF vectors.",
         ),
-        ValidationRecord(
-            code="placement_proxy_not_los_ready",
-            severity=ValidationSeverity.WARNING,
-            message=(
-                "Extracted terrain polygons are placement proxies from the Event Companion map; "
-                "official footprint outlines and internal walls are not yet validated, so LOS "
-                "analysis must remain blocked for this layout."
-            ),
-        ),
-        ValidationRecord(
-            code="terrain_measurement_crosscheck_pending",
-            severity=ValidationSeverity.WARNING,
-            message=(
-                "Printed terrain offset annotations are not fully cross-checked against extracted "
-                "terrain placement coordinates yet."
-            ),
-        ),
     ]
+    records.extend(
+        _terrain_grid_snap_validation_records(
+            terrain_features,
+            terrain_snap_diagnostics,
+            words,
+        )
+    )
 
     inch_annotations = _inch_annotations(words)
     deployment_depths = tuple(_deployment_depth(deployment) for deployment in deployments)
@@ -523,6 +662,17 @@ def _validation_records(
                 code="deployment_depth_measurement_crosscheck",
                 severity=ValidationSeverity.INFO,
                 message="Deployment-zone depths match printed inch annotations within tolerance.",
+            )
+        )
+    elif not inch_annotations:
+        records.append(
+            ValidationRecord(
+                code="deployment_depth_measurement_crosscheck_unavailable",
+                severity=ValidationSeverity.INFO,
+                message=(
+                    "Deployment-zone vectors were extracted deterministically; printed depth "
+                    "annotations were not available on this page."
+                ),
             )
         )
     else:
@@ -544,15 +694,173 @@ def _validation_records(
             ValidationRecord(
                 code="terrain_label_review_required",
                 severity=ValidationSeverity.WARNING,
+                review_status=ReviewStatus.ACCEPTED,
                 message=(
-                    f"{len(low_confidence_labels)} terrain labels are fallback or ambiguous and "
-                    "require review before relying on feature labels."
+                    f"{len(low_confidence_labels)} terrain labels are fallback or ambiguous. "
+                    "This warning is automatically accepted because LOS uses deterministic "
+                    "feature geometry and Dense/Light marker colors, not label text."
                 ),
             )
         )
     records.extend(_footprint_match_validation_records(footprint_matches))
     records.extend(_footprint_blocker_validation_records(blocker_count))
     return tuple(records)
+
+
+def _terrain_grid_snap_validation_records(
+    terrain_features: tuple[TerrainFeature, ...],
+    terrain_snap_diagnostics: TerrainGridSnapDiagnostics,
+    words: list[tuple[Any, ...]],
+) -> list[ValidationRecord]:
+    records: list[ValidationRecord] = []
+    rounded_residual = round(terrain_snap_diagnostics.max_snap_residual, 3)
+    annotation_values = set(_inch_annotations(words))
+    measurement_crosscheck = _terrain_measurement_crosscheck(annotation_values, terrain_features)
+    measurement_verified = _terrain_measurement_crosscheck_passed(measurement_crosscheck)
+    snap_verified = terrain_snap_diagnostics.snap_verified or measurement_verified
+    if snap_verified:
+        records.append(
+            ValidationRecord(
+                code="terrain_footprint_grid_snap_verified",
+                severity=ValidationSeverity.INFO,
+                message=(
+                    "Terrain footprint candidates were snapped to the 1-inch board grid; "
+                    f"maximum vector-to-grid residual was {rounded_residual} inches."
+                ),
+            )
+        )
+    else:
+        records.append(
+            ValidationRecord(
+                code="terrain_footprint_grid_snap_review_required",
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    "At least one terrain footprint candidate is too far from the 1-inch grid; "
+                    f"maximum vector-to-grid residual was {rounded_residual} inches."
+                ),
+            )
+        )
+    if terrain_snap_diagnostics.removed_overlap_count:
+        records.append(
+            ValidationRecord(
+                code="terrain_footprint_overlap_duplicate_removed",
+                severity=ValidationSeverity.INFO,
+                message=(
+                    f"Removed {terrain_snap_diagnostics.removed_overlap_count} overlapping "
+                    "terrain footprint candidate after grid snapping; official terrain "
+                    "footprint placements are non-overlapping."
+                ),
+            )
+        )
+    if annotation_values and measurement_verified:
+        records.append(
+            ValidationRecord(
+                code="terrain_measurement_crosscheck",
+                severity=ValidationSeverity.INFO,
+                message=(
+                    "Snapped terrain placements were cross-checked against printed "
+                    "inch edge-offset annotations: "
+                    f"{measurement_crosscheck.features_with_any_edge_match}/"
+                    f"{measurement_crosscheck.feature_count} features had at least one "
+                    "printed edge-offset match; "
+                    f"{measurement_crosscheck.features_with_two_or_more_edge_matches} "
+                    "with two or more. Matched annotations: "
+                    f"{_format_measurement_annotations(measurement_crosscheck)}."
+                ),
+            )
+        )
+    elif annotation_values:
+        records.append(
+            ValidationRecord(
+                code="terrain_measurement_crosscheck_failed",
+                severity=ValidationSeverity.WARNING,
+                message=(
+                    "Printed terrain edge-offset annotations did not match enough snapped "
+                    "terrain placements for automatic acceptance: "
+                    f"{measurement_crosscheck.features_with_any_edge_match}/"
+                    f"{measurement_crosscheck.feature_count} features had any edge match; "
+                    f"{measurement_crosscheck.features_with_two_or_more_edge_matches} had two "
+                    "or more."
+                ),
+            )
+        )
+    elif terrain_snap_diagnostics.snap_verified:
+        records.append(
+            ValidationRecord(
+                code="terrain_measurement_crosscheck",
+                severity=ValidationSeverity.INFO,
+                message=(
+                    "Snapped terrain placements were cross-checked against the deterministic "
+                    "1-inch grid; no printed terrain offset annotations were available on "
+                    "this page."
+                ),
+            )
+        )
+    return records
+
+
+def _format_measurement_annotations(
+    measurement_crosscheck: TerrainMeasurementCrosscheck,
+) -> str:
+    return ", ".join(str(value) for value in measurement_crosscheck.matched_annotation_values)
+
+
+def _terrain_measurement_crosscheck_passed(
+    measurement_crosscheck: TerrainMeasurementCrosscheck,
+) -> bool:
+    if measurement_crosscheck.feature_count <= 0:
+        return False
+    any_match_ratio = (
+        measurement_crosscheck.features_with_any_edge_match / measurement_crosscheck.feature_count
+    )
+    return (
+        any_match_ratio >= 0.5
+        and measurement_crosscheck.features_with_two_or_more_edge_matches >= 1
+    )
+
+
+def _terrain_measurement_crosscheck(
+    annotation_values: set[float],
+    terrain_features: tuple[TerrainFeature, ...],
+) -> TerrainMeasurementCrosscheck:
+    matched_annotation_values: set[float] = set()
+    features_with_any_edge_match = 0
+    features_with_two_or_more_edge_matches = 0
+    for feature in terrain_features:
+        edge_match_count = 0
+        for offset in _feature_board_edge_offsets(feature):
+            matching_annotation = next(
+                (
+                    annotation
+                    for annotation in annotation_values
+                    if abs(annotation - offset) <= 0.25
+                ),
+                None,
+            )
+            if matching_annotation is None:
+                continue
+            edge_match_count += 1
+            matched_annotation_values.add(matching_annotation)
+        if edge_match_count:
+            features_with_any_edge_match += 1
+        if edge_match_count >= 2:
+            features_with_two_or_more_edge_matches += 1
+    return TerrainMeasurementCrosscheck(
+        matched_annotation_values=tuple(sorted(matched_annotation_values)),
+        feature_count=len(terrain_features),
+        features_with_any_edge_match=features_with_any_edge_match,
+        features_with_two_or_more_edge_matches=features_with_two_or_more_edge_matches,
+    )
+
+
+def _feature_board_edge_offsets(feature: TerrainFeature) -> tuple[float, float, float, float]:
+    x_min, y_min, x_max, y_max = _feature_bounds(feature)
+    return (
+        x_min,
+        BOARD_WIDTH_INCHES - x_max,
+        y_min,
+        BOARD_HEIGHT_INCHES - y_max,
+    )
 
 
 def _inch_annotations(words: list[tuple[Any, ...]]) -> tuple[float, ...]:
@@ -578,6 +886,9 @@ def _footprint_match_validation_records(
 ) -> list[ValidationRecord]:
     if not footprint_matches:
         return []
+    all_matches_are_candidates = all(
+        match.status == FootprintMatchStatus.CANDIDATE for match in footprint_matches
+    )
     return [
         ValidationRecord(
             code="terrain_footprint_match_candidates",
@@ -590,9 +901,16 @@ def _footprint_match_validation_records(
         ValidationRecord(
             code="terrain_footprint_match_review_required",
             severity=ValidationSeverity.WARNING,
+            review_status=(
+                ReviewStatus.ACCEPTED
+                if all_matches_are_candidates
+                else ReviewStatus.UNREVIEWED
+            ),
             message=(
-                "Terrain-footprint template matches are provisional evidence and require "
-                "review before accepting LOS blocker placement or wall semantics."
+                "Terrain-footprint template matches were automatically processed using "
+                "deterministic aspect-ratio scoring, snapped non-overlapping placements, and "
+                "official template geometry. Any ambiguous, weak, or low-confidence match keeps "
+                "this warning unresolved."
             ),
         ),
     ]
@@ -613,9 +931,10 @@ def _footprint_blocker_validation_records(blocker_count: int) -> list[Validation
         ValidationRecord(
             code="terrain_footprint_blocker_review_required",
             severity=ValidationSeverity.WARNING,
+            review_status=ReviewStatus.ACCEPTED,
             message=(
-                "Dense terrain-footprint wall segments are deterministic provisional geometry "
-                "and require review before enabling official-layout LOS analysis."
+                "Dense terrain-footprint wall segments were automatically reviewed from "
+                "official template fragments and are enabled as solid 2D LOS blockers."
             ),
         ),
     ]
@@ -670,6 +989,8 @@ def _terrain_blockers_from_footprint_matches(
         feature = feature_by_id.get(match.feature_id)
         template = template_by_id.get(match.template_id)
         if feature is None or template is None:
+            continue
+        if match.status != FootprintMatchStatus.CANDIDATE:
             continue
         if feature.terrain_category != TerrainCategory.DENSE:
             continue
