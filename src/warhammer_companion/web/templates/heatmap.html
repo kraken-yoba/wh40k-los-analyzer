@@ -4,7 +4,10 @@
 <header class="page-header">
   <div>
     <h1>LOS Heatmap</h1>
-    <p class="lede">Visibility density from sampled points inside a selected deployment zone. Red cells are low visibility; green cells are visible from more samples.</p>
+    <p class="lede">
+      Visibility density from sampled deployment positions. Red cells are low
+      visibility; green cells are visible from more samples.
+    </p>
   </div>
 </header>
 
@@ -25,6 +28,36 @@
         <option value="{{ zone.id }}" {{ "selected" if zone.id == selected_zone_id else "" }}>{{ zone.label }}</option>
         {% endfor %}
       </select>
+    </label>
+    <label>
+      Sample source
+      <select name="source">
+        <option value="edge" {{ "selected" if selected_source == "edge" else "" }}>
+          Deployment edge
+        </option>
+        <option value="interior" {{ "selected" if selected_source == "interior" else "" }}>
+          Full deployment zone
+        </option>
+      </select>
+    </label>
+    <label class="range-label">
+      Edge offset
+      <span class="range-value">{{ selected_offset_inches }} in</span>
+      <input
+        name="offset_inches"
+        type="range"
+        min="0"
+        max="12"
+        step="1"
+        value="{{ selected_offset_inches }}"
+        list="offset-markers"
+        {{ "disabled" if selected_source == "interior" else "" }}
+      >
+      <datalist id="offset-markers">
+        {% for value in offset_options %}
+        <option value="{{ value }}"></option>
+        {% endfor %}
+      </datalist>
     </label>
     <button type="submit">Generate</button>
   </form>

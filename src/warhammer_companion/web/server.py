@@ -16,6 +16,7 @@ from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.los.geometry import (
     clamp_base_center,
+    heatmap_visibility_polygons_from_deployment_edge,
     heatmap_visibility_polygons_from_deployment_zone,
     visibility_polygon_from_base,
     visibility_rays_from_base,
@@ -33,9 +34,21 @@ repository = FileBackedMapRepository(ingestion_paths.map_packets_dir, fallback=S
 
 
 @lru_cache(maxsize=32)
-def _cached_heatmap_svg(packet_id: str, zone_id: str) -> str:
+def _cached_heatmap_svg(
+    packet_id: str,
+    zone_id: str,
+    source: str,
+    offset_inches: int,
+) -> str:
     packet = repository.get_packet(packet_id)
-    polygons = heatmap_visibility_polygons_from_deployment_zone(packet, zone_id)
+    if source == "interior":
+        polygons = heatmap_visibility_polygons_from_deployment_zone(packet, zone_id)
+    else:
+        polygons = heatmap_visibility_polygons_from_deployment_edge(
+            packet,
+            zone_id,
+            offset_inches=offset_inches,
+        )
     return render_map_svg(packet, heatmap_polygons=polygons)
 
 
@@ -122,9 +135,15 @@ def viewer(request: Request, packet_id: str | None = None) -> HTMLResponse:
 
 @app.get("/heatmap", response_class=HTMLResponse)
 def heatmap(
-    request: Request, packet_id: str | None = None, zone_id: str = "attacker"
+    request: Request,
+    packet_id: str | None = None,
+    zone_id: str = "attacker",
+    source: str = "edge",
+    offset_inches: int = 0,
 ) -> HTMLResponse:
     packet = repository.get_packet(packet_id) if packet_id else repository.default_packet()
+    heatmap_source = source if source in {"edge", "interior"} else "edge"
+    clamped_offset = min(max(offset_inches, 0), 12)
     return templates.TemplateResponse(
         request,
         "heatmap.html",
@@ -133,7 +152,15 @@ def heatmap(
             "packet": packet,
             "packets": repository.list_packets(),
             "selected_zone_id": zone_id,
-            "map_svg": _cached_heatmap_svg(packet.id, zone_id),
+            "selected_source": heatmap_source,
+            "selected_offset_inches": clamped_offset,
+            "offset_options": list(range(0, 13)),
+            "map_svg": _cached_heatmap_svg(
+                packet.id,
+                zone_id,
+                heatmap_source,
+                clamped_offset,
+            ),
         },
     )
 

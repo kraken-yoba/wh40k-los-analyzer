@@ -144,6 +144,20 @@ button {
   padding: 9px 10px;
 }
 
+input[type="range"] {
+  min-width: 180px;
+  padding: 0;
+}
+
+.range-label {
+  min-width: 210px;
+}
+
+.range-value {
+  color: var(--ink);
+  font-size: 13px;
+}
+
 button,
 .button {
   background: var(--accent);

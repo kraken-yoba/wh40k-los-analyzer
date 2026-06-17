@@ -5,7 +5,9 @@ from shapely.geometry import Point, Polygon
 from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
     circular_base,
+    deployment_edge_sample_points,
     heatmap_from_deployment_zone,
+    heatmap_visibility_polygons_from_deployment_edge,
     heatmap_visibility_polygons_from_deployment_zone,
     is_line_blocked,
     visibility_polygon_from_base,
@@ -39,6 +41,57 @@ def test_heatmap_visibility_polygons_are_generated_from_deployment_samples() -> 
     polygons = heatmap_visibility_polygons_from_deployment_zone(packet, "attacker")
 
     assert polygons
+    assert all(not item.polygon.is_empty for item in polygons)
+
+
+def test_deployment_edge_samples_bottom_zone_front_edge_and_offset() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    edge_samples = deployment_edge_sample_points(packet, "attacker", sample_step=11.0)
+    offset_samples = deployment_edge_sample_points(
+        packet,
+        "attacker",
+        sample_step=11.0,
+        offset_inches=6,
+    )
+
+    assert edge_samples
+    assert {round(sample[1], 2) for sample in edge_samples} == {10.0}
+    assert {round(sample[1], 2) for sample in offset_samples} == {16.0}
+    attacker_zone = packet.deployment_zone("attacker").polygon()
+    assert all(attacker_zone.disjoint(Point(sample)) for sample in offset_samples)
+
+
+def test_deployment_edge_samples_top_zone_offset_toward_board_center() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    edge_samples = deployment_edge_sample_points(packet, "defender", sample_step=11.0)
+    offset_samples = deployment_edge_sample_points(
+        packet,
+        "defender",
+        sample_step=11.0,
+        offset_inches=6,
+    )
+
+    assert edge_samples
+    assert {round(sample[1], 2) for sample in edge_samples} == {50.0}
+    assert {round(sample[1], 2) for sample in offset_samples} == {44.0}
+    defender_zone = packet.deployment_zone("defender").polygon()
+    assert all(defender_zone.disjoint(Point(sample)) for sample in offset_samples)
+
+
+def test_heatmap_visibility_polygons_can_use_offset_deployment_edge() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    polygons = heatmap_visibility_polygons_from_deployment_edge(
+        packet,
+        "attacker",
+        sample_step=11.0,
+        offset_inches=6,
+    )
+
+    assert polygons
+    assert {round(item.origin[1], 2) for item in polygons} == {16.0}
     assert all(not item.polygon.is_empty for item in polygons)
 
 

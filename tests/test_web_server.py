@@ -74,6 +74,28 @@ def test_map_data_delete_removes_generated_packet_and_reloads(
     assert repository.list_packets() == SAMPLE_PACKETS
 
 
+def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
+    calls: list[tuple[str, str, str, int]] = []
+
+    def fake_heatmap_svg(packet_id: str, zone_id: str, source: str, offset_inches: int) -> str:
+        calls.append((packet_id, zone_id, source, offset_inches))
+        return '<svg class="map-svg" role="img" aria-label="fake map"></svg>'
+
+    monkeypatch.setattr(server, "_cached_heatmap_svg", fake_heatmap_svg)
+    client = TestClient(server.app)
+    packet = server.repository.default_packet()
+
+    response = client.get(
+        f"/heatmap?packet_id={packet.id}&zone_id=attacker&source=edge&offset_inches=6"
+    )
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, "attacker", "edge", 6)]
+    assert 'name="source"' in response.text
+    assert 'name="offset_inches"' in response.text
+    assert 'value="6"' in response.text
+
+
 def _official_packet() -> MapPacket:
     return SAMPLE_PACKETS[0].model_copy(
         update={

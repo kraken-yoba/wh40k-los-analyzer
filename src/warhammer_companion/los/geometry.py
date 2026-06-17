@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import atan2, cos, sin
+from math import atan2, ceil, cos, sin
 
 from shapely.geometry import (
     GeometryCollection,
@@ -140,6 +140,55 @@ def heatmap_visibility_polygons_from_deployment_zone(
         VisibilityPolygon(origin=sample, polygon=visibility_polygon_from_point(packet, sample))
         for sample in sample_points
     ]
+
+
+def heatmap_visibility_polygons_from_deployment_edge(
+    packet: MapPacket,
+    deployment_zone_id: str,
+    sample_step: float = 2.0,
+    offset_inches: float = 0.0,
+) -> list[VisibilityPolygon]:
+    sample_points = deployment_edge_sample_points(
+        packet,
+        deployment_zone_id,
+        sample_step=sample_step,
+        offset_inches=offset_inches,
+    )
+    return [
+        VisibilityPolygon(origin=sample, polygon=visibility_polygon_from_point(packet, sample))
+        for sample in sample_points
+    ]
+
+
+def deployment_edge_sample_points(
+    packet: MapPacket,
+    deployment_zone_id: str,
+    sample_step: float = 2.0,
+    offset_inches: float = 0.0,
+) -> list[tuple[float, float]]:
+    if sample_step <= 0:
+        raise ValueError("sample_step must be positive")
+    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    board = _board_polygon(packet)
+    samples: list[tuple[float, float]] = []
+    for start, end in _polygon_segments(zone):
+        segment = LineString([start, end])
+        if segment.length <= 0:
+            continue
+        if _board_boundary_overlap_length(segment, board) >= segment.length - 1e-7:
+            continue
+        normal = _front_edge_normal(start, end, zone, board)
+        for sample in _sample_segment(start, end, sample_step):
+            shifted = (
+                sample[0] + normal[0] * offset_inches,
+                sample[1] + normal[1] * offset_inches,
+            )
+            if board.covers(Point(shifted)):
+                samples.append((round(shifted[0], 6), round(shifted[1], 6)))
+    if samples:
+        return samples
+    centroid = zone.centroid
+    return [(round(centroid.x, 6), round(centroid.y, 6))]
 
 
 def visibility_polygon_from_point(
@@ -291,6 +340,56 @@ def _polygon_vertices(polygon: Polygon) -> list[tuple[float, float]]:
 def _polygon_segments(polygon: Polygon) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     vertices = _polygon_vertices(polygon)
     return list(zip(vertices, vertices[1:] + vertices[:1], strict=True))
+
+
+def _board_boundary_overlap_length(line: LineString, board: Polygon) -> float:
+    return float(line.intersection(board.boundary).length)
+
+
+def _sample_segment(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    spacing: float,
+) -> list[tuple[float, float]]:
+    line = LineString([start, end])
+    count = max(1, ceil(line.length / spacing))
+    return [
+        (
+            start[0] + (end[0] - start[0]) * ((index + 0.5) / count),
+            start[1] + (end[1] - start[1]) * ((index + 0.5) / count),
+        )
+        for index in range(count)
+    ]
+
+
+def _front_edge_normal(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    zone: Polygon,
+    board: Polygon,
+) -> tuple[float, float]:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = (dx**2 + dy**2) ** 0.5
+    if length <= 0:
+        return (0.0, 0.0)
+    midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+    candidates = [(-dy / length, dx / length), (dy / length, -dx / length)]
+    for candidate in candidates:
+        probe = (
+            midpoint[0] + candidate[0] * 0.05,
+            midpoint[1] + candidate[1] * 0.05,
+        )
+        point = Point(probe)
+        if board.covers(point) and not zone.covers(point):
+            return candidate
+    board_center = board.centroid
+    toward_center = (board_center.x - midpoint[0], board_center.y - midpoint[1])
+    return max(
+        candidates,
+        key=lambda candidate: candidate[0] * toward_center[0]
+        + candidate[1] * toward_center[1],
+    )
 
 
 def _nearest_ray_hit(
