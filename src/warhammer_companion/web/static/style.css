@@ -389,6 +389,8 @@ button,
   cursor: grabbing;
 }
 
+.coverage-image,
+.heatmap-image,
 .coverage-cell,
 .ray-visible,
 .ray-blocked {

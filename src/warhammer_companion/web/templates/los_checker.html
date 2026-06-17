@@ -9,7 +9,7 @@
 </header>
 
 <section class="panel">
-  <form class="toolbar los-checker-form" method="post" action="/los-checker">
+  <form class="toolbar los-checker-form" method="post" action="/los-checker" data-board-width="{{ packet.board.width }}" data-board-height="{{ packet.board.height }}">
     <label>
       Map packet
       <select name="packet_id">

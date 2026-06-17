@@ -47,6 +47,17 @@ def circular_base(center: tuple[float, float], diameter: float, resolution: int 
     return Point(center).buffer(diameter / 2.0, quad_segs=resolution)
 
 
+def clamp_base_center(
+    packet: MapPacket, center: tuple[float, float], base_diameter: float
+) -> tuple[float, float]:
+    radius = max(base_diameter / 2.0, 0.0)
+    min_x = min(radius, packet.board.width / 2.0)
+    max_x = max(packet.board.width - radius, min_x)
+    min_y = min(radius, packet.board.height / 2.0)
+    max_y = max(packet.board.height - radius, min_y)
+    return (_clamp(center[0], min_x, max_x), _clamp(center[1], min_y, max_y))
+
+
 def is_line_blocked(
     origin: tuple[float, float],
     target: tuple[float, float],
@@ -68,19 +79,19 @@ def visibility_rays_from_base(
     target_spacing: float = 6.0,
 ) -> list[VisibilityRay]:
     base = circular_base(center, base_diameter)
-    blockers = _blocker_union(packet.blockers()).difference(base)
+    blockers = _blocker_union(_blockers_for_base(packet, base)).difference(base)
     rays: list[VisibilityRay] = []
 
     x = 0.0
     while x <= packet.board.width:
-        rays.append(_ray_to(packet, center, (x, 0.0), blockers, base))
-        rays.append(_ray_to(packet, center, (x, packet.board.height), blockers, base))
+        rays.append(_ray_to(packet, center, (x, 0.0), blockers))
+        rays.append(_ray_to(packet, center, (x, packet.board.height), blockers))
         x += target_spacing
 
     y = target_spacing
     while y < packet.board.height:
-        rays.append(_ray_to(packet, center, (0.0, y), blockers, base))
-        rays.append(_ray_to(packet, center, (packet.board.width, y), blockers, base))
+        rays.append(_ray_to(packet, center, (0.0, y), blockers))
+        rays.append(_ray_to(packet, center, (packet.board.width, y), blockers))
         y += target_spacing
 
     return rays
@@ -93,7 +104,7 @@ def binary_visibility_overlay_from_base(
     grid_step: float = 1.0,
 ) -> list[CoverageCell]:
     base = circular_base(center, base_diameter)
-    blockers = _blocker_union(packet.blockers()).difference(base)
+    blockers = _blocker_union(_blockers_for_base(packet, base)).difference(base)
     cells: list[CoverageCell] = []
 
     y = grid_step / 2.0
@@ -109,6 +120,15 @@ def binary_visibility_overlay_from_base(
     return cells
 
 
+def visibility_polygon_from_base(
+    packet: MapPacket,
+    center: tuple[float, float],
+    base_diameter: float,
+) -> Polygon:
+    base = circular_base(center, base_diameter)
+    return visibility_polygon_from_point(packet, center, blockers=_blockers_for_base(packet, base))
+
+
 def heatmap_visibility_polygons_from_deployment_zone(
     packet: MapPacket,
     deployment_zone_id: str,
@@ -122,14 +142,18 @@ def heatmap_visibility_polygons_from_deployment_zone(
     ]
 
 
-def visibility_polygon_from_point(packet: MapPacket, origin: tuple[float, float]) -> Polygon:
+def visibility_polygon_from_point(
+    packet: MapPacket,
+    origin: tuple[float, float],
+    blockers: list[Polygon] | None = None,
+) -> Polygon:
     board = _board_polygon(packet)
-    blockers = packet.blockers()
+    active_blockers = packet.blockers() if blockers is None else blockers
     segments = _polygon_segments(board) + [
-        segment for blocker in blockers for segment in _polygon_segments(blocker)
+        segment for blocker in active_blockers for segment in _polygon_segments(blocker)
     ]
     vertices = _polygon_vertices(board) + [
-        vertex for blocker in blockers for vertex in _polygon_vertices(blocker)
+        vertex for blocker in active_blockers for vertex in _polygon_vertices(blocker)
     ]
     ray_length = max(packet.board.width, packet.board.height) * 3.0
     angles = sorted(
@@ -192,7 +216,6 @@ def _ray_to(
     origin: tuple[float, float],
     target: tuple[float, float],
     blockers: BaseGeometry,
-    base: Polygon,
 ) -> VisibilityRay:
     board = _board_polygon(packet)
     target_point = Point(target)
@@ -200,6 +223,30 @@ def _ray_to(
         return VisibilityRay(target=target, visible=False)
     visible = not _is_segment_blocked(origin, target, blockers)
     return VisibilityRay(target=target, visible=visible)
+
+
+def _blockers_for_base(packet: MapPacket, base: Polygon) -> list[Polygon]:
+    touched_area_ids = _terrain_area_ids_touched_by_base(packet, base)
+    blockers = [
+        area.polygon()
+        for area in packet.terrain_areas
+        if area.blocks_los and area.id not in touched_area_ids
+    ]
+    blockers.extend(
+        feature.polygon()
+        for feature in packet.dense_features
+        if feature.blocks_los and feature.terrain_area_id not in touched_area_ids
+    )
+    return blockers
+
+
+def _terrain_area_ids_touched_by_base(packet: MapPacket, base: Polygon) -> set[str]:
+    touched: set[str] = set()
+    for area in packet.terrain_areas:
+        polygon = area.polygon()
+        if base.intersects(polygon) or base.distance(polygon) <= 1e-7:
+            touched.add(area.id)
+    return touched
 
 
 def _blocker_union(blockers: list[Polygon]) -> BaseGeometry:
@@ -301,3 +348,7 @@ def _points_in_polygon(polygon: Polygon, spacing: float) -> list[tuple[float, fl
         centroid = polygon.centroid
         points.append((centroid.x, centroid.y))
     return points
+
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return min(max(value, minimum), maximum)

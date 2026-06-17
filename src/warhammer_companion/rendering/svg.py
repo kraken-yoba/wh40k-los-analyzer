@@ -23,6 +23,7 @@ def render_map_svg(
     heatmap: list[HeatmapCell] | None = None,
     heatmap_polygons: list[VisibilityPolygon] | None = None,
     coverage: list[CoverageCell] | None = None,
+    coverage_polygon: Polygon | None = None,
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
     base_diameter: float | None = None,
@@ -41,8 +42,10 @@ def render_map_svg(
     elif heatmap:
         parts.extend(_render_heatmap_cells(heatmap, scale, packet.board.height))
 
-    if coverage:
-        parts.extend(_render_coverage(coverage, scale, packet.board.height))
+    if coverage_polygon is not None:
+        parts.extend(_render_coverage_raster(packet, coverage_polygon, scale))
+    elif coverage:
+        parts.extend(_render_coverage_cells(coverage, scale, packet.board.height))
 
     for zone in packet.deployment_zones:
         parts.append(_polygon(zone.footprint, scale, packet.board.height, "deployment"))
@@ -106,23 +109,53 @@ def _render_heatmap_raster(
             continue
         mask = Image.new("L", (width, height), 0)
         draw = ImageDraw.Draw(mask)
-        rings = [item.polygon.exterior, *item.polygon.interiors]
-        for index, ring in enumerate(rings):
-            points = [_to_svg_point((x, y), scale, packet.board.height) for x, y in ring.coords]
-            fill = 1 if index == 0 else 0
-            draw.polygon(points, fill=fill)
+        _draw_polygon_mask(draw, item.polygon, scale, packet.board.height, exterior_fill=1)
         accumulator += np.asarray(mask, dtype=np.uint16)
 
     visibility = accumulator.astype(np.float64) / max(len(polygons), 1)
     image = Image.fromarray(_colorize_heatmap_array(visibility), "RGBA")
+    return [_image_data_uri(image, width, height, "heatmap-image")]
+
+
+def _render_coverage_raster(packet: MapPacket, polygon: Polygon, scale: int) -> list[str]:
+    if polygon.is_empty:
+        return []
+    width = int(round(packet.board.width * scale))
+    height = int(round(packet.board.height * scale))
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    _draw_polygon_mask(draw, polygon, scale, packet.board.height, exterior_fill=255)
+
+    rgba: NDArray[np.uint8] = np.zeros((height, width, 4), dtype=np.uint8)
+    visible = np.asarray(mask, dtype=np.uint8) > 0
+    rgba[visible] = (42, 140, 158, 118)
+    image = Image.fromarray(rgba, "RGBA")
+    return [_image_data_uri(image, width, height, "coverage-image")]
+
+
+def _draw_polygon_mask(
+    draw: ImageDraw.ImageDraw,
+    polygon: Polygon,
+    scale: int,
+    board_height: float,
+    exterior_fill: int,
+) -> None:
+    rings = [polygon.exterior, *polygon.interiors]
+    for index, ring in enumerate(rings):
+        points = [_to_svg_point((x, y), scale, board_height) for x, y in ring.coords]
+        fill = exterior_fill if index == 0 else 0
+        draw.polygon(points, fill=fill)
+
+
+def _image_data_uri(image: Image.Image, width: int, height: int, css_class: str) -> str:
     buffer = BytesIO()
     image.save(buffer, format="PNG", optimize=True)
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return [
+    return (
         f'<image x="0" y="0" width="{width}" height="{height}" '
         f'href="data:image/png;base64,{encoded}" preserveAspectRatio="none" '
-        'class="heatmap-image"/>'
-    ]
+        f'class="{css_class}"/>'
+    )
 
 
 def _colorize_heatmap_array(visibility: NDArray[np.float64]) -> NDArray[np.uint8]:
@@ -160,7 +193,7 @@ def _render_heatmap_cells(cells: list[HeatmapCell], scale: int, board_height: fl
     return rendered
 
 
-def _render_coverage(cells: list[CoverageCell], scale: int, board_height: float) -> list[str]:
+def _render_coverage_cells(cells: list[CoverageCell], scale: int, board_height: float) -> list[str]:
     if len(cells) < 2:
         return []
     step = _infer_grid_step([cell.x for cell in cells])

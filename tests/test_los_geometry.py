@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 
 from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
@@ -8,6 +8,7 @@ from warhammer_companion.los.geometry import (
     heatmap_from_deployment_zone,
     heatmap_visibility_polygons_from_deployment_zone,
     is_line_blocked,
+    visibility_polygon_from_base,
     visibility_rays_from_base,
 )
 from warhammer_companion.sample_data import SAMPLE_PACKETS
@@ -66,6 +67,19 @@ def test_binary_visibility_overlay_returns_board_cells() -> None:
     assert len(cells) == int(packet.board.width * packet.board.height)
     assert any(cell.visible for cell in cells)
     assert any(not cell.visible for cell in cells)
+
+
+def test_base_touching_terrain_footprint_sees_through_that_footprint() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    outside_polygon = visibility_polygon_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+    touching_polygon = visibility_polygon_from_base(
+        packet, center=(14.25, 30.0), base_diameter=1.57
+    )
+
+    target_behind_c = Point(35.0, 30.0)
+    assert not outside_polygon.covers(target_behind_c)
+    assert touching_polygon.covers(target_behind_c)
 
 
 def test_visibility_rays_include_visible_and_blocked_results() -> None:

@@ -12,8 +12,9 @@ from warhammer_companion.domain.repository import InMemoryMapRepository
 from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.los.geometry import (
-    binary_visibility_overlay_from_base,
+    clamp_base_center,
     heatmap_visibility_polygons_from_deployment_zone,
+    visibility_polygon_from_base,
     visibility_rays_from_base,
 )
 from warhammer_companion.rendering.svg import render_map_svg
@@ -112,8 +113,9 @@ def los_checker(
     base: float = 1.57,
 ) -> HTMLResponse:
     packet = repository.get_packet(packet_id) if packet_id else repository.default_packet()
-    coverage = binary_visibility_overlay_from_base(packet, center=(x, y), base_diameter=base)
-    rays = visibility_rays_from_base(packet, center=(x, y), base_diameter=base)
+    center = clamp_base_center(packet, (x, y), base)
+    coverage_polygon = visibility_polygon_from_base(packet, center=center, base_diameter=base)
+    rays = visibility_rays_from_base(packet, center=center, base_diameter=base)
     return templates.TemplateResponse(
         request,
         "los_checker.html",
@@ -121,14 +123,14 @@ def los_checker(
             "active_page": "los-checker",
             "packet": packet,
             "packets": repository.list_packets(),
-            "x": x,
-            "y": y,
+            "x": center[0],
+            "y": center[1],
             "base": base,
             "map_svg": render_map_svg(
                 packet,
-                coverage=coverage,
+                coverage_polygon=coverage_polygon,
                 rays=rays,
-                base_center=(x, y),
+                base_center=center,
                 base_diameter=base,
             ),
         },
