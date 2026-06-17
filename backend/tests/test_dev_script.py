@@ -8,6 +8,6 @@ def test_dev_script_uses_configurable_host_and_port() -> None:
 
     assert "$env:FORTYK_LOS_HOST" in script
     assert "$env:FORTYK_LOS_PORT" in script
-    assert "--host $host" in script
+    assert "--host $bindHost" in script
     assert "--port $port" in script
     assert "--port 8000" not in script
