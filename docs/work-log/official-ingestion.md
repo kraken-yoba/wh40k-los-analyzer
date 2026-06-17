@@ -43,6 +43,9 @@
 - Task 4 footprint extraction uses vector-first extraction for official PDF pages. The terrain footprint PDF exposes five large green vector paths across pages 1-3; tiny single-item green path fragments are ignored. Raster green-contour extraction remains as a fallback for pages without vector templates.
 - Task 4 code review found and fixed two fallback P1s: raster fallback now derives pixels-per-inch from render DPI unless explicitly calibrated, and vector-first extraction now falls back page-by-page instead of dropping raster-only pages when any vector page succeeds.
 - Task 4 official smoke extracts 5 templates from `terrain-area-footprints.pdf` and writes `data/processed/footprint-library.json` plus review overlays for pages 1-3.
+- Task 5 layout extraction uses vector-first board/deployment/grey-terrain extraction from `event-companion.pdf`. Dense/light terrain features are raster HSV candidates clipped to each grey footprint because green/yellow vector fills on layout pages are mostly labels/icons rather than reliable feature geometry.
+- Task 5 official page-9 smoke detects board `(127.99, 277.77, 468.15, 740.18)`, 2 deployment zones, 16 terrain areas, and raster dense/light feature candidates.
+- Task 5 official aggregate smoke over pages 9-53 detects 45 layouts; every layout has 2 deployment zones, 16 terrain areas, and at least one raster feature candidate.
 
 ### Exit Criteria
 
