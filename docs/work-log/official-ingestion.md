@@ -35,6 +35,12 @@
 - Store extraction confidence/provenance in ingestion reports and packet source strings for the MVP. A richer domain provenance model may follow once extractor quality stabilizes.
 - Generate visual review overlays for official extraction rather than hiding CV uncertainty.
 
+### Checkpoints
+
+- Task 1 packet JSON repository committed as `2a44674`.
+- Task 2 source manifest committed as `20fa2ad`.
+- Task 3 PDF/coordinate primitives: controller verification passed; two rounds of subagent review attempts failed with backend `404 Not Found` before producing review findings, so Task 3 received inline spec/code review before commit.
+
 ### Exit Criteria
 
 - Source manifest with hashes/page counts exists.
