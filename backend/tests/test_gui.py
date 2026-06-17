@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -39,6 +40,8 @@ def test_index_exposes_core_gui_workflow_controls() -> None:
         'id="footprint-match-evidence"',
         'id="footprint-normalization-evidence"',
         'id="terrain-symmetry-evidence"',
+        'id="terrain-reconciliation-evidence"',
+        'id="reconciliation-process"',
         'id="visual-sanity-evidence"',
         'id="terrain-semantics"',
         'id="feature-provenance"',
@@ -198,6 +201,34 @@ def test_client_script_renders_terrain_symmetry_evidence() -> None:
     assert "rotational_180" in script
 
 
+def test_client_script_renders_terrain_reconciliation_evidence_and_process_diagram() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const terrainReconciliationEvidence" in script
+    assert "const reconciliationProcess" in script
+    assert "function renderTerrainReconciliation" in script
+    assert "function renderReconciliationProcess" in script
+    assert "/terrain-reconciliation" in script
+    assert "terrain-reconciliation-v1" in script
+    assert 'reconciliationProcess.textContent = "Loading process evidence."' in script
+    assert "renderError(reconciliationProcess, error)" in script
+    assert "Source footprint catalog" in script
+    assert "Measurement gate" in script
+    assert "Symmetry gate" in script
+    assert "Final measurement" in script
+    assert "Final symmetry" in script
+    assert "Viable candidates" in script
+    assert "dense wall candidates" in script
+    assert "source=${option.source_kind" in script
+    assert "evidence=${option.dimension_evidence_count" in script
+    assert "standard_terrain_options" in script
+    assert "viable_alternative_count" in script
+    assert "accepted_alternative_count" not in script
+    assert "Measurement + symmetry" not in script
+
+
 def test_client_script_renders_visual_sanity_evidence() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
@@ -350,6 +381,22 @@ def test_client_script_keeps_terrain_symmetry_fetch_out_of_layout_load_barrier()
     assert "renderError(terrainSymmetryEvidence" in script
 
 
+def test_client_script_keeps_terrain_reconciliation_fetch_out_of_layout_load_barrier() -> None:
+    script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_layout_body = script.split("async function loadLayout(layoutId)", 1)[1].split(
+        "async function initialize()",
+        1,
+    )[0]
+    load_layout_barrier = load_layout_body.split("]);", 1)[0]
+
+    assert "/terrain-reconciliation" not in load_layout_barrier
+    assert "async function loadTerrainReconciliation(layoutId)" in script
+    assert "void loadTerrainReconciliation(layoutId);" in load_layout_body
+    assert "renderError(terrainReconciliationEvidence" in script
+
+
 def test_client_script_distinguishes_terrain_categories_and_solid_dense_walls() -> None:
     script = (REPO_ROOT / "backend" / "fortyk_los_backend" / "static" / "app.js").read_text(
         encoding="utf-8"
@@ -388,17 +435,29 @@ def test_technical_evidence_sections_are_collapsible() -> None:
         encoding="utf-8"
     )
 
-    for panel_id in [
-        "layout-metadata",
+    collapsed_panel_ids = [
         "source-status",
         "rules-evidence",
         "footprint-evidence",
         "footprint-match-evidence",
         "footprint-normalization-evidence",
         "terrain-symmetry-evidence",
+        "reconciliation-process",
+        "terrain-reconciliation-evidence",
         "visual-sanity-evidence",
+        "feature-provenance",
         "validation-panel",
-    ]:
-        assert '<details class="evidence-section"' in html
-        assert f'id="{panel_id}"' in html
-    assert "open" in html
+    ]
+    for panel_id in collapsed_panel_ids:
+        assert re.search(
+            rf'<details class="evidence-section">\s*<summary>[^<]+</summary>\s*'
+            rf'<div id="{panel_id}"',
+            html,
+        )
+
+    assert '<details class="evidence-section" open>' in html
+    assert re.search(
+        r'<details class="evidence-section" open>\s*<summary>Layout</summary>\s*'
+        r'<div id="layout-metadata"',
+        html,
+    )

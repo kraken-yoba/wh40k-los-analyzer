@@ -252,3 +252,18 @@ Consequences:
 - Sources, Rules, Footprints, Provisional Matches, Footprint Normalization, Symmetry, Sanity, and Validation remain available without dominating the viewport.
 - Workflow panels for Terrain, Feature, LOS, and Analysis stay visible.
 - Expanded technical rows must still wrap on mobile without horizontal overflow.
+
+## 2026-06-17: Reconciliation Requires Independent Measurement And Symmetry Gates
+
+Decision: Treat terrain reconciliation as a separate deterministic pass after source footprint extraction, map-image placement extraction, and grid snapping. The standard footprint catalog is a separate source step: Terrain Area Footprints provides template form and Dense wall fragment evidence, while the current parser derives standard inch-size evidence from official source-template matches across the extracted Event Companion corpus when explicit footprint dimensions are not present in the Terrain Area Footprints text layer. A final layout candidate must satisfy both positioned measurement checks and 180 degree one-to-one symmetry checks before it is considered resolved.
+
+Reasoning: Terrain footprint forms, Dense wall fragments, and map placements are different evidence streams. Combining them too early can hide extraction mistakes, especially when a snapped placement looks plausible but violates printed edge measurements or map symmetry. Keeping measurement and symmetry as parallel final gates makes unresolved asymmetry visible and gives the reconciler a clear path for cycling through standard footprint options.
+
+Consequences:
+
+- Reconciliation reports expose a source-footprint-catalog step, map extraction, grid snap, measurement gate, symmetry gate, and final layout gate.
+- Measurement checks require positioned inch annotations near all four corners of a snapped footprint; a globally matching number is not enough.
+- Symmetry matching maximizes the one-to-one matched feature count before minimizing residuals, and requires matching category plus canonical dimensions, so duplicate terrain features cannot all claim the same mirrored partner.
+- Alternative placements cycle source-catalog size options through self-centered and mirror-partner candidate placements, and are reported as viable candidates only when they are on the inch grid, do not overlap existing footprints, pass the positioned measurement gate, and satisfy symmetry.
+- Source-catalog dimensions and Dense wall fragment counts are promoted only from deterministic candidate footprint-template matches; `needs_review` matches remain advisory evidence and cannot become authoritative reconciliation inputs.
+- Viable candidates are not silently applied to canonical layouts yet; unresolved features remain warning-state evidence until a later deterministic promotion step is implemented.

@@ -20,6 +20,7 @@ Source underlay run: 2026-06-16 on isolated port `http://127.0.0.1:18787`; tempo
 Rules semantics run and post-review recheck: 2026-06-16 on isolated port `http://127.0.0.1:49231`; temporary server was stopped afterward.
 Snapped footprint auto-review run: 2026-06-17 on isolated port `http://127.0.0.1:18793`; server left running for user inspection.
 Footprint normalization and symmetry run: 2026-06-17 on isolated port `http://127.0.0.1:18803`; server left running for user inspection.
+Terrain reconciliation run: API/TestClient and GUI static-regression closeout on 2026-06-17; browser automation was blocked from opening a fresh `127.0.0.1:18803` tab by the Browser Use URL policy in this session.
 
 | Workflow | Fixture/Input | Endpoint/State | Playwright Test | Browser Evidence | Status |
 | --- | --- | --- | --- | --- | --- |

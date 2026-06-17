@@ -180,6 +180,47 @@ input {
   font-size: 13px;
 }
 
+.process-diagram {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.process-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-areas:
+    "num label"
+    "num code";
+  gap: 2px 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #e1dcd2;
+}
+
+.process-step span {
+  grid-area: num;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #647077;
+  border-radius: 50%;
+  background: #fffdf8;
+  font-weight: 700;
+}
+
+.process-step strong {
+  grid-area: label;
+}
+
+.process-step small {
+  grid-area: code;
+  min-width: 0;
+  color: #5b6469;
+  overflow-wrap: anywhere;
+}
+
 .terrain-item {
   display: grid;
   grid-template-columns: 18px 1fr auto;

@@ -643,6 +643,38 @@ def test_terrain_symmetry_api_returns_404_for_missing_layout() -> None:
     assert response.json()["detail"] == "Layout not found: missing-layout"
 
 
+def test_terrain_reconciliation_api_returns_process_and_candidate_report() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/synthetic-alpha/terrain-reconciliation")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["layout_id"] == "synthetic-alpha"
+    assert payload["extraction_method"] == "terrain-reconciliation-v1"
+    assert payload["process_steps"] == [
+        "standard_terrain_options",
+        "image_extraction",
+        "grid_snap",
+        "measurement_corner_check",
+        "symmetry_candidate_check",
+        "final_reconciliation",
+    ]
+    assert "standard_options" in payload
+    assert "measurement_checks" in payload
+    assert "alternatives" in payload
+    assert payload["symmetry_status"] in {"passed", "warning"}
+
+
+def test_terrain_reconciliation_api_returns_404_for_missing_layout() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/layouts/missing-layout/terrain-reconciliation")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Layout not found: missing-layout"
+
+
 def test_source_underlay_api_returns_board_cropped_png_for_extracted_layout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -10,6 +10,8 @@ const footprintEvidence = document.querySelector("#footprint-evidence");
 const footprintMatchEvidence = document.querySelector("#footprint-match-evidence");
 const footprintNormalizationEvidence = document.querySelector("#footprint-normalization-evidence");
 const terrainSymmetryEvidence = document.querySelector("#terrain-symmetry-evidence");
+const terrainReconciliationEvidence = document.querySelector("#terrain-reconciliation-evidence");
+const reconciliationProcess = document.querySelector("#reconciliation-process");
 const visualSanityEvidence = document.querySelector("#visual-sanity-evidence");
 const terrainSemantics = document.querySelector("#terrain-semantics");
 const featureProvenance = document.querySelector("#feature-provenance");
@@ -24,6 +26,7 @@ const FOOTPRINT_EXTRACTION_METHOD = "terrain-footprint-vector-v1";
 const FOOTPRINT_MATCH_METHOD = "terrain-footprint-match-v1";
 const FOOTPRINT_NORMALIZATION_METHOD = "terrain-footprint-normalization-v1";
 const TERRAIN_SYMMETRY_METHOD = "terrain-symmetry-v1";
+const TERRAIN_RECONCILIATION_METHOD = "terrain-reconciliation-v1";
 const RULES_TERRAIN_SEMANTICS_METHOD = "core-rules-terrain-semantics-v1";
 
 const state = {
@@ -455,6 +458,130 @@ function renderTerrainSymmetry(payload) {
   }
 }
 
+function processStepLabel(code) {
+  switch (code) {
+    case "standard_terrain_options":
+      return "Source footprint catalog";
+    case "image_extraction":
+      return "Map extraction";
+    case "grid_snap":
+      return "Grid snap";
+    case "measurement_corner_check":
+      return "Measurement gate";
+    case "symmetry_candidate_check":
+      return "Symmetry gate";
+    case "final_reconciliation":
+      return "Final layout gate";
+    default:
+      return code;
+  }
+}
+
+function processStepStatus(code, payload) {
+  switch (code) {
+    case "measurement_corner_check":
+      return payload.final_measurement_status || payload.measurement_status || "unavailable";
+    case "symmetry_candidate_check":
+      return payload.final_symmetry_status || payload.symmetry_status || "warning";
+    case "final_reconciliation":
+      return payload.status || "warning";
+    case "standard_terrain_options":
+      return (payload.standard_options || []).length ? "available" : "unavailable";
+    case "image_extraction":
+    case "grid_snap":
+      return payload.layout_id && payload.source_document_id ? "available" : "unavailable";
+    default:
+      return "";
+  }
+}
+
+function renderReconciliationProcess(payload) {
+  reconciliationProcess.replaceChildren();
+  const steps = payload.process_steps || [];
+  steps.forEach((code, index) => {
+    const step = window.document.createElement("div");
+    const numberNode = window.document.createElement("span");
+    const labelNode = window.document.createElement("strong");
+    const codeNode = window.document.createElement("small");
+    step.className = "process-step";
+    numberNode.textContent = String(index + 1);
+    labelNode.textContent = processStepLabel(code);
+    codeNode.textContent = `${code} ${processStepStatus(code, payload)}`.trim();
+    step.append(numberNode, labelNode, codeNode);
+    reconciliationProcess.appendChild(step);
+  });
+}
+
+function renderTerrainReconciliation(payload) {
+  renderReconciliationProcess(payload);
+  terrainReconciliationEvidence.replaceChildren();
+  appendDenseItem(terrainReconciliationEvidence, "Status", payload.status || "warning");
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Method",
+    payload.extraction_method || TERRAIN_RECONCILIATION_METHOD,
+  );
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Raw measurement",
+    payload.measurement_status || "unavailable",
+  );
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Raw symmetry",
+    payload.symmetry_status || "warning",
+  );
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Final measurement",
+    payload.final_measurement_status || "unavailable",
+  );
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Final symmetry",
+    payload.final_symmetry_status || "warning",
+  );
+  appendDenseItem(
+    terrainReconciliationEvidence,
+    "Viable candidates",
+    String(payload.viable_alternative_count || 0),
+  );
+  if ((payload.unresolved_feature_ids || []).length) {
+    appendDenseItem(
+      terrainReconciliationEvidence,
+      "Unresolved",
+      payload.unresolved_feature_ids.join(", "),
+    );
+  }
+  for (const option of payload.standard_options || []) {
+    const templates = (option.template_ids || []).length
+      ? ` templates=${option.template_ids.join(",")}`
+      : "";
+    appendDenseItem(
+      terrainReconciliationEvidence,
+      option.option_id,
+      `${Number(option.width_inches).toFixed(1)}x${Number(option.height_inches).toFixed(1)}in source=${option.source_kind || "layout_geometry"} evidence=${option.dimension_evidence_count || 0} count=${option.count} dense=${option.dense_feature_count} dense wall candidates=${option.wall_segment_count}${templates}`,
+    );
+  }
+  for (const check of payload.measurement_checks || []) {
+    appendDenseItem(
+      terrainReconciliationEvidence,
+      check.feature_id,
+      `${check.status} corners=${check.verified_corner_count} ${check.review_reason}`,
+    );
+  }
+  for (const alternative of payload.alternatives || []) {
+    appendDenseItem(
+      terrainReconciliationEvidence,
+      `${alternative.feature_id} viable candidate`,
+      `${alternative.status} ${alternative.review_reason} bounds=${formatBounds(alternative.proposed_bounds_inches)} measurement=${alternative.measurement_status} residual=${Number(alternative.symmetry_residual_inches).toFixed(2)}in`,
+    );
+  }
+  for (const code of payload.warning_codes || []) {
+    appendDenseItem(terrainReconciliationEvidence, "Warning", code);
+  }
+}
+
 function renderVisualSanity(payload) {
   visualSanityEvidence.replaceChildren();
   appendDenseItem(visualSanityEvidence, "Status", payload.status || "unavailable");
@@ -543,6 +670,20 @@ async function loadTerrainSymmetry(layoutId) {
   } catch (error) {
     if (!state.layout || state.layout.layout_id !== layoutId) return;
     renderError(terrainSymmetryEvidence, error);
+  }
+}
+
+async function loadTerrainReconciliation(layoutId) {
+  reconciliationProcess.textContent = "Loading process evidence.";
+  terrainReconciliationEvidence.textContent = "Loading reconciliation evidence.";
+  try {
+    const payload = await getJson(`/api/layouts/${layoutId}/terrain-reconciliation`);
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderTerrainReconciliation(payload);
+  } catch (error) {
+    if (!state.layout || state.layout.layout_id !== layoutId) return;
+    renderError(reconciliationProcess, error);
+    renderError(terrainReconciliationEvidence, error);
   }
 }
 
@@ -656,6 +797,7 @@ async function loadLayout(layoutId) {
   renderBoard();
   void loadFootprintNormalization(layoutId);
   void loadTerrainSymmetry(layoutId);
+  void loadTerrainReconciliation(layoutId);
   void loadVisualSanity(layoutId);
 }
 

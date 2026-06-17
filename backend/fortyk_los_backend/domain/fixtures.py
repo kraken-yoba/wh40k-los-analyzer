@@ -1,8 +1,13 @@
+from collections import Counter
 from pathlib import Path
 
 from fortyk_los_backend.domain.extraction import (
+    INCH_ANNOTATION_RE,
+    BoardTransform,
+    FootprintMatchStatus,
     TerrainFootprintMatch,
     TerrainFootprintTemplate,
+    _find_board_rect,
     extract_event_companion_layout,
     extract_terrain_footprint_outlines,
     extract_terrain_footprint_templates,
@@ -22,13 +27,25 @@ from fortyk_los_backend.domain.manifest import (
     SourceKind,
     SourceManifest,
 )
-from fortyk_los_backend.domain.models import CanonicalLayout, ReviewStatus, ValidationSeverity
+from fortyk_los_backend.domain.models import (
+    CanonicalLayout,
+    ReviewStatus,
+    TerrainFeature,
+    ValidationSeverity,
+)
 from fortyk_los_backend.domain.rules import (
     RULES_TERRAIN_SEMANTICS_METHOD,
     extract_rules_terrain_semantics,
 )
 from fortyk_los_backend.domain.serialization import stable_layout_hash
 from fortyk_los_backend.domain.source_underlay import render_event_companion_board_underlay
+from fortyk_los_backend.domain.terrain_reconciliation import (
+    MeasurementAnnotation,
+    SourceFootprintDimension,
+    TerrainReconciliationReport,
+    reconcile_terrain_layout,
+    standard_terrain_options_from_layout,
+)
 from fortyk_los_backend.domain.terrain_symmetry import (
     TerrainSymmetryReport,
     analyze_terrain_symmetry,
@@ -46,6 +63,7 @@ class FixtureRepository:
         self._layout_dir = repo_root / "fixtures" / "layouts"
         self._source_manifest_path = repo_root / "fixtures" / "source_manifest.official.json"
         self._terrain_footprint_template_cache: tuple[TerrainFootprintTemplate, ...] | None = None
+        self._source_footprint_dimension_cache: tuple[SourceFootprintDimension, ...] | None = None
         self._accepted_validation_records: dict[tuple[str, str], set[str]] = {}
 
     def list_layouts(self) -> list[dict[str, str]]:
@@ -226,6 +244,28 @@ class FixtureRepository:
             return None
         return analyze_terrain_symmetry(layout)
 
+    def terrain_reconciliation_evidence(
+        self,
+        layout_id: str,
+    ) -> TerrainReconciliationReport | None:
+        layout = self.get_layout(layout_id)
+        if layout is None:
+            return None
+        templates = self._terrain_footprint_templates()
+        template_matches: tuple[TerrainFootprintMatch, ...] = ()
+        if templates and layout.provenance.extraction_method == "event-companion-vector-v1":
+            template_matches = match_terrain_features_to_footprints(layout, templates)
+        return reconcile_terrain_layout(
+            layout,
+            measurements=self._layout_measurements(layout),
+            standard_options=standard_terrain_options_from_layout(
+                layout,
+                template_matches=template_matches,
+                templates=templates,
+                source_dimensions=self._source_footprint_dimensions(templates),
+            ),
+        )
+
     def source_underlay_png(self, layout: CanonicalLayout) -> bytes | None:
         if layout.provenance.extraction_method != "event-companion-vector-v1":
             return None
@@ -329,6 +369,84 @@ class FixtureRepository:
         )
         return self._terrain_footprint_template_cache
 
+    def _source_footprint_dimensions(
+        self,
+        templates: tuple[TerrainFootprintTemplate, ...],
+    ) -> tuple[SourceFootprintDimension, ...]:
+        if self._source_footprint_dimension_cache is not None:
+            return self._source_footprint_dimension_cache
+        event_document_path = self._hash_matched_event_companion_path()
+        if event_document_path is None or not templates:
+            self._source_footprint_dimension_cache = ()
+            return ()
+
+        dimension_counts: Counter[tuple[str, float, float]] = Counter()
+        for page in list_event_companion_layout_pages(event_document_path):
+            layout = extract_event_companion_layout(
+                event_document_path,
+                page_number=page.page_number,
+                footprint_templates=templates,
+            )
+            feature_by_id = {
+                feature.feature_id: feature
+                for feature in layout.terrain_features
+            }
+            for match in match_terrain_features_to_footprints(layout, templates):
+                if match.status != FootprintMatchStatus.CANDIDATE:
+                    continue
+                feature = feature_by_id.get(match.feature_id)
+                if feature is None:
+                    continue
+                width, height = _feature_dimensions(feature)
+                dimension_counts[
+                    (
+                        match.template_id,
+                        round(max(width, height), 4),
+                        round(min(width, height), 4),
+                    )
+                ] += 1
+
+        self._source_footprint_dimension_cache = tuple(
+            SourceFootprintDimension(
+                template_id=template_id,
+                width_inches=width,
+                height_inches=height,
+                evidence_count=count,
+            )
+            for (template_id, width, height), count in sorted(dimension_counts.items())
+        )
+        return self._source_footprint_dimension_cache
+
+    def _layout_measurements(self, layout: CanonicalLayout) -> tuple[MeasurementAnnotation, ...]:
+        event_document_path = self._hash_matched_event_companion_path()
+        if (
+            event_document_path is None
+            or layout.provenance.extraction_method != "event-companion-vector-v1"
+        ):
+            return ()
+        import fitz
+
+        with fitz.open(event_document_path) as document:
+            page = document[layout.provenance.source_page - 1]
+            transform = BoardTransform(_find_board_rect(list(page.get_drawings())))
+            measurements: list[MeasurementAnnotation] = []
+            for word in page.get_text("words"):
+                match = INCH_ANNOTATION_RE.match(str(word[4]))
+                if match is None:
+                    continue
+                point = transform.point_to_board(
+                    (float(word[0]) + float(word[2])) / 2.0,
+                    (float(word[1]) + float(word[3])) / 2.0,
+                )
+                measurements.append(
+                    MeasurementAnnotation(
+                        value=float(match.group("value")),
+                        x=point.x,
+                        y=point.y,
+                    )
+                )
+            return tuple(measurements)
+
     def _source_document_status(
         self,
         kind: SourceKind,
@@ -385,6 +503,12 @@ def _review_scope_hash(layout: CanonicalLayout) -> str:
     return stable_layout_hash(
         layout.model_copy(update={"validation_records": review_scope_records})
     )
+
+
+def _feature_dimensions(feature: TerrainFeature) -> tuple[float, float]:
+    xs = [point.x for point in feature.footprint.points]
+    ys = [point.y for point in feature.footprint.points]
+    return max(xs) - min(xs), max(ys) - min(ys)
 
 
 def _unavailable_visual_sanity(layout: CanonicalLayout) -> dict[str, object]:
