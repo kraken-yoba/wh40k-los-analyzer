@@ -31,6 +31,7 @@
     const scaleY = viewBox.height / boardHeight;
     let dragging = false;
     let moved = false;
+    let suppressNextClick = false;
 
     function radiusInches() {
       return Math.max(Number(baseInput.value || 0) / 2, 0);
@@ -73,22 +74,33 @@
       moved = true;
     }
 
-    base.addEventListener('pointerdown', function (event) {
+    function submitMovedBase() {
+      if (moved) {
+        form.requestSubmit();
+      }
+    }
+
+    function startDrag(event) {
+      if (dragging) {
+        return;
+      }
       dragging = true;
       moved = false;
-      base.setPointerCapture(event.pointerId);
+      if (typeof event.pointerId !== 'undefined' && base.setPointerCapture) {
+        base.setPointerCapture(event.pointerId);
+      }
       base.classList.add('dragging');
       moveBase(event);
       event.preventDefault();
-    });
+    }
 
-    base.addEventListener('pointermove', function (event) {
+    function continueDrag(event) {
       if (!dragging) {
         return;
       }
       moveBase(event);
       event.preventDefault();
-    });
+    }
 
     function finishDrag(event) {
       if (!dragging) {
@@ -96,19 +108,41 @@
       }
       dragging = false;
       base.classList.remove('dragging');
-      if (base.hasPointerCapture(event.pointerId)) {
+      if (
+        typeof event.pointerId !== 'undefined' &&
+        base.hasPointerCapture &&
+        base.hasPointerCapture(event.pointerId)
+      ) {
         base.releasePointerCapture(event.pointerId);
       }
-      if (moved) {
-        form.requestSubmit();
-      }
+      suppressNextClick = moved;
+      submitMovedBase();
     }
+
+    svg.addEventListener('click', function (event) {
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        return;
+      }
+      moved = false;
+      moveBase(event);
+      submitMovedBase();
+    });
 
     baseInput.addEventListener('input', syncBaseFromInputs);
     xInput.addEventListener('input', syncBaseFromInputs);
     yInput.addEventListener('input', syncBaseFromInputs);
+    base.addEventListener('pointerdown', startDrag);
+    base.addEventListener('mousedown', startDrag);
+    base.addEventListener('pointermove', continueDrag);
+    base.addEventListener('mousemove', continueDrag);
+    document.addEventListener('pointermove', continueDrag);
+    document.addEventListener('mousemove', continueDrag);
     base.addEventListener('pointerup', finishDrag);
     base.addEventListener('pointercancel', finishDrag);
+    document.addEventListener('pointerup', finishDrag);
+    document.addEventListener('pointercancel', finishDrag);
+    document.addEventListener('mouseup', finishDrag);
     syncBaseFromInputs();
   }
 

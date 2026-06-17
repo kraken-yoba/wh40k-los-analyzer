@@ -32,6 +32,7 @@ ReportPath = str | PathLike[str]
 Point = tuple[float, float]
 
 DEFAULT_INGESTION_REPORT_PATH = Path("data/processed/ingestion-report.json")
+PACKET_POLYGON_SIMPLIFICATION_TOLERANCE = 0.5
 
 
 class PacketValidationResult(BaseModel):
@@ -250,6 +251,14 @@ def _area_id(index: int) -> str:
 
 
 def _safe_points(points: Sequence[Point]) -> list[Point]:
+    polygon = Polygon(points)
+    if not polygon.is_empty and polygon.is_valid and polygon.area > 0:
+        simplified = polygon.simplify(
+            PACKET_POLYGON_SIMPLIFICATION_TOLERANCE,
+            preserve_topology=True,
+        )
+        if isinstance(simplified, Polygon) and not simplified.is_empty and simplified.area > 0:
+            points = [(float(x), float(y)) for x, y in list(simplified.exterior.coords)[:-1]]
     return [(round(float(x), 6), round(float(y), 6)) for x, y in points]
 
 

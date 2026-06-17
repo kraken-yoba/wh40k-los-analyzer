@@ -42,6 +42,39 @@ def test_build_map_packet_translates_layout_roles_and_dense_features(tmp_path: P
     assert validate_packet(packet).valid
 
 
+def test_build_map_packet_simplifies_high_vertex_polygons(tmp_path: Path) -> None:
+    layout = extract_layout_from_pdf(
+        _synthetic_event_pdf(tmp_path),
+        page_number=1,
+        feature_dpi=72,
+    )
+    original_area = layout.terrain_areas[0]
+    dense_feature = next(
+        feature for feature in layout.terrain_features if feature.feature_type == "dense"
+    )
+    high_vertex_area = original_area.model_copy(
+        update={"footprint": _stair_step_rectangle(10.0, 10.0, 20.0, 20.0, steps=20)}
+    )
+    high_vertex_dense = dense_feature.model_copy(
+        update={
+            "footprint": _stair_step_rectangle(12.0, 12.0, 16.0, 16.0, steps=16),
+            "terrain_area_id": high_vertex_area.id,
+        }
+    )
+    high_vertex_layout = layout.model_copy(
+        update={
+            "terrain_areas": [high_vertex_area],
+            "terrain_features": [high_vertex_dense],
+        }
+    )
+
+    packet = build_map_packet(high_vertex_layout)
+
+    assert len(packet.terrain_areas[0].footprint) < len(high_vertex_area.footprint)
+    assert len(packet.dense_features[0].footprint) < len(high_vertex_dense.footprint)
+    assert validate_packet(packet).valid
+
+
 def test_validate_packet_rejects_missing_deployment_zone(
     tmp_path: Path,
 ) -> None:
@@ -206,6 +239,34 @@ def _synthetic_footprint_pdf(pdf_path: Path) -> None:
     shape.commit()
     document.save(pdf_path)
     document.close()
+
+
+def _stair_step_rectangle(
+    min_x: float,
+    min_y: float,
+    max_x: float,
+    max_y: float,
+    *,
+    steps: int,
+) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    for index in range(steps + 1):
+        x = min_x + (max_x - min_x) * index / steps
+        y = min_y + (0.08 if index % 2 else 0.0)
+        points.append((x, y))
+    for index in range(1, steps + 1):
+        y = min_y + (max_y - min_y) * index / steps
+        x = max_x + (0.08 if index % 2 else 0.0)
+        points.append((x, y))
+    for index in range(1, steps + 1):
+        x = max_x - (max_x - min_x) * index / steps
+        y = max_y + (0.08 if index % 2 else 0.0)
+        points.append((x, y))
+    for index in range(1, steps):
+        y = max_y - (max_y - min_y) * index / steps
+        x = min_x + (0.08 if index % 2 else 0.0)
+        points.append((x, y))
+    return points
 
 
 def _fitz() -> Any:

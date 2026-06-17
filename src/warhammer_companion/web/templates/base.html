@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Warhammer Tournament Companion</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v=20260617">
   </head>
   <body>
     <div class="app-shell">
@@ -26,7 +26,6 @@
         {% block content %}{% endblock %}
       </main>
     </div>
-      <script src="{{ url_for('static', path='/app.js') }}"></script>
+      <script src="{{ url_for('static', path='/app.js') }}?v=20260617"></script>
   </body>
 </html>
-

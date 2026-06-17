@@ -299,20 +299,53 @@ def _nearest_ray_hit(
     ray_length: float,
     segments: list[tuple[tuple[float, float], tuple[float, float]]],
 ) -> tuple[float, float] | None:
-    ray_end = (origin[0] + cos(angle) * ray_length, origin[1] + sin(angle) * ray_length)
-    ray = LineString([origin, ray_end])
+    dx = cos(angle)
+    dy = sin(angle)
     closest: tuple[float, float] | None = None
     closest_distance = float("inf")
 
     for segment_start, segment_end in segments:
-        intersection = ray.intersection(LineString([segment_start, segment_end]))
-        for point in _intersection_points(intersection):
-            distance = (point[0] - origin[0]) ** 2 + (point[1] - origin[1]) ** 2
-            if 1e-9 < distance < closest_distance:
-                closest = point
-                closest_distance = distance
+        hit = _ray_segment_hit(origin, (dx, dy), ray_length, segment_start, segment_end)
+        if hit is None:
+            continue
+        distance = (hit[0] - origin[0]) ** 2 + (hit[1] - origin[1]) ** 2
+        if 1e-9 < distance < closest_distance:
+            closest = hit
+            closest_distance = distance
 
     return closest
+
+
+def _ray_segment_hit(
+    origin: tuple[float, float],
+    direction: tuple[float, float],
+    ray_length: float,
+    segment_start: tuple[float, float],
+    segment_end: tuple[float, float],
+) -> tuple[float, float] | None:
+    ox, oy = origin
+    dx, dy = direction
+    sx, sy = segment_start
+    ex, ey = segment_end
+    vx = ex - sx
+    vy = ey - sy
+    denominator = _cross(dx, dy, vx, vy)
+    if abs(denominator) <= 1e-12:
+        return None
+
+    rel_x = sx - ox
+    rel_y = sy - oy
+    ray_distance = _cross(rel_x, rel_y, vx, vy) / denominator
+    segment_position = _cross(rel_x, rel_y, dx, dy) / denominator
+    if ray_distance <= 1e-9 or ray_distance > ray_length:
+        return None
+    if segment_position < -1e-9 or segment_position > 1.0 + 1e-9:
+        return None
+    return (ox + dx * ray_distance, oy + dy * ray_distance)
+
+
+def _cross(ax: float, ay: float, bx: float, by: float) -> float:
+    return ax * by - ay * bx
 
 
 def _intersection_points(geometry: BaseGeometry) -> list[tuple[float, float]]:

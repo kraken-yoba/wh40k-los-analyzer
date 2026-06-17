@@ -49,6 +49,9 @@
 - Task 6 packet builder converts extracted layouts into `MapPacket` JSON, using grey terrain footprints as LOS-blocking terrain areas and raster dense candidates as dense blockers. Light feature candidates stay in layout extraction artifacts/reports for review rather than becoming LOS blockers in the MVP packet.
 - Task 6 official page-9 smoke wrote one valid packet under `data/processed/map-packets/` and `data/processed/ingestion-report.json`.
 - Task 7 wires processed packet JSON into the Python web app with sample fallback, synchronous official ingestion from Map Data Management, generated-packet deletion, latest ingestion report display, and CLI `ingest-official` / `validate-packets` commands.
+- Task 8 full official ingest generated 45 packets from Event Companion pages 9-53 in 124.51 seconds. `validate-packets` reports all 45 packets valid.
+- Task 8 official page-9 LOS performance after packet simplification and numeric ray/segment intersections: 176 heatmap visibility polygons in 12.792 seconds; single-base LOS coverage in 0.071 seconds.
+- Task 8 in-app browser verification used `http://127.0.0.1:8001`: Map Data showed the 45-packet report, official page-9 heatmap rendered a raster overlay, and LOS checker click-to-place moved the base to `29.92,25.20` with a fresh binary coverage raster and no console errors.
 
 ### Exit Criteria
 
