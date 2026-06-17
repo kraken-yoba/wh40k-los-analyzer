@@ -22,6 +22,13 @@ BBox = tuple[float, float, float, float]
 LayoutPath = str | PathLike[str]
 LayoutElementKind = Literal["deployment", "terrain_area", "terrain_feature"]
 FeatureType = Literal["dense", "light"]
+FeatureProfile = Literal[
+    "light_area",
+    "ruined_wall_section",
+    "container_or_solid",
+    "solid_los_blocker",
+    "unknown_dense",
+]
 
 DEFAULT_LAYOUT_LIBRARY_PATH = Path("data/processed/layout-library.json")
 DEFAULT_LAYOUT_REVIEW_DIR = Path("data/processed/review/layouts")
@@ -43,6 +50,7 @@ class LayoutElement(BaseModel):
     label: str
     kind: LayoutElementKind
     feature_type: FeatureType | None = None
+    feature_profile: FeatureProfile | None = None
     terrain_area_id: str | None = None
     source_role: str | None = None
     footprint: list[Point]
@@ -401,23 +409,52 @@ def _extract_raster_features(
                 )
                 if clipped.is_empty or clipped.area <= 0.05:
                     continue
+                feature_profile = _classify_feature_profile(feature_type, clipped)
                 source_bbox = _contour_pdf_bbox(contour_array, pdf_point_scale)
+                warnings = [
+                    f"raster-{feature_type}-segmentation",
+                    f"heuristic-{feature_type}-profile:{feature_profile}",
+                ]
                 elements.append(
                     LayoutElement(
                         id=f"page-{source_page}-terrain-feature-{len(elements) + 1}",
                         label=f"{feature_type.title()} Terrain Feature {len(elements) + 1}",
                         kind="terrain_feature",
                         feature_type=feature_type,
+                        feature_profile=feature_profile,
                         terrain_area_id=terrain_area.id,
                         footprint=_polygon_points(clipped),
                         source_page=source_page,
                         source_bbox=source_bbox,
                         source_drawing_index=None,
                         confidence=0.7,
-                        warnings=[f"raster-{feature_type}-segmentation"],
+                        warnings=warnings,
                     )
                 )
     return elements
+
+
+def _classify_feature_profile(feature_type: FeatureType, polygon: Polygon) -> FeatureProfile:
+    if feature_type == "light":
+        return "light_area"
+
+    min_x, min_y, max_x, max_y = polygon.bounds
+    width = max_x - min_x
+    height = max_y - min_y
+    short_side = min(width, height)
+    long_side = max(width, height)
+    if short_side <= 0 or long_side <= 0:
+        return "unknown_dense"
+
+    aspect = long_side / short_side
+    fill_ratio = polygon.area / max(width * height, 1e-9)
+    if aspect >= 3.0 and short_side <= 2.0 and long_side >= 3.0:
+        return "ruined_wall_section"
+    if fill_ratio >= 0.55 and polygon.area >= 2.0 and aspect <= 3.0:
+        return "container_or_solid"
+    if polygon.area >= 0.75:
+        return "solid_los_blocker"
+    return "unknown_dense"
 
 
 def _terrain_area_mask(

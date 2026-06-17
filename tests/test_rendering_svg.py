@@ -36,3 +36,10 @@ def test_binary_coverage_polygon_renders_as_embedded_pixel_raster() -> None:
     assert 'class="coverage-image"' in svg
     assert "data:image/png;base64," in svg
     assert 'class="coverage-cell"' not in svg
+
+
+def test_light_and_dense_feature_profiles_render_with_distinct_classes() -> None:
+    svg = render_map_svg(SAMPLE_PACKETS[0])
+
+    assert "light-feature" in svg
+    assert "dense-feature--container-or-solid" in svg

@@ -367,6 +367,25 @@ button,
   stroke-width: 1.3;
 }
 
+.dense-feature--ruined-wall-section {
+  fill: rgba(35, 43, 37, 0.82);
+}
+
+.dense-feature--container-or-solid {
+  fill: rgba(48, 70, 78, 0.74);
+}
+
+.dense-feature--solid-los-blocker,
+.dense-feature--unknown-dense {
+  fill: rgba(49, 54, 45, 0.78);
+}
+
+.light-feature {
+  fill: rgba(198, 153, 48, 0.36);
+  stroke: rgba(151, 109, 26, 0.54);
+  stroke-width: 1.1;
+}
+
 .terrain-label,
 .zone-label {
   text-anchor: middle;

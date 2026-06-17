@@ -35,7 +35,12 @@ def test_build_map_packet_translates_layout_roles_and_dense_features(tmp_path: P
     assert {zone.id for zone in packet.deployment_zones} == {"attacker", "defender"}
     assert len(packet.terrain_areas) == 1
     assert len(packet.dense_features) == 1
+    assert len(packet.light_features) == 1
     assert packet.dense_features[0].terrain_area_id == packet.terrain_areas[0].id
+    assert packet.dense_features[0].profile == "container_or_solid"
+    assert packet.light_features[0].terrain_area_id == packet.terrain_areas[0].id
+    assert packet.light_features[0].profile == "light_area"
+    assert not packet.light_features[0].blocks_los
     assert (
         packet.dense_features[0].polygon().bounds[0] >= packet.terrain_areas[0].polygon().bounds[0]
     )

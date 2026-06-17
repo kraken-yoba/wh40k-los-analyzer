@@ -3,6 +3,7 @@ from __future__ import annotations
 from warhammer_companion.domain.models import (
     DenseTerrainFeature,
     DeploymentZone,
+    LightTerrainFeature,
     MapPacket,
     TerrainArea,
     TerrainKind,
@@ -51,31 +52,45 @@ SAMPLE_PACKETS = [
                 terrain_area_id="a",
                 label="A dense",
                 footprint=[(6, 8), (12, 8), (12, 16), (6, 16)],
+                profile="container_or_solid",
             ),
             DenseTerrainFeature(
                 id="b-dense",
                 terrain_area_id="b",
                 label="B dense",
                 footprint=[(32, 8), (38, 8), (38, 16), (32, 16)],
+                profile="container_or_solid",
             ),
             DenseTerrainFeature(
                 id="c-dense",
                 terrain_area_id="c",
                 label="C dense",
                 footprint=[(18, 26), (26, 26), (26, 34), (18, 34)],
+                profile="container_or_solid",
             ),
             DenseTerrainFeature(
                 id="d-dense",
                 terrain_area_id="d",
                 label="D dense",
                 footprint=[(6, 44), (12, 44), (12, 52), (6, 52)],
+                profile="container_or_solid",
             ),
             DenseTerrainFeature(
                 id="e-dense",
                 terrain_area_id="e",
                 label="E dense",
                 footprint=[(32, 44), (38, 44), (38, 52), (32, 52)],
+                profile="container_or_solid",
             ),
+        ],
+        light_features=[
+            LightTerrainFeature(
+                id="c-light",
+                terrain_area_id="c",
+                label="C light",
+                footprint=[(15, 24), (17, 24), (17, 36), (15, 36)],
+                profile="light_area",
+            )
         ],
         deployment_zones=[
             DeploymentZone(

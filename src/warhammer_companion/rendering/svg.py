@@ -71,8 +71,25 @@ def render_map_svg(
             )
         )
 
+    for feature in packet.light_features:
+        parts.append(
+            _polygon(
+                feature.footprint,
+                scale,
+                packet.board.height,
+                _feature_css_class("light-feature", feature.profile),
+            )
+        )
+
     for feature in packet.dense_features:
-        parts.append(_polygon(feature.footprint, scale, packet.board.height, "dense-feature"))
+        parts.append(
+            _polygon(
+                feature.footprint,
+                scale,
+                packet.board.height,
+                _feature_css_class("dense-feature", feature.profile),
+            )
+        )
 
     if rays:
         ox, oy = base_center or (0.0, 0.0)
@@ -219,6 +236,13 @@ def _heatmap_color(visibility: float) -> str:
     if visibility >= 0.2:
         return "#cf7e3a"
     return "#9b3b35"
+
+
+def _feature_css_class(base_class: str, profile: str | None) -> str:
+    if profile is None:
+        return base_class
+    modifier = profile.replace("_", "-")
+    return f"{base_class} {base_class}--{escape(modifier)}"
 
 
 def _infer_grid_step(values: list[float]) -> float:

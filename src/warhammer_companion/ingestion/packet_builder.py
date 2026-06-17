@@ -13,6 +13,7 @@ from warhammer_companion.domain.models import (
     BoardSize,
     DenseTerrainFeature,
     DeploymentZone,
+    LightTerrainFeature,
     MapPacket,
     TerrainArea,
     TerrainKind,
@@ -73,6 +74,7 @@ def build_map_packet(layout: ExtractedLayout) -> MapPacket:
         for source, packet_area in zip(layout.terrain_areas, terrain_areas, strict=True)
     }
     dense_features = _dense_features(layout.terrain_features, area_id_lookup)
+    light_features = _light_features(layout.terrain_features, area_id_lookup)
     deployment_zones = [
         DeploymentZone(
             id=_deployment_id(zone),
@@ -93,6 +95,7 @@ def build_map_packet(layout: ExtractedLayout) -> MapPacket:
         ),
         terrain_areas=terrain_areas,
         dense_features=dense_features,
+        light_features=light_features,
         deployment_zones=deployment_zones,
     )
 
@@ -118,6 +121,7 @@ def validate_packet(packet: MapPacket) -> PacketValidationResult:
 
     _check_unique("terrain area", [area.id for area in packet.terrain_areas], errors)
     _check_unique("dense feature", [feature.id for feature in packet.dense_features], errors)
+    _check_unique("light feature", [feature.id for feature in packet.light_features], errors)
     _check_unique("deployment zone", [zone.id for zone in packet.deployment_zones], errors)
 
     if {zone.id for zone in packet.deployment_zones} != {"attacker", "defender"}:
@@ -134,6 +138,12 @@ def validate_packet(packet: MapPacket) -> PacketValidationResult:
         _validate_polygon(feature.id, feature.footprint, board, errors)
         if feature.terrain_area_id not in terrain_ids:
             errors.append(f"dense feature {feature.id} references unknown terrain area")
+    for feature in packet.light_features:
+        _validate_polygon(feature.id, feature.footprint, board, errors)
+        if feature.terrain_area_id not in terrain_ids:
+            errors.append(f"light feature {feature.id} references unknown terrain area")
+        if feature.blocks_los:
+            errors.append(f"light feature {feature.id} must not block LOS")
 
     if not packet.dense_features:
         warnings.append("packet has no dense feature blockers")
@@ -240,10 +250,36 @@ def _dense_features(
                 terrain_area_id=packet_area_id,
                 label=f"Dense {dense_index}",
                 footprint=_safe_points(feature.footprint),
+                profile=feature.feature_profile,
                 blocks_los=True,
             )
         )
     return dense_features
+
+
+def _light_features(
+    features: Sequence[LayoutElement],
+    area_id_lookup: dict[str, str],
+) -> list[LightTerrainFeature]:
+    light_features: list[LightTerrainFeature] = []
+    for feature in features:
+        if feature.feature_type != "light" or feature.terrain_area_id is None:
+            continue
+        packet_area_id = area_id_lookup.get(feature.terrain_area_id)
+        if packet_area_id is None:
+            continue
+        light_index = len(light_features) + 1
+        light_features.append(
+            LightTerrainFeature(
+                id=f"{packet_area_id}-light-{light_index}",
+                terrain_area_id=packet_area_id,
+                label=f"Light {light_index}",
+                footprint=_safe_points(feature.footprint),
+                profile=feature.feature_profile,
+                blocks_los=False,
+            )
+        )
+    return light_features
 
 
 def _area_id(index: int) -> str:

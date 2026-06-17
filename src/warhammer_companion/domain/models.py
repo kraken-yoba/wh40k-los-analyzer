@@ -39,7 +39,20 @@ class DenseTerrainFeature(BaseModel):
     terrain_area_id: str
     label: str
     footprint: list[Point]
+    profile: str | None = None
     blocks_los: bool = True
+
+    def polygon(self) -> Polygon:
+        return Polygon(self.footprint)
+
+
+class LightTerrainFeature(BaseModel):
+    id: str
+    terrain_area_id: str
+    label: str
+    footprint: list[Point]
+    profile: str | None = None
+    blocks_los: bool = False
 
     def polygon(self) -> Polygon:
         return Polygon(self.footprint)
@@ -61,6 +74,7 @@ class MapPacket(BaseModel):
     board: BoardSize = Field(default_factory=BoardSize)
     terrain_areas: list[TerrainArea]
     dense_features: list[DenseTerrainFeature]
+    light_features: list[LightTerrainFeature] = Field(default_factory=list)
     deployment_zones: list[DeploymentZone]
 
     def blockers(self) -> list[Polygon]:

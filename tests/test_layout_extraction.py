@@ -56,9 +56,12 @@ def test_extract_layout_from_pdf_returns_board_coordinate_geometry(tmp_path: Pat
         abs=0.25,
     )
     assert layout.terrain_features[0].feature_type == "dense"
+    assert layout.terrain_features[0].feature_profile == "container_or_solid"
     assert layout.terrain_features[1].feature_type == "light"
+    assert layout.terrain_features[1].feature_profile == "light_area"
     assert layout.terrain_features[0].terrain_area_id == layout.terrain_areas[0].id
     assert layout.terrain_features[1].terrain_area_id == layout.terrain_areas[0].id
+    assert "heuristic-dense-profile:container_or_solid" in layout.terrain_features[0].warnings
     assert "raster-light-segmentation" in layout.terrain_features[1].warnings
 
 
@@ -140,8 +143,19 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     assert len(layout.terrain_areas) == 16
     dense_count = sum(feature.feature_type == "dense" for feature in layout.terrain_features)
     light_count = sum(feature.feature_type == "light" for feature in layout.terrain_features)
+    dense_profiles = {
+        feature.feature_profile
+        for feature in layout.terrain_features
+        if feature.feature_type == "dense"
+    }
     assert dense_count > 0
     assert light_count > 0
+    assert dense_profiles <= {
+        "ruined_wall_section",
+        "container_or_solid",
+        "solid_los_blocker",
+        "unknown_dense",
+    }
     assert not layout.warnings
 
 
