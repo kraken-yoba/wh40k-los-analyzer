@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from warhammer_companion.domain.models import MapPacket
@@ -21,6 +22,13 @@ class HeatmapCell:
     visibility: float
 
 
+@dataclass(frozen=True)
+class CoverageCell:
+    x: float
+    y: float
+    visible: bool
+
+
 def circular_base(center: tuple[float, float], diameter: float, resolution: int = 48) -> Polygon:
     return Point(center).buffer(diameter / 2.0, quad_segs=resolution)
 
@@ -31,22 +39,12 @@ def is_line_blocked(
     blockers: list[Polygon],
     ignored_area: Polygon | None = None,
 ) -> bool:
-    line = LineString([origin, target])
-    if line.length == 0:
-        return False
-
-    blocker_union = unary_union(blockers) if blockers else Polygon()
-    if ignored_area is not None:
-        blocker_union = blocker_union.difference(ignored_area)
-
-    if blocker_union.is_empty:
-        return False
-
-    intersection = line.intersection(blocker_union)
-    if intersection.is_empty:
-        return False
-
-    return intersection.length > 1e-6 or intersection.geom_type in {"Point", "MultiPoint"}
+    return _is_segment_blocked(
+        origin,
+        target,
+        _blocker_union(blockers),
+        ignored_area=ignored_area,
+    )
 
 
 def visibility_rays_from_base(
@@ -56,7 +54,7 @@ def visibility_rays_from_base(
     target_spacing: float = 6.0,
 ) -> list[VisibilityRay]:
     base = circular_base(center, base_diameter)
-    blockers = packet.blockers()
+    blockers = _blocker_union(packet.blockers()).difference(base)
     rays: list[VisibilityRay] = []
 
     x = 0.0
@@ -74,14 +72,37 @@ def visibility_rays_from_base(
     return rays
 
 
+def binary_visibility_overlay_from_base(
+    packet: MapPacket,
+    center: tuple[float, float],
+    base_diameter: float,
+    grid_step: float = 1.0,
+) -> list[CoverageCell]:
+    base = circular_base(center, base_diameter)
+    blockers = _blocker_union(packet.blockers()).difference(base)
+    cells: list[CoverageCell] = []
+
+    y = grid_step / 2.0
+    while y < packet.board.height:
+        x = grid_step / 2.0
+        while x < packet.board.width:
+            target = (x, y)
+            visible = not _is_segment_blocked(center, target, blockers)
+            cells.append(CoverageCell(x=x, y=y, visible=visible))
+            x += grid_step
+        y += grid_step
+
+    return cells
+
+
 def heatmap_from_deployment_zone(
     packet: MapPacket,
     deployment_zone_id: str,
-    grid_step: float = 4.0,
-    sample_step: float = 4.0,
+    grid_step: float = 1.0,
+    sample_step: float = 2.0,
 ) -> list[HeatmapCell]:
     zone = packet.deployment_zone(deployment_zone_id).polygon()
-    blockers = packet.blockers()
+    blockers = _blocker_union(packet.blockers())
     sample_points = _points_in_polygon(zone, sample_step)
     cells: list[HeatmapCell] = []
 
@@ -92,7 +113,7 @@ def heatmap_from_deployment_zone(
             target = (x, y)
             visible_count = 0
             for sample in sample_points:
-                if not is_line_blocked(sample, target, blockers):
+                if not _is_segment_blocked(sample, target, blockers):
                     visible_count += 1
             visibility = visible_count / len(sample_points) if sample_points else 0.0
             cells.append(HeatmapCell(x=x, y=y, visibility=visibility))
@@ -106,7 +127,7 @@ def _ray_to(
     packet: MapPacket,
     origin: tuple[float, float],
     target: tuple[float, float],
-    blockers: list[Polygon],
+    blockers: BaseGeometry,
     base: Polygon,
 ) -> VisibilityRay:
     board = Polygon(
@@ -120,8 +141,32 @@ def _ray_to(
     target_point = Point(target)
     if not board.covers(target_point):
         return VisibilityRay(target=target, visible=False)
-    visible = not is_line_blocked(origin, target, blockers, ignored_area=base)
+    visible = not _is_segment_blocked(origin, target, blockers)
     return VisibilityRay(target=target, visible=visible)
+
+
+def _blocker_union(blockers: list[Polygon]) -> BaseGeometry:
+    return unary_union(blockers) if blockers else Polygon()
+
+
+def _is_segment_blocked(
+    origin: tuple[float, float],
+    target: tuple[float, float],
+    blocker_union: BaseGeometry,
+    ignored_area: Polygon | None = None,
+) -> bool:
+    line = LineString([origin, target])
+    if line.length == 0:
+        return False
+
+    effective_blockers = blocker_union
+    if ignored_area is not None:
+        effective_blockers = effective_blockers.difference(ignored_area)
+
+    if effective_blockers.is_empty:
+        return False
+
+    return effective_blockers.intersects(line)
 
 
 def _points_in_polygon(polygon: Polygon, spacing: float) -> list[tuple[float, float]]:

@@ -10,7 +10,11 @@ from fastapi.templating import Jinja2Templates
 from warhammer_companion.domain.repository import InMemoryMapRepository
 from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
-from warhammer_companion.los.geometry import heatmap_from_deployment_zone, visibility_rays_from_base
+from warhammer_companion.los.geometry import (
+    binary_visibility_overlay_from_base,
+    heatmap_from_deployment_zone,
+    visibility_rays_from_base,
+)
 from warhammer_companion.rendering.svg import render_map_svg
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -101,6 +105,7 @@ def los_checker(
     base: float = 1.57,
 ) -> HTMLResponse:
     packet = repository.get_packet(packet_id) if packet_id else repository.default_packet()
+    coverage = binary_visibility_overlay_from_base(packet, center=(x, y), base_diameter=base)
     rays = visibility_rays_from_base(packet, center=(x, y), base_diameter=base)
     return templates.TemplateResponse(
         request,
@@ -112,7 +117,13 @@ def los_checker(
             "x": x,
             "y": y,
             "base": base,
-            "map_svg": render_map_svg(packet, rays=rays, base_center=(x, y), base_diameter=base),
+            "map_svg": render_map_svg(
+                packet,
+                coverage=coverage,
+                rays=rays,
+                base_center=(x, y),
+                base_diameter=base,
+            ),
         },
     )
 

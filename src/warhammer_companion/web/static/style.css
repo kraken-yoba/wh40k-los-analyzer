@@ -218,6 +218,68 @@ button,
   color: #7a2927;
 }
 
+
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.heatmap-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 18px;
+  height: 10px;
+  border: 1px solid rgba(28, 37, 32, 0.16);
+  border-radius: 2px;
+}
+
+.legend-line {
+  width: 22px;
+  height: 0;
+  border-top: 2px solid currentColor;
+}
+
+.heat-low {
+  background: #9b3b35;
+}
+
+.heat-mid-low {
+  background: #cf7e3a;
+}
+
+.heat-mid {
+  background: #d5b64c;
+}
+
+.heat-mid-high {
+  background: #64a65d;
+}
+
+.heat-high {
+  background: #1f7a5f;
+}
+
+.coverage-swatch {
+  background: rgba(42, 140, 158, 0.54);
+}
+
+.clear-line {
+  color: rgba(45, 111, 91, 0.72);
+}
+
+.blocked-line {
+  color: rgba(139, 47, 45, 0.58);
+}
 .map-wrap {
   overflow: auto;
   background: #d8d2c4;
@@ -277,13 +339,18 @@ button,
 }
 
 .ray-visible {
-  stroke: rgba(45, 111, 91, 0.52);
+  stroke: rgba(45, 111, 91, 0.44);
   stroke-width: 1.1;
 }
 
 .ray-blocked {
-  stroke: rgba(139, 47, 45, 0.34);
+  stroke: rgba(139, 47, 45, 0.26);
   stroke-width: 1;
+}
+
+.coverage-cell {
+  fill: rgba(42, 140, 158, 0.34);
+  stroke: none;
 }
 
 .model-base {

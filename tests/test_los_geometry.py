@@ -3,6 +3,7 @@ from __future__ import annotations
 from shapely.geometry import Polygon
 
 from warhammer_companion.los.geometry import (
+    binary_visibility_overlay_from_base,
     circular_base,
     heatmap_from_deployment_zone,
     is_line_blocked,
@@ -37,6 +38,24 @@ def test_heatmap_returns_cells_for_sample_packet() -> None:
 
     assert cells
     assert all(0.0 <= cell.visibility <= 1.0 for cell in cells)
+
+
+def test_default_heatmap_uses_one_inch_cells() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    cells = heatmap_from_deployment_zone(packet, "attacker")
+
+    assert len(cells) == int(packet.board.width * packet.board.height)
+
+
+def test_binary_visibility_overlay_returns_board_cells() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    cells = binary_visibility_overlay_from_base(packet, center=(22.0, 10.0), base_diameter=1.57)
+
+    assert len(cells) == int(packet.board.width * packet.board.height)
+    assert any(cell.visible for cell in cells)
+    assert any(not cell.visible for cell in cells)
 
 
 def test_visibility_rays_include_visible_and_blocked_results() -> None:

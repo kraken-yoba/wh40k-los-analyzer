@@ -5,12 +5,13 @@ from html import escape
 from shapely.geometry import Polygon
 
 from warhammer_companion.domain.models import MapPacket
-from warhammer_companion.los.geometry import HeatmapCell, VisibilityRay
+from warhammer_companion.los.geometry import CoverageCell, HeatmapCell, VisibilityRay
 
 
 def render_map_svg(
     packet: MapPacket,
     heatmap: list[HeatmapCell] | None = None,
+    coverage: list[CoverageCell] | None = None,
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
     base_diameter: float | None = None,
@@ -26,6 +27,9 @@ def render_map_svg(
 
     if heatmap:
         parts.extend(_render_heatmap(heatmap, scale, packet.board.height))
+
+    if coverage:
+        parts.extend(_render_coverage(coverage, scale, packet.board.height))
 
     for zone in packet.deployment_zones:
         parts.append(_polygon(zone.footprint, scale, packet.board.height, "deployment"))
@@ -79,23 +83,51 @@ def render_map_svg(
 def _render_heatmap(cells: list[HeatmapCell], scale: int, board_height: float) -> list[str]:
     if len(cells) < 2:
         return []
-    step = _infer_grid_step(cells)
+    step = _infer_grid_step([cell.x for cell in cells])
     rendered: list[str] = []
     for cell in cells:
         x, y = _to_svg_point((cell.x - step / 2.0, cell.y + step / 2.0), scale, board_height)
-        opacity = 0.12 + 0.58 * cell.visibility
         rendered.append(
-            f'<rect x="{x:.1f}" y="{y:.1f}" width="{step * scale:.1f}" height="{step * scale:.1f}" '
-            f'fill="rgb(36, 130, 95)" opacity="{opacity:.3f}" class="heat-cell"/>'
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{step * scale:.1f}" '
+            f'height="{step * scale:.1f}" fill="{_heatmap_color(cell.visibility)}" '
+            'opacity="0.82" class="heat-cell"/>'
         )
     return rendered
 
 
-def _infer_grid_step(cells: list[HeatmapCell]) -> float:
-    xs = sorted({cell.x for cell in cells})
+def _render_coverage(cells: list[CoverageCell], scale: int, board_height: float) -> list[str]:
+    if len(cells) < 2:
+        return []
+    step = _infer_grid_step([cell.x for cell in cells])
+    rendered: list[str] = []
+    for cell in cells:
+        if not cell.visible:
+            continue
+        x, y = _to_svg_point((cell.x - step / 2.0, cell.y + step / 2.0), scale, board_height)
+        rendered.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{step * scale:.1f}" '
+            f'height="{step * scale:.1f}" class="coverage-cell"/>'
+        )
+    return rendered
+
+
+def _heatmap_color(visibility: float) -> str:
+    if visibility >= 0.8:
+        return "#1f7a5f"
+    if visibility >= 0.6:
+        return "#64a65d"
+    if visibility >= 0.4:
+        return "#d5b64c"
+    if visibility >= 0.2:
+        return "#cf7e3a"
+    return "#9b3b35"
+
+
+def _infer_grid_step(values: list[float]) -> float:
+    xs = sorted(set(values))
     if len(xs) > 1:
         return xs[1] - xs[0]
-    return 4.0
+    return 1.0
 
 
 def _polygon(

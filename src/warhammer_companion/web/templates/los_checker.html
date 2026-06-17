@@ -4,7 +4,7 @@
 <header class="page-header">
   <div>
     <h1>LOS Checker</h1>
-    <p class="lede">Place a model base and render board-edge visibility rays. Green rays are clear; red rays are blocked by opaque terrain.</p>
+    <p class="lede">Place a model base and render binary visible area coverage. Green rays are clear; red rays are blocked by opaque terrain.</p>
   </div>
 </header>
 
@@ -32,7 +32,11 @@
     </label>
     <button type="submit">Check LOS</button>
   </form>
+  <div class="heatmap-legend" aria-label="LOS overlay legend">
+    <span><i class="legend-swatch coverage-swatch"></i>Visible area</span>
+    <span><i class="legend-line clear-line"></i>Clear sampled ray</span>
+    <span><i class="legend-line blocked-line"></i>Blocked sampled ray</span>
+  </div>
   <div class="map-wrap">{{ map_svg | safe }}</div>
 </section>
 {% endblock %}
-
