@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>LOS Checker</h1>
+    <p class="lede">Place a model base and render board-edge visibility rays. Green rays are clear; red rays are blocked by opaque terrain.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="post" action="/los-checker">
+    <label>
+      Map packet
+      <select name="packet_id">
+        {% for option in packets %}
+        <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      X inches
+      <input name="x" type="number" min="0" max="{{ packet.board.width }}" step="0.25" value="{{ x }}">
+    </label>
+    <label>
+      Y inches
+      <input name="y" type="number" min="0" max="{{ packet.board.height }}" step="0.25" value="{{ y }}">
+    </label>
+    <label>
+      Base diameter
+      <input name="base" type="number" min="0.5" max="6" step="0.01" value="{{ base }}">
+    </label>
+    <button type="submit">Check LOS</button>
+  </form>
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+{% endblock %}
+

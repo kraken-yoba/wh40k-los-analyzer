@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>LOS Heatmap</h1>
+    <p class="lede">Visibility density from sampled points inside a selected deployment zone. Darker green cells are visible from more samples.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="get" action="/heatmap">
+    <label>
+      Map packet
+      <select name="packet_id">
+        {% for option in packets %}
+        <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Deployment zone
+      <select name="zone_id">
+        {% for zone in packet.deployment_zones %}
+        <option value="{{ zone.id }}" {{ "selected" if zone.id == selected_zone_id else "" }}>{{ zone.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+{% endblock %}
+

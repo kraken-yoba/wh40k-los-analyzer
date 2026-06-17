@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Map Data Management</h1>
+    <p class="lede">Manage ingested map packets and track the official-source extraction pipeline.</p>
+  </div>
+  <form method="post" action="/map-data/ingest">
+    <button type="submit">Trigger Ingestion</button>
+  </form>
+</header>
+
+<section class="panel">
+  <h2>Map Packets</h2>
+  {% for packet in packets %}
+  <div class="packet-row">
+    <div>
+      <strong>{{ packet.name }}</strong>
+      <div class="muted">{{ packet.source }}</div>
+    </div>
+    <a class="button button-secondary" href="/viewer?packet_id={{ packet.id }}">Open</a>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Official Sources</h2>
+  {% for source in sources %}
+  <div class="source-row">
+    <div>
+      <strong>{{ source.label }}</strong>
+      <div class="muted">{{ source.purpose }}</div>
+    </div>
+    <a class="button button-secondary" href="{{ source.url }}">PDF</a>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Extraction Pipeline</h2>
+  <div class="status-list">
+    {% for stage in pipeline %}
+    <div class="status-row">
+      <div>
+        <strong>{{ stage.label }}</strong>
+        <div class="muted">{{ stage.note }}</div>
+      </div>
+      <span class="tag tag-{{ stage.status.value.replace('_', '-') }}">{{ stage.status.value.replace('_', ' ') }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+

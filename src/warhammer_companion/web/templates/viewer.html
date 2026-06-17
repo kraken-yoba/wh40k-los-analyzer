@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Map Viewer</h1>
+    <p class="lede">Inspect the selected internal map packet, including terrain areas, dense blockers, and deployment zones.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="get" action="/viewer">
+    <label>
+      Map packet
+      <select name="packet_id">
+        {% for option in packets %}
+        <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Load</button>
+  </form>
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Terrain Areas</h2>
+    <p class="metric">{{ packet.terrain_areas | length }}</p>
+  </article>
+  <article class="panel">
+    <h2>Dense Features</h2>
+    <p class="metric">{{ packet.dense_features | length }}</p>
+  </article>
+  <article class="panel">
+    <h2>Deployment Zones</h2>
+    <p class="metric">{{ packet.deployment_zones | length }}</p>
+  </article>
+</section>
+{% endblock %}
+

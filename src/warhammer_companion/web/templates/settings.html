@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Settings</h1>
+    <p class="lede">Backend connection state and future account controls live here.</p>
+  </div>
+</header>
+
+<section class="grid">
+  <article class="panel">
+    <h2>Codex Backend</h2>
+    <p class="metric">{{ codex_status }}</p>
+    <p class="muted">Vision review and LLM-assisted sanity checks are planned behind a service boundary.</p>
+  </article>
+  <article class="panel">
+    <h2>ChatGPT Subscription</h2>
+    <p class="metric">{{ chatgpt_status }}</p>
+    <button type="button" class="button-secondary" disabled>Login not wired</button>
+  </article>
+</section>
+{% endblock %}
+

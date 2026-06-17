@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Warhammer Tournament Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">LOS</div>
+          <div class="brand-title">Warhammer Tournament Companion</div>
+          <div class="brand-subtitle">Python-only MVP</div>
+        </div>
+        <nav class="nav" aria-label="Primary">
+          <a href="/settings" class="{{ 'active' if active_page == 'settings' else '' }}">Settings</a>
+          <a href="/map-data" class="{{ 'active' if active_page == 'map-data' else '' }}">Map Data</a>
+          <a href="/viewer" class="{{ 'active' if active_page == 'viewer' else '' }}">Map Viewer</a>
+          <a href="/heatmap" class="{{ 'active' if active_page == 'heatmap' else '' }}">LOS Heatmap</a>
+          <a href="/los-checker" class="{{ 'active' if active_page == 'los-checker' else '' }}">LOS Checker</a>
+        </nav>
+      </aside>
+      <main class="main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>
+
