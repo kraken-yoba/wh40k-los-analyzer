@@ -16,6 +16,8 @@ from shapely.ops import unary_union
 
 from warhammer_companion.domain.models import MapPacket
 
+BOARD_BOUNDARY_EDGE_TOLERANCE = 0.25
+
 
 @dataclass(frozen=True)
 class VisibilityRay:
@@ -175,7 +177,7 @@ def deployment_edge_sample_points(
         segment = LineString([start, end])
         if segment.length <= 0:
             continue
-        if _board_boundary_overlap_length(segment, board) >= segment.length - 1e-7:
+        if _is_board_boundary_segment(segment, board):
             continue
         normal = _front_edge_normal(start, end, zone, board)
         for sample in _sample_segment(start, end, sample_step):
@@ -183,7 +185,10 @@ def deployment_edge_sample_points(
                 sample[0] + normal[0] * offset_inches,
                 sample[1] + normal[1] * offset_inches,
             )
-            if board.covers(Point(shifted)):
+            shifted_point = Point(shifted)
+            if board.covers(shifted_point) and (
+                offset_inches <= 0 or not zone.covers(shifted_point)
+            ):
                 samples.append((round(shifted[0], 6), round(shifted[1], 6)))
     if samples:
         return samples
@@ -338,8 +343,18 @@ def _polygon_segments(polygon: Polygon) -> list[tuple[tuple[float, float], tuple
     return list(zip(vertices, vertices[1:] + vertices[:1], strict=True))
 
 
-def _board_boundary_overlap_length(line: LineString, board: Polygon) -> float:
-    return float(line.intersection(board.boundary).length)
+def _is_board_boundary_segment(line: LineString, board: Polygon) -> bool:
+    if line.intersection(board.boundary).length >= line.length - 1e-7:
+        return True
+    min_x, min_y, max_x, max_y = line.bounds
+    board_min_x, board_min_y, board_max_x, board_max_y = board.bounds
+    tolerance = BOARD_BOUNDARY_EDGE_TOLERANCE
+    return (
+        max_x <= board_min_x + tolerance
+        or min_x >= board_max_x - tolerance
+        or max_y <= board_min_y + tolerance
+        or min_y >= board_max_y - tolerance
+    )
 
 
 def _sample_segment(

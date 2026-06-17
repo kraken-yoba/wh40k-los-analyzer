@@ -87,6 +87,41 @@ def test_deployment_edge_samples_top_zone_offset_toward_board_center() -> None:
     assert all(defender_zone.disjoint(Point(sample)) for sample in offset_samples)
 
 
+def test_deployment_edge_samples_ignore_near_board_edges_from_extraction_noise() -> None:
+    packet = MapPacket(
+        id="near-boundary-zone",
+        name="Near Boundary Zone",
+        source="Geometry unit test fixture.",
+        terrain_areas=[],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[
+                    (0.04, 50.02),
+                    (43.96, 50.02),
+                    (43.96, 59.95),
+                    (0.04, 59.95),
+                ],
+            )
+        ],
+    )
+
+    edge_samples = deployment_edge_sample_points(packet, "attacker", sample_step=50.0)
+    offset_samples = deployment_edge_sample_points(
+        packet,
+        "attacker",
+        sample_step=50.0,
+        offset_inches=6,
+    )
+
+    assert {round(sample[1], 2) for sample in edge_samples} == {50.02}
+    assert {round(sample[1], 2) for sample in offset_samples} == {44.02}
+    attacker_zone = packet.deployment_zone("attacker").polygon()
+    assert all(attacker_zone.disjoint(Point(sample)) for sample in offset_samples)
+
+
 def test_heatmap_visibility_polygons_can_use_offset_deployment_edge() -> None:
     packet = SAMPLE_PACKETS[0]
 
