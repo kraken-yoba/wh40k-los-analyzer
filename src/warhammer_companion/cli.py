@@ -1,16 +1,35 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
 import requests
 import typer
 
+from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.manifest import write_source_manifest
+from warhammer_companion.ingestion.packet_builder import run_official_ingestion, validate_packet
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 
 cli = typer.Typer(help="Warhammer Tournament Companion utilities.")
+DEFAULT_DATA_DIR = IngestionPaths().data_dir
 DEFAULT_RAW_DIR = IngestionPaths().raw_dir
+DataDirOption = Annotated[
+    Path,
+    typer.Option(
+        "--data-dir",
+        help="Data directory containing raw official PDFs and processed outputs.",
+    ),
+]
+IngestionPageOption = Annotated[
+    list[int] | None,
+    typer.Option(
+        "--page",
+        "-p",
+        help="Event Companion page to ingest. Repeat for a subset smoke run.",
+    ),
+]
 
 
 @cli.command()
@@ -45,6 +64,46 @@ def list_sources() -> None:
     for source in OFFICIAL_SOURCES:
         typer.echo(f"{source.key}: {source.label}")
         typer.echo(f"  {source.url}")
+
+
+@cli.command()
+def ingest_official(
+    data_dir: DataDirOption = DEFAULT_DATA_DIR,
+    page: IngestionPageOption = None,
+) -> None:
+    """Extract official PDFs and generate processed map packet JSON."""
+    report = run_official_ingestion(paths=IngestionPaths(data_dir), layout_pages=page)
+    typer.echo(
+        f"Generated {report.packet_count} packet(s) from {report.layout_count} layout(s) "
+        f"in {report.duration_seconds:.2f}s."
+    )
+    typer.echo(f"Map packets -> {report.map_packets_dir}")
+    typer.echo(f"Ingestion report -> {IngestionPaths(data_dir).ingestion_report_path}")
+
+
+@cli.command()
+def validate_packets(
+    data_dir: DataDirOption = DEFAULT_DATA_DIR,
+) -> None:
+    """Validate generated map packet JSON against LOS ingestion invariants."""
+    paths = IngestionPaths(data_dir)
+    packets = load_packet_directory(paths.map_packets_dir)
+    if not packets:
+        typer.echo(f"No packet JSON files found in {paths.map_packets_dir}")
+        raise typer.Exit(1)
+
+    has_errors = False
+    for packet in packets:
+        result = validate_packet(packet)
+        if result.valid:
+            typer.echo(f"{packet.id}: valid")
+            continue
+        has_errors = True
+        typer.echo(f"{packet.id}: invalid")
+        for error in result.errors:
+            typer.echo(f"  - {error}")
+    if has_errors:
+        raise typer.Exit(1)
 
 
 def main() -> None:

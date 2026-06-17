@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from warhammer_companion.domain.repository import InMemoryMapRepository
+from warhammer_companion.domain.repository import FileBackedMapRepository
+from warhammer_companion.ingestion.artifacts import IngestionPaths
+from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.los.geometry import (
@@ -18,13 +21,15 @@ from warhammer_companion.los.geometry import (
     visibility_rays_from_base,
 )
 from warhammer_companion.rendering.svg import render_map_svg
+from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Warhammer Tournament Companion")
 app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
-repository = InMemoryMapRepository()
+ingestion_paths = IngestionPaths()
+repository = FileBackedMapRepository(ingestion_paths.map_packets_dir, fallback=SAMPLE_PACKETS)
 
 
 @lru_cache(maxsize=32)
@@ -60,15 +65,44 @@ def map_data(request: Request) -> HTMLResponse:
         {
             "active_page": "map-data",
             "packets": repository.list_packets(),
+            "deletable_packet_ids": _deletable_packet_ids(),
             "sources": OFFICIAL_SOURCES,
             "pipeline": current_pipeline_status(),
+            "report": _latest_ingestion_report(),
+            "ingestion_status": request.query_params.get("ingestion"),
+            "ingestion_message": request.query_params.get("message"),
+            "deleted": request.query_params.get("deleted"),
         },
     )
 
 
 @app.post("/map-data/ingest", response_class=HTMLResponse)
 def trigger_ingestion() -> RedirectResponse:
-    return RedirectResponse("/map-data?ingestion=queued", status_code=303)
+    try:
+        run_official_ingestion(paths=ingestion_paths)
+    except Exception as exc:
+        return RedirectResponse(
+            f"/map-data?ingestion=failed&message={quote(str(exc))}",
+            status_code=303,
+        )
+    repository.reload()
+    _cached_heatmap_svg.cache_clear()
+    return RedirectResponse("/map-data?ingestion=complete", status_code=303)
+
+
+@app.post("/map-data/delete", response_class=HTMLResponse)
+def delete_packet(packet_id: str = Form(...)) -> RedirectResponse:
+    deleted = False
+    try:
+        packet_path = _packet_path(packet_id)
+    except ValueError:
+        packet_path = None
+    if packet_path is not None and packet_path.exists():
+        packet_path.unlink()
+        deleted = True
+    repository.reload()
+    _cached_heatmap_svg.cache_clear()
+    return RedirectResponse(f"/map-data?deleted={int(deleted)}", status_code=303)
 
 
 @app.get("/viewer", response_class=HTMLResponse)
@@ -147,3 +181,27 @@ def update_los_checker(
     return RedirectResponse(
         f"/los-checker?packet_id={packet_id}&x={x}&y={y}&base={base}", status_code=303
     )
+
+
+def _latest_ingestion_report() -> IngestionReport | None:
+    path = ingestion_paths.ingestion_report_path
+    if not path.exists():
+        return None
+    try:
+        return IngestionReport.model_validate_json(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return None
+
+
+def _deletable_packet_ids() -> set[str]:
+    directory = ingestion_paths.map_packets_dir
+    if not directory.exists() or not directory.is_dir():
+        return set()
+    return {path.stem for path in directory.glob("*.json") if path.is_file()}
+
+
+def _packet_path(packet_id: str) -> Path:
+    candidate = ingestion_paths.map_packets_dir / f"{packet_id}.json"
+    if not packet_id or candidate.name != f"{packet_id}.json":
+        raise ValueError(f"Invalid packet id: {packet_id}")
+    return candidate

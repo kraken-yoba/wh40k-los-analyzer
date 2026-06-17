@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.packet_io import write_packet
+from warhammer_companion.domain.repository import FileBackedMapRepository
+from warhammer_companion.ingestion.artifacts import IngestionPaths
+from warhammer_companion.ingestion.packet_builder import IngestionReport, PacketValidationResult
+from warhammer_companion.sample_data import SAMPLE_PACKETS
+from warhammer_companion.web import server
+
+
+def test_map_data_ingestion_runs_and_reloads_repository(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = IngestionPaths(tmp_path / "data")
+    repository = FileBackedMapRepository(paths.map_packets_dir, fallback=SAMPLE_PACKETS)
+    official_packet = _official_packet()
+
+    def fake_ingestion(*, paths: IngestionPaths, layout_pages=None) -> IngestionReport:
+        write_packet(official_packet, paths.map_packets_dir / f"{official_packet.id}.json")
+        return IngestionReport(
+            started_at_epoch=1.0,
+            duration_seconds=0.25,
+            source_footprint_pdf=str(paths.raw_dir / "terrain-area-footprints.pdf"),
+            source_layout_pdf=str(paths.raw_dir / "event-companion.pdf"),
+            footprint_library_path=str(paths.footprint_library_path),
+            layout_library_path=str(paths.layout_library_path),
+            map_packets_dir=str(paths.map_packets_dir),
+            packet_count=1,
+            layout_count=1,
+            validation=[PacketValidationResult(packet_id=official_packet.id, valid=True)],
+        )
+
+    monkeypatch.setattr(server, "ingestion_paths", paths)
+    monkeypatch.setattr(server, "repository", repository)
+    monkeypatch.setattr(server, "run_official_ingestion", fake_ingestion)
+    server._cached_heatmap_svg.cache_clear()
+    client = TestClient(server.app)
+
+    response = client.post("/map-data/ingest", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/map-data?ingestion=complete"
+    assert repository.list_packets() == [official_packet]
+
+
+def test_map_data_delete_removes_generated_packet_and_reloads(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = IngestionPaths(tmp_path / "data")
+    official_packet = _official_packet()
+    write_packet(official_packet, paths.map_packets_dir / f"{official_packet.id}.json")
+    repository = FileBackedMapRepository(paths.map_packets_dir, fallback=SAMPLE_PACKETS)
+    monkeypatch.setattr(server, "ingestion_paths", paths)
+    monkeypatch.setattr(server, "repository", repository)
+    server._cached_heatmap_svg.cache_clear()
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/map-data/delete",
+        data={"packet_id": official_packet.id},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/map-data?deleted=1"
+    assert not (paths.map_packets_dir / f"{official_packet.id}.json").exists()
+    assert repository.list_packets() == SAMPLE_PACKETS
+
+
+def _official_packet() -> MapPacket:
+    return SAMPLE_PACKETS[0].model_copy(
+        update={
+            "id": "official-event-companion-page-1",
+            "name": "Official Page 1",
+            "source": "test official extraction",
+        }
+    )

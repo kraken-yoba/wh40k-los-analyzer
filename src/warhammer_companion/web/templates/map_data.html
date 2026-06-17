@@ -11,6 +11,26 @@
   </form>
 </header>
 
+{% if ingestion_status == "complete" %}
+<section class="notice notice-success">
+  Official ingestion complete.
+</section>
+{% elif ingestion_status == "failed" %}
+<section class="notice notice-error">
+  Official ingestion failed{% if ingestion_message %}: {{ ingestion_message }}{% endif %}
+</section>
+{% endif %}
+
+{% if deleted == "1" %}
+<section class="notice notice-success">
+  Map packet deleted.
+</section>
+{% elif deleted == "0" %}
+<section class="notice notice-error">
+  Map packet could not be deleted.
+</section>
+{% endif %}
+
 <section class="panel">
   <h2>Map Packets</h2>
   {% for packet in packets %}
@@ -19,10 +39,46 @@
       <strong>{{ packet.name }}</strong>
       <div class="muted">{{ packet.source }}</div>
     </div>
-    <a class="button button-secondary" href="/viewer?packet_id={{ packet.id }}">Open</a>
+    <div class="row-actions">
+      <a class="button button-secondary" href="/viewer?packet_id={{ packet.id }}">Open</a>
+      {% if packet.id in deletable_packet_ids %}
+      <form method="post" action="/map-data/delete">
+        <input type="hidden" name="packet_id" value="{{ packet.id }}">
+        <button class="button button-danger" type="submit">Delete</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
   {% endfor %}
 </section>
+
+{% if report %}
+<section class="panel">
+  <h2>Latest Ingestion Report</h2>
+  <div class="status-list">
+    <div class="status-row">
+      <div>
+        <strong>{{ report.packet_count }} packets from {{ report.layout_count }} layouts</strong>
+        <div class="muted">{{ "%.2f"|format(report.duration_seconds) }} seconds</div>
+      </div>
+      <span class="tag tag-ready">complete</span>
+    </div>
+    {% for result in report.validation %}
+    <div class="status-row">
+      <div>
+        <strong>{{ result.packet_id }}</strong>
+        {% if result.errors %}
+        <div class="muted">{{ result.errors|join("; ") }}</div>
+        {% else %}
+        <div class="muted">Validation passed</div>
+        {% endif %}
+      </div>
+      <span class="tag tag-{{ 'ready' if result.valid else 'blocked' }}">{{ 'valid' if result.valid else 'invalid' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 <section class="panel">
   <h2>Official Sources</h2>
@@ -52,4 +108,3 @@
   </div>
 </section>
 {% endblock %}
-

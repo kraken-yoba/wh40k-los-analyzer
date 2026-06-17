@@ -160,6 +160,31 @@ button,
   border-color: var(--line);
 }
 
+.button-danger {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.notice {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+}
+
+.notice-success {
+  background: #dbece4;
+  border-color: rgba(45, 111, 91, 0.24);
+  color: #22533f;
+}
+
+.notice-error {
+  background: #f2ddda;
+  border-color: rgba(139, 47, 45, 0.24);
+  color: #7a2927;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -216,6 +241,13 @@ button,
 .tag-blocked {
   background: #f2ddda;
   color: #7a2927;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 
