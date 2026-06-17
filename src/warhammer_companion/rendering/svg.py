@@ -106,8 +106,7 @@ def render_map_svg(
         cx, cy = _to_svg_point(base_center, scale, packet.board.height)
         parts.append(
             f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
-            f'r="{base_diameter * scale / 2:.1f}" class="model-base" '
-            'data-draggable-base="true" tabindex="0"/>'
+            f'r="{base_diameter * scale / 2:.1f}" class="model-base"/>'
         )
 
     parts.append("</svg>")

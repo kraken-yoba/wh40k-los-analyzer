@@ -39,7 +39,7 @@ warhammer-companion = "warhammer_companion.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-warhammer_companion = ["py.typed", "web/templates/*.html", "web/static/*.css", "web/static/*.js"]
+warhammer_companion = ["py.typed", "web/templates/*.html", "web/static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -56,4 +56,3 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 packages = ["warhammer_companion"]
-

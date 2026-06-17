@@ -96,6 +96,16 @@ def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
     assert 'value="6"' in response.text
 
 
+def test_pages_do_not_load_custom_frontend_javascript() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/viewer")
+
+    assert response.status_code == 200
+    assert "<script" not in response.text
+    assert "app.js" not in response.text
+
+
 def _official_packet() -> MapPacket:
     return SAMPLE_PACKETS[0].model_copy(
         update={

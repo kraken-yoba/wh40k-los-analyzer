@@ -58,6 +58,7 @@
 - Public Git remote configured as `https://github.com/kraken-yoba/wh40k-los-analyzer.git`; branch `codex/official-ingestion` pushed to the public repository.
 - Heatmap generation now defaults to sampling the deployment-zone front edge, with a whole-inch 0-12 inch offset control for adversarial movement simulation. The previous full-zone interior sampling remains available as a comparison mode.
 - LOS checker blocker semantics now remove only touched terrain footprint blockers. Dense features remain LOS-blocking even when the model base touches their parent terrain footprint.
+- The web MVP now uses no custom frontend JavaScript. LOS base placement remains server-rendered through numeric form controls; true drag-to-place behavior is deferred unless a later standalone/Python GUI surface provides it without adding a JS app layer.
 - Terrain feature extraction now stores `feature_profile` metadata on raster features. Dense features are heuristically classified as `ruined_wall_section`, `container_or_solid`, `solid_los_blocker`, or `unknown_dense`; light features are kept as non-blocking `light_area` review/display metadata.
 - Full verification passed after implementation:
   - `.\.venv\Scripts\python.exe -m ruff format --check src tests`

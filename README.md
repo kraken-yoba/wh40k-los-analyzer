@@ -2,7 +2,7 @@
 
 Python-first MVP for Warhammer 40,000 terrain/map analysis, focused first on line-of-sight tooling.
 
-The MVP is a lightweight server-rendered web app. LOS, ingestion, geometry, and rendering are Python-owned so the core product remains portable to a later standalone Python desktop app. A tiny static JavaScript layer is used only where the browser needs direct manipulation, such as dragging a model base.
+The MVP is a lightweight server-rendered web app. LOS, ingestion, geometry, and rendering are Python-owned so the core product remains portable to a later standalone Python desktop app. The current MVP uses no custom frontend JavaScript.
 
 ## Current Scope
 
@@ -50,4 +50,3 @@ The app separates the durable domain engine from the temporary web shell:
 - `web/`: server-rendered pages and forms.
 
 This keeps the LOS and ingestion engine reusable when the MVP becomes a standalone app.
-

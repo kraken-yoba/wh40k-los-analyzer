@@ -8,12 +8,12 @@ from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 
-def test_los_base_renders_as_draggable_svg_element() -> None:
+def test_los_base_renders_as_server_rendered_svg_marker() -> None:
     svg = render_map_svg(SAMPLE_PACKETS[0], base_center=(22.0, 10.0), base_diameter=1.57)
 
     assert 'class="model-base"' in svg
-    assert 'data-draggable-base="true"' in svg
-    assert 'tabindex="0"' in svg
+    assert "data-draggable-base" not in svg
+    assert "tabindex" not in svg
 
 
 def test_heatmap_polygons_render_as_embedded_pixel_raster() -> None:
