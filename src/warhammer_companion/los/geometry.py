@@ -284,7 +284,7 @@ def _blockers_for_base(packet: MapPacket, base: Polygon) -> list[Polygon]:
     blockers.extend(
         feature.polygon()
         for feature in packet.dense_features
-        if feature.blocks_los and feature.terrain_area_id not in touched_area_ids
+        if feature.blocks_los
     )
     return blockers
 

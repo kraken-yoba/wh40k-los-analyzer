@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from shapely.geometry import Point, Polygon
 
+from warhammer_companion.domain.models import (
+    DenseTerrainFeature,
+    DeploymentZone,
+    MapPacket,
+    TerrainArea,
+    TerrainKind,
+)
 from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
     circular_base,
@@ -123,16 +130,27 @@ def test_binary_visibility_overlay_returns_board_cells() -> None:
 
 
 def test_base_touching_terrain_footprint_sees_through_that_footprint() -> None:
-    packet = SAMPLE_PACKETS[0]
+    packet = _single_ruin_packet()
 
     outside_polygon = visibility_polygon_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
     touching_polygon = visibility_polygon_from_base(
         packet, center=(14.25, 30.0), base_diameter=1.57
     )
 
-    target_behind_c = Point(35.0, 30.0)
-    assert not outside_polygon.covers(target_behind_c)
-    assert touching_polygon.covers(target_behind_c)
+    target_through_footprint = Point(35.0, 54.0)
+    assert not outside_polygon.covers(target_through_footprint)
+    assert touching_polygon.covers(target_through_footprint)
+
+
+def test_base_touching_terrain_footprint_still_blocked_by_dense_feature() -> None:
+    packet = _single_ruin_packet()
+
+    touching_polygon = visibility_polygon_from_base(
+        packet, center=(14.25, 30.0), base_diameter=1.57
+    )
+
+    target_behind_dense_feature = Point(35.0, 30.0)
+    assert not touching_polygon.covers(target_behind_dense_feature)
 
 
 def test_visibility_rays_include_visible_and_blocked_results() -> None:
@@ -143,3 +161,34 @@ def test_visibility_rays_include_visible_and_blocked_results() -> None:
     assert rays
     assert any(ray.visible for ray in rays)
     assert any(not ray.visible for ray in rays)
+
+
+def _single_ruin_packet() -> MapPacket:
+    return MapPacket(
+        id="single-ruin",
+        name="Single Ruin",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="c",
+                label="C",
+                kind=TerrainKind.RUINS,
+                footprint=[(15, 24), (29, 24), (29, 36), (15, 36)],
+            )
+        ],
+        dense_features=[
+            DenseTerrainFeature(
+                id="c-dense",
+                terrain_area_id="c",
+                label="C dense",
+                footprint=[(18, 26), (26, 26), (26, 34), (18, 34)],
+            )
+        ],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
