@@ -134,16 +134,16 @@ def validate_packet(packet: MapPacket) -> PacketValidationResult:
         _validate_polygon(area.id, area.footprint, board, errors)
     for zone in packet.deployment_zones:
         _validate_polygon(zone.id, zone.footprint, board, errors)
-    for feature in packet.dense_features:
-        _validate_polygon(feature.id, feature.footprint, board, errors)
-        if feature.terrain_area_id not in terrain_ids:
-            errors.append(f"dense feature {feature.id} references unknown terrain area")
-    for feature in packet.light_features:
-        _validate_polygon(feature.id, feature.footprint, board, errors)
-        if feature.terrain_area_id not in terrain_ids:
-            errors.append(f"light feature {feature.id} references unknown terrain area")
-        if feature.blocks_los:
-            errors.append(f"light feature {feature.id} must not block LOS")
+    for dense_feature in packet.dense_features:
+        _validate_polygon(dense_feature.id, dense_feature.footprint, board, errors)
+        if dense_feature.terrain_area_id not in terrain_ids:
+            errors.append(f"dense feature {dense_feature.id} references unknown terrain area")
+    for light_feature in packet.light_features:
+        _validate_polygon(light_feature.id, light_feature.footprint, board, errors)
+        if light_feature.terrain_area_id not in terrain_ids:
+            errors.append(f"light feature {light_feature.id} references unknown terrain area")
+        if light_feature.blocks_los:
+            errors.append(f"light feature {light_feature.id} must not block LOS")
 
     if not packet.dense_features:
         warnings.append("packet has no dense feature blockers")

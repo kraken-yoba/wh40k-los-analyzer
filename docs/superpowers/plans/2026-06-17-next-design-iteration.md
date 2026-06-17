@@ -46,7 +46,7 @@ Expected: branch `codex/official-ingestion` exists on the public repository.
 - Test: `tests/test_los_geometry.py`
 - Test: `tests/test_web_server.py`
 
-- [ ] **Step 1: Write failing geometry tests**
+- [x] **Step 1: Write failing geometry tests**
 
 Add tests that call a new function:
 
@@ -62,7 +62,7 @@ assert all(item.origin[1] >= packet.deployment_zone("attacker").polygon().bounds
 
 Add a second test with `offset_inches=6` and assert attacker origins move toward the board center by about 6 inches.
 
-- [ ] **Step 2: Implement edge sampling**
+- [x] **Step 2: Implement edge sampling**
 
 Add `heatmap_visibility_polygons_from_deployment_edge(packet, deployment_zone_id, offset_inches=0, sample_step=2.0)`.
 Derive the edge as the deployment-zone boundary segment closest to the board centerline:
@@ -72,18 +72,18 @@ Derive the edge as the deployment-zone boundary segment closest to the board cen
 
 Clamp generated origins inside the board and skip points that fall inside blockers.
 
-- [ ] **Step 3: Wire heatmap mode and offset into web route**
+- [x] **Step 3: Wire heatmap mode and offset into web route**
 
 Extend `_cached_heatmap_svg(packet_id, zone_id, source, offset_inches)` and `/heatmap` query params:
 - `source=edge` by default
 - `source=interior` keeps the old interior sampling for comparison
 - `offset_inches` integer 0 through 12, default 0
 
-- [ ] **Step 4: Add heatmap controls**
+- [x] **Step 4: Add heatmap controls**
 
 In `heatmap.html`, add a segmented/native select control for source and a range slider with whole-inch snap labels for offset.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 .\.venv\Scripts\python.exe -m pytest tests\test_los_geometry.py tests\test_web_server.py -q
@@ -103,7 +103,7 @@ Expected: new tests pass and old heatmap tests still pass.
 - Test: `tests/test_packet_builder.py`
 - Test: `tests/test_rendering_svg.py`
 
-- [ ] **Step 1: Write failing extraction/classification tests**
+- [x] **Step 1: Write failing extraction/classification tests**
 
 Add synthetic layout fixtures with dense green rectangles and light yellow rectangles. Assert:
 - dense features carry `feature_type == "dense"`
@@ -111,11 +111,11 @@ Add synthetic layout fixtures with dense green rectangles and light yellow recta
 - dense packet features carry a `profile` such as `wall_section`, `container`, or `solid_mass`
 - rendered SVG uses distinct CSS classes for dense and light review overlays.
 
-- [ ] **Step 2: Add feature profile field**
+- [x] **Step 2: Add feature profile field**
 
 Add optional `feature_profile: str | None` to `LayoutElement` and `DenseTerrainFeature`.
 
-- [ ] **Step 3: Classify dense profiles heuristically**
+- [x] **Step 3: Classify dense profiles heuristically**
 
 Use simple geometry heuristics:
 - long thin dense polygon: `wall_section`
@@ -124,11 +124,11 @@ Use simple geometry heuristics:
 
 Keep confidence/warnings explicit because this is heuristic machine vision.
 
-- [ ] **Step 4: Preserve light features as review metadata**
+- [x] **Step 4: Preserve light features as review metadata**
 
 Do not make light features LOS blockers. Ensure layout library and review overlays visibly differentiate light vs dense features.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 .\.venv\Scripts\python.exe -m pytest tests\test_layout_extraction.py tests\test_packet_builder.py tests\test_rendering_svg.py -q
@@ -142,7 +142,7 @@ Expected: dense/light distinction and dense profile metadata are covered.
 - Modify: `src/warhammer_companion/los/geometry.py`
 - Test: `tests/test_los_geometry.py`
 
-- [ ] **Step 1: Write failing LOS rule test**
+- [x] **Step 1: Write failing LOS rule test**
 
 Create or modify a packet where base touches a terrain area with a dense feature behind the contact point. Assert:
 
@@ -151,11 +151,11 @@ touching_polygon = visibility_polygon_from_base(packet, center=touching, base_di
 assert not touching_polygon.covers(Point(target_behind_dense_feature))
 ```
 
-- [ ] **Step 2: Update blocker logic**
+- [x] **Step 2: Update blocker logic**
 
 In `_blockers_for_base`, remove touched terrain area footprints from blockers but keep dense features even when their `terrain_area_id` is touched.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 .\.venv\Scripts\python.exe -m pytest tests\test_los_geometry.py -q
@@ -168,7 +168,7 @@ Expected: touched footprint is transparent, dense feature still blocks.
 **Files:**
 - Modify: `docs/work-log/official-ingestion.md`
 
-- [ ] **Step 1: Run checks**
+- [x] **Step 1: Run checks**
 
 ```bash
 .\.venv\Scripts\python.exe -m ruff format --check src tests
@@ -177,7 +177,7 @@ Expected: touched footprint is transparent, dense feature still blocks.
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-- [ ] **Step 2: Run official smoke**
+- [x] **Step 2: Run official smoke**
 
 ```bash
 .\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9

@@ -53,6 +53,21 @@
 - Task 8 official page-9 LOS performance after packet simplification and numeric ray/segment intersections: 176 heatmap visibility polygons in 12.792 seconds; single-base LOS coverage in 0.071 seconds.
 - Task 8 in-app browser verification used `http://127.0.0.1:8001`: Map Data showed the 45-packet report, official page-9 heatmap rendered a raster overlay, and LOS checker click-to-place moved the base to `29.92,25.20` with a fresh binary coverage raster and no console errors.
 
+### Next Design Iteration
+
+- Public Git remote configured as `https://github.com/kraken-yoba/wh40k-los-analyzer.git`; branch `codex/official-ingestion` pushed to the public repository.
+- Heatmap generation now defaults to sampling the deployment-zone front edge, with a whole-inch 0-12 inch offset control for adversarial movement simulation. The previous full-zone interior sampling remains available as a comparison mode.
+- LOS checker blocker semantics now remove only touched terrain footprint blockers. Dense features remain LOS-blocking even when the model base touches their parent terrain footprint.
+- Terrain feature extraction now stores `feature_profile` metadata on raster features. Dense features are heuristically classified as `ruined_wall_section`, `container_or_solid`, `solid_los_blocker`, or `unknown_dense`; light features are kept as non-blocking `light_area` review/display metadata.
+- Full verification passed after implementation:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\python.exe -m mypy src`
+  - `.\.venv\Scripts\python.exe -m pytest -q`
+- Full official ingestion rerun generated 45 packet(s) from Event Companion pages 9-53 in 114.23 seconds.
+- `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets` reported all 45 generated official packets valid.
+- Official page-9 regenerated JSON includes dense feature profiles and non-blocking `light_features`; generated data remains ignored under `data/processed/`.
+
 ### Exit Criteria
 
 - Source manifest with hashes/page counts exists.

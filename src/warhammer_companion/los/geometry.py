@@ -281,11 +281,7 @@ def _blockers_for_base(packet: MapPacket, base: Polygon) -> list[Polygon]:
         for area in packet.terrain_areas
         if area.blocks_los and area.id not in touched_area_ids
     ]
-    blockers.extend(
-        feature.polygon()
-        for feature in packet.dense_features
-        if feature.blocks_los
-    )
+    blockers.extend(feature.polygon() for feature in packet.dense_features if feature.blocks_los)
     return blockers
 
 
@@ -387,8 +383,7 @@ def _front_edge_normal(
     toward_center = (board_center.x - midpoint[0], board_center.y - midpoint[1])
     return max(
         candidates,
-        key=lambda candidate: candidate[0] * toward_center[0]
-        + candidate[1] * toward_center[1],
+        key=lambda candidate: candidate[0] * toward_center[0] + candidate[1] * toward_center[1],
     )
 
 

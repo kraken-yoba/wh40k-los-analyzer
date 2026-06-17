@@ -71,23 +71,23 @@ def render_map_svg(
             )
         )
 
-    for feature in packet.light_features:
+    for light_feature in packet.light_features:
         parts.append(
             _polygon(
-                feature.footprint,
+                light_feature.footprint,
                 scale,
                 packet.board.height,
-                _feature_css_class("light-feature", feature.profile),
+                _feature_css_class("light-feature", light_feature.profile),
             )
         )
 
-    for feature in packet.dense_features:
+    for dense_feature in packet.dense_features:
         parts.append(
             _polygon(
-                feature.footprint,
+                dense_feature.footprint,
                 scale,
                 packet.board.height,
-                _feature_css_class("dense-feature", feature.profile),
+                _feature_css_class("dense-feature", dense_feature.profile),
             )
         )
 
