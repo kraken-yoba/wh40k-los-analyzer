@@ -1,16 +1,27 @@
 from __future__ import annotations
 
+import base64
 from html import escape
+from io import BytesIO
 
+import numpy as np
+from numpy.typing import NDArray
+from PIL import Image, ImageDraw
 from shapely.geometry import Polygon
 
 from warhammer_companion.domain.models import MapPacket
-from warhammer_companion.los.geometry import CoverageCell, HeatmapCell, VisibilityRay
+from warhammer_companion.los.geometry import (
+    CoverageCell,
+    HeatmapCell,
+    VisibilityPolygon,
+    VisibilityRay,
+)
 
 
 def render_map_svg(
     packet: MapPacket,
     heatmap: list[HeatmapCell] | None = None,
+    heatmap_polygons: list[VisibilityPolygon] | None = None,
     coverage: list[CoverageCell] | None = None,
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
@@ -25,8 +36,10 @@ def render_map_svg(
         f'<rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" class="board"/>',
     ]
 
-    if heatmap:
-        parts.extend(_render_heatmap(heatmap, scale, packet.board.height))
+    if heatmap_polygons:
+        parts.extend(_render_heatmap_raster(packet, heatmap_polygons, scale))
+    elif heatmap:
+        parts.extend(_render_heatmap_cells(heatmap, scale, packet.board.height))
 
     if coverage:
         parts.extend(_render_coverage(coverage, scale, packet.board.height))
@@ -81,7 +94,58 @@ def render_map_svg(
     return "\n".join(parts)
 
 
-def _render_heatmap(cells: list[HeatmapCell], scale: int, board_height: float) -> list[str]:
+def _render_heatmap_raster(
+    packet: MapPacket, polygons: list[VisibilityPolygon], scale: int
+) -> list[str]:
+    width = int(round(packet.board.width * scale))
+    height = int(round(packet.board.height * scale))
+    accumulator: NDArray[np.uint16] = np.zeros((height, width), dtype=np.uint16)
+
+    for item in polygons:
+        if item.polygon.is_empty:
+            continue
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        rings = [item.polygon.exterior, *item.polygon.interiors]
+        for index, ring in enumerate(rings):
+            points = [_to_svg_point((x, y), scale, packet.board.height) for x, y in ring.coords]
+            fill = 1 if index == 0 else 0
+            draw.polygon(points, fill=fill)
+        accumulator += np.asarray(mask, dtype=np.uint16)
+
+    visibility = accumulator.astype(np.float64) / max(len(polygons), 1)
+    image = Image.fromarray(_colorize_heatmap_array(visibility), "RGBA")
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return [
+        f'<image x="0" y="0" width="{width}" height="{height}" '
+        f'href="data:image/png;base64,{encoded}" preserveAspectRatio="none" '
+        'class="heatmap-image"/>'
+    ]
+
+
+def _colorize_heatmap_array(visibility: NDArray[np.float64]) -> NDArray[np.uint8]:
+    stops = np.array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], dtype=np.float32)
+    colors = np.array(
+        [
+            [155, 59, 53],
+            [207, 126, 58],
+            [213, 182, 76],
+            [100, 166, 93],
+            [31, 122, 95],
+            [31, 122, 95],
+        ],
+        dtype=np.float32,
+    )
+    rgba = np.zeros((*visibility.shape, 4), dtype=np.uint8)
+    for channel in range(3):
+        rgba[..., channel] = np.interp(visibility, stops, colors[:, channel]).astype(np.uint8)
+    rgba[..., 3] = 184
+    return rgba
+
+
+def _render_heatmap_cells(cells: list[HeatmapCell], scale: int, board_height: float) -> list[str]:
     if len(cells) < 2:
         return []
     step = _infer_grid_step([cell.x for cell in cells])

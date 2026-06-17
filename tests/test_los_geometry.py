@@ -6,6 +6,7 @@ from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
     circular_base,
     heatmap_from_deployment_zone,
+    heatmap_visibility_polygons_from_deployment_zone,
     is_line_blocked,
     visibility_rays_from_base,
 )
@@ -29,6 +30,15 @@ def test_base_area_can_be_ignored_for_own_position() -> None:
     base = circular_base((2, 2), 3.0)
 
     assert not is_line_blocked((2, 2), (2.5, 2.0), [blocker], ignored_area=base)
+
+
+def test_heatmap_visibility_polygons_are_generated_from_deployment_samples() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    polygons = heatmap_visibility_polygons_from_deployment_zone(packet, "attacker")
+
+    assert polygons
+    assert all(not item.polygon.is_empty for item in polygons)
 
 
 def test_heatmap_returns_cells_for_sample_packet() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -12,7 +13,7 @@ from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
-    heatmap_from_deployment_zone,
+    heatmap_visibility_polygons_from_deployment_zone,
     visibility_rays_from_base,
 )
 from warhammer_companion.rendering.svg import render_map_svg
@@ -23,6 +24,13 @@ app = FastAPI(title="Warhammer Tournament Companion")
 app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 repository = InMemoryMapRepository()
+
+
+@lru_cache(maxsize=32)
+def _cached_heatmap_svg(packet_id: str, zone_id: str) -> str:
+    packet = repository.get_packet(packet_id)
+    polygons = heatmap_visibility_polygons_from_deployment_zone(packet, zone_id)
+    return render_map_svg(packet, heatmap_polygons=polygons)
 
 
 @app.get("/")
@@ -82,7 +90,6 @@ def heatmap(
     request: Request, packet_id: str | None = None, zone_id: str = "attacker"
 ) -> HTMLResponse:
     packet = repository.get_packet(packet_id) if packet_id else repository.default_packet()
-    heatmap_cells = heatmap_from_deployment_zone(packet, zone_id)
     return templates.TemplateResponse(
         request,
         "heatmap.html",
@@ -91,7 +98,7 @@ def heatmap(
             "packet": packet,
             "packets": repository.list_packets(),
             "selected_zone_id": zone_id,
-            "map_svg": render_map_svg(packet, heatmap=heatmap_cells),
+            "map_svg": _cached_heatmap_svg(packet.id, zone_id),
         },
     )
 

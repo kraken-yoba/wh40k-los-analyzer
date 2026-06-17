@@ -1,8 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import atan2, cos, sin
 
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import (
+    GeometryCollection,
+    LineString,
+    MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
+)
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
@@ -27,6 +35,12 @@ class CoverageCell:
     x: float
     y: float
     visible: bool
+
+
+@dataclass(frozen=True)
+class VisibilityPolygon:
+    origin: tuple[float, float]
+    polygon: Polygon
 
 
 def circular_base(center: tuple[float, float], diameter: float, resolution: int = 48) -> Polygon:
@@ -95,6 +109,56 @@ def binary_visibility_overlay_from_base(
     return cells
 
 
+def heatmap_visibility_polygons_from_deployment_zone(
+    packet: MapPacket,
+    deployment_zone_id: str,
+    sample_step: float = 2.0,
+) -> list[VisibilityPolygon]:
+    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    sample_points = _points_in_polygon(zone, sample_step)
+    return [
+        VisibilityPolygon(origin=sample, polygon=visibility_polygon_from_point(packet, sample))
+        for sample in sample_points
+    ]
+
+
+def visibility_polygon_from_point(packet: MapPacket, origin: tuple[float, float]) -> Polygon:
+    board = _board_polygon(packet)
+    blockers = packet.blockers()
+    segments = _polygon_segments(board) + [
+        segment for blocker in blockers for segment in _polygon_segments(blocker)
+    ]
+    vertices = _polygon_vertices(board) + [
+        vertex for blocker in blockers for vertex in _polygon_vertices(blocker)
+    ]
+    ray_length = max(packet.board.width, packet.board.height) * 3.0
+    angles = sorted(
+        angle + offset
+        for vertex in vertices
+        for angle in [atan2(vertex[1] - origin[1], vertex[0] - origin[0])]
+        for offset in (-0.0001, 0.0, 0.0001)
+    )
+
+    points = [
+        hit
+        for angle in angles
+        for hit in [_nearest_ray_hit(origin, angle, ray_length, segments)]
+        if hit is not None
+    ]
+    if len(points) < 3:
+        return Polygon()
+
+    polygon = Polygon(points)
+    if not polygon.is_valid:
+        polygon = polygon.buffer(0)
+    clipped = polygon.intersection(board)
+    if isinstance(clipped, Polygon):
+        return clipped
+    if isinstance(clipped, MultiPolygon):
+        return max(clipped.geoms, key=lambda item: item.area)
+    return Polygon()
+
+
 def heatmap_from_deployment_zone(
     packet: MapPacket,
     deployment_zone_id: str,
@@ -130,14 +194,7 @@ def _ray_to(
     blockers: BaseGeometry,
     base: Polygon,
 ) -> VisibilityRay:
-    board = Polygon(
-        [
-            (0, 0),
-            (packet.board.width, 0),
-            (packet.board.width, packet.board.height),
-            (0, packet.board.height),
-        ]
-    )
+    board = _board_polygon(packet)
     target_point = Point(target)
     if not board.covers(target_point):
         return VisibilityRay(target=target, visible=False)
@@ -167,6 +224,65 @@ def _is_segment_blocked(
         return False
 
     return effective_blockers.intersects(line)
+
+
+def _board_polygon(packet: MapPacket) -> Polygon:
+    return Polygon(
+        [
+            (0, 0),
+            (packet.board.width, 0),
+            (packet.board.width, packet.board.height),
+            (0, packet.board.height),
+        ]
+    )
+
+
+def _polygon_vertices(polygon: Polygon) -> list[tuple[float, float]]:
+    return [(float(x), float(y)) for x, y in list(polygon.exterior.coords)[:-1]]
+
+
+def _polygon_segments(polygon: Polygon) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    vertices = _polygon_vertices(polygon)
+    return list(zip(vertices, vertices[1:] + vertices[:1], strict=True))
+
+
+def _nearest_ray_hit(
+    origin: tuple[float, float],
+    angle: float,
+    ray_length: float,
+    segments: list[tuple[tuple[float, float], tuple[float, float]]],
+) -> tuple[float, float] | None:
+    ray_end = (origin[0] + cos(angle) * ray_length, origin[1] + sin(angle) * ray_length)
+    ray = LineString([origin, ray_end])
+    closest: tuple[float, float] | None = None
+    closest_distance = float("inf")
+
+    for segment_start, segment_end in segments:
+        intersection = ray.intersection(LineString([segment_start, segment_end]))
+        for point in _intersection_points(intersection):
+            distance = (point[0] - origin[0]) ** 2 + (point[1] - origin[1]) ** 2
+            if 1e-9 < distance < closest_distance:
+                closest = point
+                closest_distance = distance
+
+    return closest
+
+
+def _intersection_points(geometry: BaseGeometry) -> list[tuple[float, float]]:
+    if geometry.is_empty:
+        return []
+    if isinstance(geometry, Point):
+        return [(geometry.x, geometry.y)]
+    if isinstance(geometry, MultiPoint):
+        return [(point.x, point.y) for point in geometry.geoms]
+    if isinstance(geometry, LineString):
+        return [(float(x), float(y)) for x, y in geometry.coords]
+    if isinstance(geometry, GeometryCollection):
+        points: list[tuple[float, float]] = []
+        for part in geometry.geoms:
+            points.extend(_intersection_points(part))
+        return points
+    return []
 
 
 def _points_in_polygon(polygon: Polygon, spacing: float) -> list[tuple[float, float]]:
