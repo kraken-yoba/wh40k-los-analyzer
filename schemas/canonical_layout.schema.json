@@ -1,0 +1,327 @@
+{
+  "$defs": {
+    "Blocker": {
+      "additionalProperties": false,
+      "properties": {
+        "blocker_id": {
+          "title": "Blocker Id",
+          "type": "string"
+        },
+        "end": {
+          "$ref": "#/$defs/Point"
+        },
+        "feature_id": {
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/BlockerKind"
+        },
+        "sealed_end": {
+          "default": false,
+          "title": "Sealed End",
+          "type": "boolean"
+        },
+        "sealed_start": {
+          "default": false,
+          "title": "Sealed Start",
+          "type": "boolean"
+        },
+        "start": {
+          "$ref": "#/$defs/Point"
+        }
+      },
+      "required": [
+        "blocker_id",
+        "feature_id",
+        "kind",
+        "start",
+        "end"
+      ],
+      "title": "Blocker",
+      "type": "object"
+    },
+    "BlockerKind": {
+      "enum": [
+        "wall"
+      ],
+      "title": "BlockerKind",
+      "type": "string"
+    },
+    "Board": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "unit": {
+          "const": "inch",
+          "default": "inch",
+          "title": "Unit",
+          "type": "string"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "title": "Board",
+      "type": "object"
+    },
+    "DeploymentZone": {
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "$ref": "#/$defs/PolygonGeometry"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "zone_id": {
+          "title": "Zone Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "zone_id",
+        "label",
+        "area"
+      ],
+      "title": "DeploymentZone",
+      "type": "object"
+    },
+    "LayoutProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "extraction_method": {
+          "title": "Extraction Method",
+          "type": "string"
+        },
+        "source_document_id": {
+          "title": "Source Document Id",
+          "type": "string"
+        },
+        "source_page": {
+          "minimum": 1,
+          "title": "Source Page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_document_id",
+        "source_page",
+        "extraction_method"
+      ],
+      "title": "LayoutProvenance",
+      "type": "object"
+    },
+    "Point": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Point",
+      "type": "object"
+    },
+    "PolygonGeometry": {
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Point"
+          },
+          "minItems": 3,
+          "title": "Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "title": "PolygonGeometry",
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "not_required",
+        "unreviewed",
+        "accepted",
+        "rejected"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "TerrainCategory": {
+      "enum": [
+        "unknown",
+        "exposed",
+        "light",
+        "dense"
+      ],
+      "title": "TerrainCategory",
+      "type": "string"
+    },
+    "TerrainFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "footprint": {
+          "$ref": "#/$defs/PolygonGeometry"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "movement_blocking": {
+          "default": false,
+          "title": "Movement Blocking",
+          "type": "boolean"
+        },
+        "terrain_category": {
+          "$ref": "#/$defs/TerrainCategory",
+          "default": "unknown"
+        }
+      },
+      "required": [
+        "feature_id",
+        "label",
+        "footprint"
+      ],
+      "title": "TerrainFeature",
+      "type": "object"
+    },
+    "ValidationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "not_required"
+        },
+        "severity": {
+          "$ref": "#/$defs/ValidationSeverity"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "message"
+      ],
+      "title": "ValidationRecord",
+      "type": "object"
+    },
+    "ValidationSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "ValidationSeverity",
+      "type": "string"
+    },
+    "ValidationStatus": {
+      "enum": [
+        "passed",
+        "warning",
+        "failed"
+      ],
+      "title": "ValidationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "blockers": {
+      "items": {
+        "$ref": "#/$defs/Blocker"
+      },
+      "title": "Blockers",
+      "type": "array"
+    },
+    "board": {
+      "$ref": "#/$defs/Board"
+    },
+    "deployments": {
+      "items": {
+        "$ref": "#/$defs/DeploymentZone"
+      },
+      "title": "Deployments",
+      "type": "array"
+    },
+    "layout_id": {
+      "title": "Layout Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/LayoutProvenance"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "terrain_features": {
+      "items": {
+        "$ref": "#/$defs/TerrainFeature"
+      },
+      "title": "Terrain Features",
+      "type": "array"
+    },
+    "validation_records": {
+      "items": {
+        "$ref": "#/$defs/ValidationRecord"
+      },
+      "title": "Validation Records",
+      "type": "array"
+    },
+    "validation_status": {
+      "$ref": "#/$defs/ValidationStatus"
+    }
+  },
+  "required": [
+    "layout_id",
+    "name",
+    "board",
+    "terrain_features",
+    "blockers",
+    "deployments",
+    "provenance",
+    "validation_status"
+  ],
+  "title": "CanonicalLayout",
+  "type": "object"
+}

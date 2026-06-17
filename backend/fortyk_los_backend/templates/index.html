@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Warhammer 40k LOS Analyzer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Warhammer 40k LOS Analyzer</h1>
+          <p id="status">Fixture-backed analysis ready</p>
+        </div>
+        <button id="export-button" type="button">Export</button>
+      </header>
+
+      <section class="controls" aria-label="Analysis controls">
+        <label>
+          Layout
+          <select id="layout-select"></select>
+        </label>
+        <button id="load-layout-button" type="button">Load</button>
+        <label>
+          Mode
+          <select id="interaction-mode">
+            <option value="los">LOS</option>
+            <option value="inspect">Inspect</option>
+          </select>
+        </label>
+        <label>
+          Base diameter
+          <input id="base-diameter" type="number" min="0.5" step="0.01" value="1.26" />
+        </label>
+        <label class="checkbox-control">
+          <input id="source-underlay-toggle" type="checkbox" />
+          Source underlay
+        </label>
+        <p id="source-underlay-status">Underlay off</p>
+        <label>
+          Movement
+          <input id="movement-distance" type="number" min="0" step="0.5" value="2" />
+        </label>
+        <button id="heatmap-button" type="button">Heatmap</button>
+        <button id="exposure-button" type="button">Exposure</button>
+        <button id="terrain-coverage-button" type="button">Terrain</button>
+      </section>
+
+      <section class="workspace">
+        <section class="board-frame" aria-label="Board analysis canvas">
+          <canvas id="board-canvas" width="880" height="1200"></canvas>
+        </section>
+
+        <aside class="side-panel" aria-label="Analysis details">
+          <details class="evidence-section" open>
+            <summary>Layout</summary>
+            <div id="layout-metadata" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Sources</summary>
+            <div id="source-status" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Rules</summary>
+            <div id="rules-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Footprints</summary>
+            <div id="footprint-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Provisional Matches</summary>
+            <div id="footprint-match-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Footprint Normalization</summary>
+            <div id="footprint-normalization-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Symmetry</summary>
+            <div id="terrain-symmetry-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Process</summary>
+            <div id="reconciliation-process" class="process-diagram"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Reconciliation</summary>
+            <div id="terrain-reconciliation-evidence" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Sanity</summary>
+            <div id="visual-sanity-evidence" class="dense-list"></div>
+          </details>
+          <section>
+            <h2>Terrain</h2>
+            <div id="terrain-semantics" class="terrain-semantics"></div>
+          </section>
+          <details class="evidence-section">
+            <summary>Feature</summary>
+            <div id="feature-provenance" class="dense-list"></div>
+          </details>
+          <details class="evidence-section">
+            <summary>Validation</summary>
+            <div id="validation-panel" class="dense-list"></div>
+          </details>
+          <section>
+            <h2>LOS</h2>
+            <pre id="los-result">Click the board to set source and target.</pre>
+          </section>
+          <section>
+            <h2>Analysis</h2>
+            <pre id="analysis-result">Run heatmap, exposure, or terrain coverage.</pre>
+          </section>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

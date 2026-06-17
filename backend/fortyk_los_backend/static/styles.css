@@ -1,0 +1,290 @@
+:root {
+  color: #1f2528;
+  background: #f4f1eb;
+  font-family: Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #33434a;
+  background: #263941;
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #36505a;
+}
+
+.app-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.topbar,
+.controls,
+.workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.topbar {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 28px;
+}
+
+h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+#status {
+  margin-top: 4px;
+  color: #5b6469;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  margin: 18px 0;
+  padding: 12px 0;
+  border-top: 1px solid #cbc4b8;
+  border-bottom: 1px solid #cbc4b8;
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  color: #465058;
+  font-size: 13px;
+}
+
+.controls label {
+  flex: 1 1 140px;
+}
+
+.controls label:first-child {
+  flex-basis: 240px;
+}
+
+.controls button {
+  flex: 0 0 auto;
+}
+
+.checkbox-control {
+  grid-auto-flow: column;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 38px;
+}
+
+.checkbox-control input {
+  min-height: auto;
+}
+
+#source-underlay-status {
+  align-self: center;
+  color: #5b6469;
+  font-size: 12px;
+}
+
+select,
+input {
+  min-height: 38px;
+  border: 1px solid #a8a197;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #1f2528;
+  padding: 8px;
+}
+
+.workspace {
+  grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr);
+  align-items: start;
+}
+
+.board-frame {
+  border: 1px solid #686f64;
+  background: #fffdf8;
+  width: min(100%, 640px);
+}
+
+#board-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.side-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.side-panel section,
+.evidence-section {
+  border-top: 1px solid #cbc4b8;
+  padding-top: 12px;
+}
+
+.evidence-section summary {
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.evidence-section:not([open]) {
+  padding-bottom: 4px;
+}
+
+.evidence-section:not([open]) summary {
+  margin-bottom: 0;
+}
+
+.dense-list {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.terrain-semantics {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.process-diagram {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.process-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-areas:
+    "num label"
+    "num code";
+  gap: 2px 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #e1dcd2;
+}
+
+.process-step span {
+  grid-area: num;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #647077;
+  border-radius: 50%;
+  background: #fffdf8;
+  font-weight: 700;
+}
+
+.process-step strong {
+  grid-area: label;
+}
+
+.process-step small {
+  grid-area: code;
+  min-width: 0;
+  color: #5b6469;
+  overflow-wrap: anywhere;
+}
+
+.terrain-item {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 0;
+}
+
+.terrain-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #70695d;
+}
+
+.terrain-line-swatch {
+  width: 18px;
+  border-top: 4px solid #8f2f2f;
+}
+
+.dense-item {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #e1dcd2;
+}
+
+.dense-item span,
+.dense-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dense-item strong {
+  text-align: right;
+}
+
+.validation-item {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.validation-item button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+pre {
+  margin: 0;
+  min-height: 86px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #fffdf8;
+  border: 1px solid #d6d0c5;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .topbar,
+  .controls,
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}

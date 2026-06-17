@@ -1,0 +1,393 @@
+from collections.abc import Sequence
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import Field, FiniteFloat, ValidationError
+
+from fortyk_los_backend.domain.analysis import (
+    AnalysisRequestTooLarge,
+    GridSpec,
+    MovementExposureRequest,
+    Region,
+    TerrainCoverageRequest,
+    generate_firing_lane_heatmap,
+    measure_deployment_exposure,
+    measure_terrain_coverage,
+)
+from fortyk_los_backend.domain.fixtures import FixtureRepository, StaleLayoutAcceptanceError
+from fortyk_los_backend.domain.los import (
+    BaseProfile,
+    LineOfSightRequest,
+    LineOfSightResult,
+    compute_base_aware_los,
+    compute_point_los,
+)
+from fortyk_los_backend.domain.models import (
+    CanonicalBaseModel,
+    CanonicalLayout,
+    Point,
+    ReviewStatus,
+    ValidationSeverity,
+)
+from fortyk_los_backend.domain.serialization import stable_layout_hash
+
+PACKAGE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = PACKAGE_DIR.parents[1]
+
+app = FastAPI(title="Warhammer 40k LOS Analyzer")
+app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
+fixtures = FixtureRepository(REPO_ROOT)
+
+
+@app.exception_handler(RequestValidationError)
+def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": _sanitize_validation_errors(exc.errors())},
+    )
+
+
+class LineOfSightApiRequest(CanonicalBaseModel):
+    source: Point
+    target: Point
+    source_base_diameter: FiniteFloat | None = Field(default=None, gt=0)
+    target_base_diameter: FiniteFloat | None = Field(default=None, gt=0)
+    boundary_sample_count: int = Field(default=16, ge=8, le=128)
+
+
+class HeatmapApiRequest(CanonicalBaseModel):
+    source_region: Region
+    target_grid: GridSpec
+    source_step: FiniteFloat | None = Field(default=None, gt=0)
+
+
+class TerrainCoverageApiRequest(CanonicalBaseModel):
+    source_region: Region
+    target_grid: GridSpec
+
+
+class AcceptValidationWarningRequest(CanonicalBaseModel):
+    layout_hash: str = Field(min_length=64, max_length=64)
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/api/layouts")
+def list_layouts() -> dict[str, list[dict[str, str]]]:
+    return {"layouts": fixtures.list_layouts()}
+
+
+@app.get("/api/layouts/{layout_id}")
+def get_layout(layout_id: str) -> dict[str, object]:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return {
+        "layout": jsonable_encoder(layout),
+        "layout_hash": stable_layout_hash(layout),
+    }
+
+
+@app.post("/api/layouts/{layout_id}/los")
+def line_of_sight(layout_id: str, request: LineOfSightApiRequest) -> dict[str, object]:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    validation_state = _ensure_layout_ready_for_analysis(layout)
+
+    los_request = LineOfSightRequest(source=request.source, target=request.target)
+    if request.source_base_diameter is not None or request.target_base_diameter is not None:
+        source_diameter = request.source_base_diameter or request.target_base_diameter
+        target_diameter = request.target_base_diameter or request.source_base_diameter
+        if source_diameter is None or target_diameter is None:
+            raise HTTPException(status_code=422, detail="Base diameter is required")
+        try:
+            result: LineOfSightResult = compute_base_aware_los(
+                layout,
+                los_request,
+                source_base=BaseProfile(
+                    diameter=source_diameter,
+                    boundary_sample_count=request.boundary_sample_count,
+                ),
+                target_base=BaseProfile(
+                    diameter=target_diameter,
+                    boundary_sample_count=request.boundary_sample_count,
+                ),
+            )
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=_sanitize_validation_errors(exc.errors()),
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    else:
+        try:
+            result = compute_point_los(layout, los_request)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    payload = dict(jsonable_encoder(result))
+    return _with_validation_state(payload, validation_state)
+
+
+@app.post("/api/layouts/{layout_id}/heatmap")
+def firing_lane_heatmap(layout_id: str, request: HeatmapApiRequest) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    validation_state = _ensure_layout_ready_for_analysis(layout)
+    try:
+        result = generate_firing_lane_heatmap(
+            layout,
+            source_region=request.source_region,
+            target_grid=request.target_grid,
+            source_step=request.source_step,
+        )
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    payload = dict(jsonable_encoder(result))
+    return _with_validation_state(payload, validation_state)
+
+
+@app.post("/api/layouts/{layout_id}/exposure")
+def deployment_exposure(layout_id: str, request: MovementExposureRequest) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    validation_state = _ensure_layout_ready_for_analysis(layout)
+    try:
+        result = measure_deployment_exposure(layout, request)
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    payload = dict(jsonable_encoder(result))
+    return _with_validation_state(payload, validation_state)
+
+
+@app.post("/api/layouts/{layout_id}/terrain/{feature_id}/coverage")
+def terrain_coverage(
+    layout_id: str,
+    feature_id: str,
+    request: TerrainCoverageApiRequest,
+) -> dict[str, object]:
+    layout = _get_layout_or_404(layout_id)
+    validation_state = _ensure_layout_ready_for_analysis(layout)
+    try:
+        result = measure_terrain_coverage(
+            layout,
+            TerrainCoverageRequest(
+                feature_id=feature_id,
+                source_region=request.source_region,
+                target_grid=request.target_grid,
+            ),
+        )
+    except AnalysisRequestTooLarge as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    payload = dict(jsonable_encoder(result))
+    return _with_validation_state(payload, validation_state)
+
+
+@app.get("/api/sources")
+def source_status() -> dict[str, list[dict[str, object]]]:
+    manifest = fixtures.source_manifest()
+    statuses = {
+        status.document_id: status for status in manifest.cache_statuses(repo_root=REPO_ROOT)
+    }
+    documents: list[dict[str, object]] = []
+    for document in manifest.documents:
+        document_payload = jsonable_encoder(document)
+        document_payload["cache_status"] = jsonable_encoder(statuses[document.document_id])
+        documents.append(document_payload)
+    return {"documents": documents}
+
+
+@app.get("/api/extraction/terrain-footprints")
+def terrain_footprint_evidence() -> dict[str, object]:
+    return dict(jsonable_encoder(fixtures.terrain_footprint_evidence()))
+
+
+@app.get("/api/rules/terrain-semantics")
+def rules_terrain_semantics_evidence() -> dict[str, object]:
+    return dict(jsonable_encoder(fixtures.rules_terrain_semantics_evidence()))
+
+
+@app.get("/api/layouts/{layout_id}/footprint-matches")
+def footprint_match_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.footprint_match_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
+@app.get("/api/layouts/{layout_id}/visual-sanity")
+def visual_sanity_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.visual_sanity_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    payload = dict(jsonable_encoder(evidence))
+    payload.pop("layout", None)
+    return payload
+
+
+@app.get("/api/layouts/{layout_id}/footprint-normalization")
+def footprint_normalization_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.footprint_normalization_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
+@app.get("/api/layouts/{layout_id}/terrain-symmetry")
+def terrain_symmetry_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.terrain_symmetry_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
+@app.get("/api/layouts/{layout_id}/terrain-reconciliation")
+def terrain_reconciliation_evidence(layout_id: str) -> dict[str, object]:
+    evidence = fixtures.terrain_reconciliation_evidence(layout_id)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return dict(jsonable_encoder(evidence))
+
+
+@app.get("/api/layouts/{layout_id}/source-underlay.png")
+def source_underlay(layout_id: str) -> Response:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    png = fixtures.source_underlay_png(layout)
+    if png is None:
+        raise HTTPException(status_code=404, detail=f"Source underlay not available: {layout_id}")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"cache-control": "no-store"},
+    )
+
+
+@app.post("/api/layouts/{layout_id}/validation/{record_code}/accept")
+def accept_validation_warning(
+    layout_id: str,
+    record_code: str,
+    request: AcceptValidationWarningRequest,
+) -> dict[str, object]:
+    try:
+        layout = fixtures.accept_validation_record(
+            layout_id,
+            record_code,
+            layout_hash=request.layout_hash,
+        )
+    except StaleLayoutAcceptanceError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "layout_hash_mismatch",
+                "message": str(exc),
+            },
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return {
+        "layout": jsonable_encoder(layout),
+        "layout_hash": stable_layout_hash(layout),
+        "validation_state": _layout_validation_state(layout),
+    }
+
+
+def _get_layout_or_404(layout_id: str) -> CanonicalLayout:
+    layout = fixtures.get_layout(layout_id)
+    if layout is None:
+        raise HTTPException(status_code=404, detail=f"Layout not found: {layout_id}")
+    return layout
+
+
+def _ensure_layout_ready_for_analysis(layout: CanonicalLayout) -> dict[str, object]:
+    validation_state = _layout_validation_state(layout)
+    unresolved_warning_codes = validation_state["unresolved_warning_codes"]
+    if not unresolved_warning_codes:
+        return validation_state
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "status": "blocked",
+            "message": "Layout has unresolved validation warnings.",
+            "record_codes": unresolved_warning_codes,
+            "accepted_warning_codes": validation_state["accepted_warning_codes"],
+        },
+    )
+
+
+def _with_validation_state(
+    payload: dict[str, object],
+    validation_state: dict[str, object],
+) -> dict[str, object]:
+    if validation_state["status"] != "clean":
+        payload["validation_state"] = validation_state
+    return payload
+
+
+def _layout_validation_state(layout: CanonicalLayout) -> dict[str, object]:
+    warning_records = [
+        record
+        for record in layout.validation_records
+        if record.severity == ValidationSeverity.WARNING
+    ]
+    accepted_warning_codes = [
+        record.code
+        for record in warning_records
+        if record.review_status == ReviewStatus.ACCEPTED
+    ]
+    blocking_records = [
+        record
+        for record in warning_records
+        if record.review_status != ReviewStatus.ACCEPTED
+    ]
+    unresolved_warning_codes = [record.code for record in blocking_records]
+    if unresolved_warning_codes:
+        status = "blocked"
+    elif accepted_warning_codes:
+        status = "accepted_with_warnings"
+    else:
+        status = "clean"
+    return {
+        "status": status,
+        "accepted_warning_codes": accepted_warning_codes,
+        "unresolved_warning_codes": unresolved_warning_codes,
+    }
+
+
+def _sanitize_validation_errors(errors: Sequence[object]) -> list[dict[str, object]]:
+    return [_sanitize_validation_error(error) for error in errors]
+
+
+def _sanitize_validation_error(error: object) -> dict[str, object]:
+    if not isinstance(error, dict):
+        return {"msg": str(error)}
+    sanitized = dict(error)
+    sanitized.pop("input", None)
+    ctx = sanitized.get("ctx")
+    if isinstance(ctx, dict):
+        sanitized["ctx"] = {key: str(value) for key, value in ctx.items()}
+    return sanitized
