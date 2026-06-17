@@ -185,3 +185,18 @@ Consequences:
 
 - `httpx2`, `httpcore2`, and `truststore` are absent from the lockfile.
 - Future dependency additions should be tied to concrete imports, tests, or documented tool requirements.
+
+## 2026-06-17: Source Acquisition Is Hash-Gated And Local
+
+Decision: Provide an official-source downloader that reads only the committed source manifest, writes only under the gitignored `data/pdfs` cache, and publishes a file only after its SHA-256 matches the manifest.
+
+Reasoning: The product should be able to acquire the official PDFs automatically, but the public repository must not redistribute third-party PDF binaries or trust arbitrary network responses. Hash-gated local acquisition keeps the workflow reproducible while preserving the copyright and supply-chain boundary.
+
+Consequences:
+
+- The downloader skips files that already match the manifest hash.
+- Missing or hash-mismatched cache files are refreshed from the pinned official URL.
+- Redirect targets are revalidated against the approved official asset host before any response body is read.
+- Response bodies are streamed to temporary `.part` files with an explicit size cap rather than read fully into memory.
+- A downloaded payload with the wrong hash is not moved into place, temporary `.part` files are removed, and any existing local cache file is preserved for inspection.
+- Public CI remains network-free; users run `scripts\download-sources.cmd` locally to populate the optional official-PDF cache.

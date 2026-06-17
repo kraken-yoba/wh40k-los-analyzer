@@ -10,6 +10,7 @@ Implemented now:
 
 - FastAPI-served GUI with layout/source status, validation records, click-on-map LOS, firing-lane heatmaps, deployment exposure, terrain contribution metrics, and export state.
 - Deterministic canonical geometry models, validation records, source manifests, stable layout hashing, and JSON schema export.
+- Hash-pinned source downloader for the official PDFs listed in the public-safe manifest, with verified local gitignored cache writes.
 - Base-aware 2D LOS using deterministic disk sampling.
 - Event Companion vector extraction for board, deployment zones, terrain placement candidates, and terrain category markers.
 - Terrain Area Footprints vector extraction for footprint outlines, normalized footprint templates, provisional terrain-placement matches, and provisional Dense/Solid wall/blocker segments from matched footprint fragments.
@@ -60,7 +61,19 @@ Official PDF binaries are gitignored. Tests that depend on the pinned local PDF 
 
 ## Local Official PDF Cache
 
-Place the official source PDFs at:
+Populate the local gitignored cache from the pinned official source manifest:
+
+```powershell
+.\scripts\download-sources.cmd
+```
+
+The downloader writes only under `data/pdfs`, skips already hash-matched files, streams downloads to temporary `.part` files with a size cap, revalidates redirect targets, and refuses to publish a download whose SHA-256 differs from the manifest. To download one document, pass its manifest id:
+
+```powershell
+.\scripts\download-sources.cmd --document-id event-companion-2026-06-12
+```
+
+The expected cache paths are:
 
 ```text
 data/pdfs/terrainareafootprints.pdf
