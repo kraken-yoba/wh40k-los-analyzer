@@ -40,6 +40,9 @@
 - Task 1 packet JSON repository committed as `2a44674`.
 - Task 2 source manifest committed as `20fa2ad`.
 - Task 3 PDF/coordinate primitives: controller verification passed; two rounds of subagent review attempts failed with backend `404 Not Found` before producing review findings, so Task 3 received inline spec/code review before commit.
+- Task 4 footprint extraction uses vector-first extraction for official PDF pages. The terrain footprint PDF exposes five large green vector paths across pages 1-3; tiny single-item green path fragments are ignored. Raster green-contour extraction remains as a fallback for pages without vector templates.
+- Task 4 code review found and fixed two fallback P1s: raster fallback now derives pixels-per-inch from render DPI unless explicitly calibrated, and vector-first extraction now falls back page-by-page instead of dropping raster-only pages when any vector page succeeds.
+- Task 4 official smoke extracts 5 templates from `terrain-area-footprints.pdf` and writes `data/processed/footprint-library.json` plus review overlays for pages 1-3.
 
 ### Exit Criteria
 
