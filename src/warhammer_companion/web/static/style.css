@@ -333,6 +333,12 @@ button,
 .blocked-line {
   color: rgba(139, 47, 45, 0.58);
 }
+
+.safe-line {
+  color: #f7efe0;
+  filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.6));
+}
+
 .map-wrap {
   overflow: auto;
   background: #d8d2c4;
@@ -360,6 +366,16 @@ button,
   stroke: rgba(45, 111, 91, 0.6);
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
+}
+
+.safe-zone-outline {
+  fill: none;
+  stroke: #f7efe0;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke;
+  filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.62));
 }
 
 .terrain-area {
@@ -457,6 +473,7 @@ button,
 .coverage-image,
 .heatmap-image,
 .coverage-cell,
+.safe-zone-outline,
 .ray-visible,
 .ray-blocked {
   pointer-events: none;

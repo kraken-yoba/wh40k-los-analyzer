@@ -17,8 +17,10 @@ from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.integrations.codex_backend import CodexBackend, sanitize_status_message
 from warhammer_companion.los.geometry import (
     clamp_base_center,
+    heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_edge,
     heatmap_visibility_polygons_from_deployment_zone,
+    safe_heatmap_regions,
     visibility_polygon_from_base,
     visibility_rays_from_base,
 )
@@ -51,7 +53,19 @@ def _cached_heatmap_svg(
             zone_id,
             offset_inches=offset_inches,
         )
-    return render_map_svg(packet, heatmap_polygons=polygons)
+    exclusion = heatmap_exclusion_zone(
+        packet,
+        zone_id,
+        source=source,
+        offset_inches=offset_inches,
+    )
+    safe_regions = safe_heatmap_regions(packet, polygons, excluded_area=exclusion)
+    return render_map_svg(
+        packet,
+        heatmap_polygons=polygons,
+        heatmap_exclusion=exclusion,
+        safe_regions=safe_regions,
+    )
 
 
 @app.get("/")

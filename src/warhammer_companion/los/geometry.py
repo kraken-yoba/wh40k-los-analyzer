@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import combinations
 from math import atan2, ceil, cos, sin
 
 from shapely.geometry import (
@@ -17,6 +18,7 @@ from shapely.ops import unary_union
 from warhammer_companion.domain.models import MapPacket, TerrainArea
 
 BOARD_BOUNDARY_EDGE_TOLERANCE = 0.25
+TERRAIN_CONTACT_TOLERANCE_INCHES = 0.15
 
 
 @dataclass(frozen=True)
@@ -170,6 +172,56 @@ def heatmap_visibility_polygons_from_deployment_edge(
     ]
 
 
+def heatmap_exclusion_zone(
+    packet: MapPacket,
+    deployment_zone_id: str,
+    *,
+    source: str,
+    offset_inches: float = 0.0,
+) -> BaseGeometry:
+    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    board = _board_polygon(packet)
+    if source == "interior" or offset_inches <= 0:
+        return zone.intersection(board)
+
+    strips: list[Polygon] = []
+    for start, end in _front_edge_segments(zone, board):
+        normal = _front_edge_normal(start, end, zone, board)
+        shifted_start = (
+            start[0] + normal[0] * offset_inches,
+            start[1] + normal[1] * offset_inches,
+        )
+        shifted_end = (
+            end[0] + normal[0] * offset_inches,
+            end[1] + normal[1] * offset_inches,
+        )
+        strip = Polygon([start, end, shifted_end, shifted_start])
+        if strip.is_valid and not strip.is_empty:
+            strips.append(strip)
+
+    geometry = unary_union([zone, *strips]) if strips else zone
+    return geometry.intersection(board).buffer(0)
+
+
+def safe_heatmap_regions(
+    packet: MapPacket,
+    visibility_polygons: list[VisibilityPolygon],
+    *,
+    excluded_area: BaseGeometry | None = None,
+) -> BaseGeometry:
+    board = _board_polygon(packet)
+    visible_parts = [
+        item.polygon.intersection(board)
+        for item in visibility_polygons
+        if not item.polygon.is_empty
+    ]
+    visible_region = unary_union(visible_parts) if visible_parts else Polygon()
+    safe_region = board.difference(visible_region)
+    if excluded_area is not None and not excluded_area.is_empty:
+        safe_region = safe_region.difference(excluded_area)
+    return safe_region.buffer(0)
+
+
 def deployment_edge_sample_points(
     packet: MapPacket,
     deployment_zone_id: str,
@@ -181,12 +233,7 @@ def deployment_edge_sample_points(
     zone = packet.deployment_zone(deployment_zone_id).polygon()
     board = _board_polygon(packet)
     samples: list[tuple[float, float]] = []
-    for start, end in _polygon_segments(zone):
-        segment = LineString([start, end])
-        if segment.length <= 0:
-            continue
-        if _is_board_boundary_segment(segment, board):
-            continue
+    for start, end in _front_edge_segments(zone, board):
         normal = _front_edge_normal(start, end, zone, board)
         for sample in _sample_segment(start, end, sample_step):
             shifted = (
@@ -360,6 +407,7 @@ def _obscuring_terrain_geometries(
         geometry = unary_union(polygons)
         if not geometry.is_empty:
             geometries.append(geometry)
+    geometries.extend(_hairline_contact_bridges(geometries))
     return geometries
 
 
@@ -418,6 +466,28 @@ def _is_los_blocked(
     return False
 
 
+def _hairline_contact_bridges(geometries: list[BaseGeometry]) -> list[BaseGeometry]:
+    bridges: list[BaseGeometry] = []
+    if len(geometries) < 2:
+        return bridges
+
+    half_tolerance = TERRAIN_CONTACT_TOLERANCE_INCHES / 2.0
+    for left, right in combinations(geometries, 2):
+        if left.distance(right) > TERRAIN_CONTACT_TOLERANCE_INCHES:
+            continue
+        original = unary_union([left, right])
+        closed = unary_union(
+            [
+                left.buffer(half_tolerance, join_style=2),
+                right.buffer(half_tolerance, join_style=2),
+            ]
+        ).buffer(-half_tolerance, join_style=2)
+        bridge = closed.difference(original)
+        if not bridge.is_empty and bridge.area > 1e-6:
+            bridges.append(bridge)
+    return bridges
+
+
 def _board_polygon(packet: MapPacket) -> Polygon:
     return Polygon(
         [
@@ -447,6 +517,21 @@ def _geometry_vertices(geometry: BaseGeometry) -> list[tuple[float, float]]:
 def _polygon_segments(polygon: Polygon) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     vertices = _polygon_vertices(polygon)
     return list(zip(vertices, vertices[1:] + vertices[:1], strict=True))
+
+
+def _front_edge_segments(
+    zone: Polygon,
+    board: Polygon,
+) -> list[tuple[tuple[float, float], tuple[float, float]]]:
+    segments: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    for start, end in _polygon_segments(zone):
+        segment = LineString([start, end])
+        if segment.length <= 0:
+            continue
+        if _is_board_boundary_segment(segment, board):
+            continue
+        segments.append((start, end))
+    return segments
 
 
 def _is_board_boundary_segment(line: LineString, board: Polygon) -> bool:

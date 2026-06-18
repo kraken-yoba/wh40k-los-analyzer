@@ -23,6 +23,8 @@ def render_map_svg(
     packet: MapPacket,
     heatmap: list[HeatmapCell] | None = None,
     heatmap_polygons: list[VisibilityPolygon] | None = None,
+    heatmap_exclusion: BaseGeometry | None = None,
+    safe_regions: BaseGeometry | None = None,
     coverage: list[CoverageCell] | None = None,
     coverage_polygon: BaseGeometry | None = None,
     rays: list[VisibilityRay] | None = None,
@@ -39,9 +41,26 @@ def render_map_svg(
     ]
 
     if heatmap_polygons:
-        parts.extend(_render_heatmap_raster(packet, heatmap_polygons, scale))
+        parts.extend(
+            _render_heatmap_raster(
+                packet,
+                heatmap_polygons,
+                scale,
+                heatmap_exclusion=heatmap_exclusion,
+            )
+        )
     elif heatmap:
         parts.extend(_render_heatmap_cells(heatmap, scale, packet.board.height))
+
+    if safe_regions is not None:
+        parts.extend(
+            _render_geometry_outlines(
+                safe_regions,
+                scale,
+                packet.board.height,
+                "safe-zone-outline",
+            )
+        )
 
     if coverage_polygon is not None:
         parts.extend(_render_coverage_raster(packet, coverage_polygon, scale))
@@ -115,7 +134,11 @@ def render_map_svg(
 
 
 def _render_heatmap_raster(
-    packet: MapPacket, polygons: list[VisibilityPolygon], scale: int
+    packet: MapPacket,
+    polygons: list[VisibilityPolygon],
+    scale: int,
+    *,
+    heatmap_exclusion: BaseGeometry | None = None,
 ) -> list[str]:
     width = int(round(packet.board.width * scale))
     height = int(round(packet.board.height * scale))
@@ -130,7 +153,20 @@ def _render_heatmap_raster(
         accumulator += np.asarray(mask, dtype=np.uint16)
 
     visibility = accumulator.astype(np.float64) / max(len(polygons), 1)
-    image = Image.fromarray(_colorize_heatmap_array(visibility), "RGBA")
+    rgba = _colorize_heatmap_array(visibility)
+    if heatmap_exclusion is not None and not heatmap_exclusion.is_empty:
+        exclusion_mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(exclusion_mask)
+        _draw_geometry_mask(
+            draw,
+            heatmap_exclusion,
+            scale,
+            packet.board.height,
+            exterior_fill=255,
+        )
+        rgba[np.asarray(exclusion_mask, dtype=np.uint8) > 0, 3] = 0
+
+    image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "heatmap-image")]
 
 
@@ -241,6 +277,43 @@ def _render_coverage_cells(cells: list[CoverageCell], scale: int, board_height: 
     return rendered
 
 
+def _render_geometry_outlines(
+    geometry: BaseGeometry,
+    scale: int,
+    board_height: float,
+    css_class: str,
+) -> list[str]:
+    if geometry.is_empty:
+        return []
+    if isinstance(geometry, MultiPolygon):
+        rendered: list[str] = []
+        for polygon in geometry.geoms:
+            rendered.extend(_render_polygon_outlines(polygon, scale, board_height, css_class))
+        return rendered
+    if isinstance(geometry, Polygon):
+        return _render_polygon_outlines(geometry, scale, board_height, css_class)
+    return []
+
+
+def _render_polygon_outlines(
+    polygon: Polygon,
+    scale: int,
+    board_height: float,
+    css_class: str,
+) -> list[str]:
+    rings = [polygon.exterior, *polygon.interiors]
+    return [
+        _polyline(
+            [(float(x), float(y)) for x, y in ring.coords],
+            scale,
+            board_height,
+            css_class,
+        )
+        for ring in rings
+        if len(ring.coords) >= 3
+    ]
+
+
 def _heatmap_color(visibility: float) -> str:
     if visibility >= 0.8:
         return "#1f7a5f"
@@ -273,6 +346,14 @@ def _polygon(
     svg_points = [_to_svg_point(point, scale, board_height) for point in points]
     joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in svg_points)
     return f'<polygon points="{joined}" class="{css_class}"/>'
+
+
+def _polyline(
+    points: list[tuple[float, float]], scale: int, board_height: float, css_class: str
+) -> str:
+    svg_points = [_to_svg_point(point, scale, board_height) for point in points]
+    joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in svg_points)
+    return f'<polyline points="{joined}" class="{css_class}"/>'
 
 
 def _label(

@@ -201,3 +201,15 @@
   - `.\.venv\Scripts\python.exe -m ruff check src tests`
   - `.\.venv\Scripts\mypy.exe src`
   - `.\.venv\Scripts\python.exe -m pytest -q` (`129 passed`)
+
+### Heatmap Safe-Zone Slice
+
+- Heatmap rendering now blanks the selected player's own risk area: the full deployment zone for interior sampling, or the deployment zone plus the selected edge-offset strip for edge sampling.
+- Fully obscured heatmap regions are now computed as board area not covered by any sampled visibility polygon, minus the blanked own-risk area, and rendered as solid SVG outlines above the pixel heatmap.
+- LOS terrain blockers now add small derived seam bridges for sub-0.15 inch hairline gaps between non-ignored obscuring terrain footprints. This closes extraction slits between touching footprints without changing stored packet geometry or official terrain merge groups.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_los_geometry.py tests\test_rendering_svg.py` (`32 passed`)
+  - `.\.venv\Scripts\python.exe -m pytest` (`139 passed`)
+  - `.\.venv\Scripts\python.exe -m ruff check .`
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_los_geometry.py tests\test_rendering_svg.py tests\test_web_server.py` (`40 passed`)
+- Browser verification used `http://127.0.0.1:8042/heatmap?packet_id=official-event-companion-page-9&zone_id=attacker&source=edge&offset_inches=6`: the page rendered one pixel heatmap image, 30 `safe-zone-outline` elements, the new `Fully obscured` legend item, and the selected 6-inch offset. Decoding the embedded PNG confirmed attacker-owned top deployment/offset pixels had alpha `0`, while the active heatmap area remained alpha `184`.

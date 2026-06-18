@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from warhammer_companion.los.geometry import (
+    heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_zone,
+    safe_heatmap_regions,
     visibility_polygon_from_base,
 )
 from warhammer_companion.rendering.svg import render_map_svg
@@ -25,6 +27,23 @@ def test_heatmap_polygons_render_as_embedded_pixel_raster() -> None:
     assert 'class="heatmap-image"' in svg
     assert "data:image/png;base64," in svg
     assert 'class="heat-cell"' not in svg
+
+
+def test_heatmap_raster_supports_blank_exclusion_and_safe_zone_outline() -> None:
+    packet = SAMPLE_PACKETS[0]
+    polygons = heatmap_visibility_polygons_from_deployment_zone(packet, "attacker")
+    excluded_area = heatmap_exclusion_zone(packet, "attacker", source="interior")
+    safe_regions = safe_heatmap_regions(packet, polygons, excluded_area=excluded_area)
+
+    svg = render_map_svg(
+        packet,
+        heatmap_polygons=polygons,
+        heatmap_exclusion=excluded_area,
+        safe_regions=safe_regions,
+    )
+
+    assert 'class="heatmap-image"' in svg
+    assert 'class="safe-zone-outline"' in svg
 
 
 def test_binary_coverage_polygon_renders_as_embedded_pixel_raster() -> None:

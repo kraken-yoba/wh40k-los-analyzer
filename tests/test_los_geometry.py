@@ -13,10 +13,12 @@ from warhammer_companion.los.geometry import (
     binary_visibility_overlay_from_base,
     circular_base,
     deployment_edge_sample_points,
+    heatmap_exclusion_zone,
     heatmap_from_deployment_zone,
     heatmap_visibility_polygons_from_deployment_edge,
     heatmap_visibility_polygons_from_deployment_zone,
     is_line_blocked,
+    safe_heatmap_regions,
     visibility_polygon_from_base,
     visibility_rays_from_base,
 )
@@ -135,6 +137,45 @@ def test_heatmap_visibility_polygons_can_use_offset_deployment_edge() -> None:
     assert polygons
     assert {round(item.origin[1], 2) for item in polygons} == {16.0}
     assert all(not item.polygon.is_empty for item in polygons)
+
+
+def test_heatmap_exclusion_zone_covers_owned_zone_and_edge_offset() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    interior_exclusion = heatmap_exclusion_zone(
+        packet,
+        "attacker",
+        source="interior",
+        offset_inches=6,
+    )
+    edge_exclusion = heatmap_exclusion_zone(
+        packet,
+        "attacker",
+        source="edge",
+        offset_inches=6,
+    )
+
+    assert interior_exclusion.covers(Point(22.0, 5.0))
+    assert not interior_exclusion.covers(Point(22.0, 10.5))
+    assert edge_exclusion.covers(Point(22.0, 5.0))
+    assert edge_exclusion.covers(Point(22.0, 16.0))
+    assert not edge_exclusion.covers(Point(22.0, 16.5))
+
+
+def test_safe_heatmap_regions_exclude_owned_zone_and_visible_areas() -> None:
+    packet = _side_deployment_single_ruin_packet()
+    polygons = heatmap_visibility_polygons_from_deployment_edge(
+        packet,
+        "attacker",
+        sample_step=100.0,
+    )
+    excluded_area = heatmap_exclusion_zone(packet, "attacker", source="edge")
+
+    safe_regions = safe_heatmap_regions(packet, polygons, excluded_area=excluded_area)
+
+    assert not safe_regions.covers(Point(6.0, 30.0))
+    assert not safe_regions.covers(Point(16.0, 30.0))
+    assert safe_regions.covers(Point(35.0, 54.0))
 
 
 def test_heatmap_returns_cells_for_sample_packet() -> None:
@@ -278,6 +319,14 @@ def test_point_inside_grouped_terrain_footprint_sees_through_group() -> None:
     polygon = visibility_polygon_from_base(packet, center=(20.0, 30.0), base_diameter=1.57)
 
     assert polygon.covers(Point(40.0, 30.0))
+
+
+def test_hairline_gap_between_touching_footprints_does_not_create_los_slit() -> None:
+    packet = _hairline_gap_ruins_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(10.0, 30.0), base_diameter=1.57)
+
+    assert not polygon.covers(Point(35.0, 30.0))
 
 
 def test_base_touching_terrain_footprint_still_blocked_by_dense_feature() -> None:
@@ -439,6 +488,36 @@ def _u_shaped_ruin_packet() -> MapPacket:
                     (15, 40),
                 ],
             )
+        ],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _hairline_gap_ruins_packet() -> MapPacket:
+    return MapPacket(
+        id="hairline-gap-ruins",
+        name="Hairline Gap Ruins",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="lower",
+                label="Lower",
+                kind=TerrainKind.RUINS,
+                footprint=[(20, 20), (28, 20), (28, 29.98), (20, 29.98)],
+            ),
+            TerrainArea(
+                id="upper",
+                label="Upper",
+                kind=TerrainKind.RUINS,
+                footprint=[(20, 30.04), (28, 30.04), (28, 40), (20, 40)],
+            ),
         ],
         dense_features=[],
         deployment_zones=[
