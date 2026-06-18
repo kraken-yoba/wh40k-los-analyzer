@@ -20,6 +20,7 @@ from warhammer_companion.domain.models import (
 )
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.ingestion.artifacts import IngestionPaths
+from warhammer_companion.ingestion.catalog_classifier import write_catalog_categorizer_results
 from warhammer_companion.ingestion.feature_categorizer import (
     apply_layout_feature_categorizations_with_stats,
     load_feature_categorizations,
@@ -177,6 +178,7 @@ def run_official_ingestion(
     *,
     paths: IngestionPaths | None = None,
     layout_pages: Sequence[int] | None = None,
+    classify_features: bool = False,
 ) -> IngestionReport:
     paths = paths or IngestionPaths()
     started = time.time()
@@ -201,6 +203,11 @@ def run_official_ingestion(
         paths.visual_categorizer_request_path,
         review_dir=paths.layout_review_dir,
     )
+    if classify_features:
+        write_catalog_categorizer_results(
+            paths.visual_categorizer_request_path,
+            paths.visual_categorizer_results_path,
+        )
     categorizer_results_present = paths.visual_categorizer_results_path.exists()
     categorizations = load_feature_categorizations(paths.visual_categorizer_results_path)
     layouts = layout_library.layouts

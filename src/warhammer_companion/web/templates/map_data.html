@@ -7,7 +7,7 @@
     <p class="lede">Manage ingested map packets and track the official-source extraction pipeline.</p>
   </div>
   <form method="post" action="/map-data/ingest">
-    <button type="submit">Trigger Ingestion</button>
+    <button type="submit">Ingest + Classify</button>
   </form>
 </header>
 
@@ -85,6 +85,14 @@
         </div>
       </div>
       <span class="tag">{{ report.visual_categorizer_applied_count }}/{{ report.visual_categorizer_result_count }}</span>
+    </div>
+    {% elif report.visual_categorizer_request_path %}
+    <div class="status-row">
+      <div>
+        <strong>Visual categorizer results</strong>
+        <div class="muted">No classifier results were applied; map packets are using heuristic fallback geometry.</div>
+      </div>
+      <span class="tag tag-blocked">not applied</span>
     </div>
     {% endif %}
     {% for result in report.validation %}

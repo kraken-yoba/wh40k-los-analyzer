@@ -121,3 +121,19 @@
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser verification used `http://127.0.0.1:8031`: Settings showed `Codex SDK ready`, packaged runtime `openai-codex-cli-bin` `0.137.0a4`, state under an app-owned Codex home, and server-rendered `Start Codex login` / `Device code` controls; Map Data, LOS Heatmap, and LOS Checker rendered the official page-9 packet with no captured console warnings/errors.
+
+### Local Catalog Classifier Application Slice
+
+- Added a deterministic local catalog classifier that consumes the same `visual-categorizer-request.json` contract as the future Codex visual model path and writes `visual-categorizer-results.json` with provider `local_catalog_classifier`.
+- The classifier is a bootstrap pass, not a substitute for future visual-model review. It uses footprint geometry, fill ratio, aspect ratio, and current heuristic profile to separate likely horizontal floor/platform patches from wall/container LOS blockers.
+- Web-triggered ingestion now runs the local classifier by default; the CLI defaults to `--classify-features` and keeps `--skip-classifier` for preserving hand-authored or externally reviewed categorizer results.
+- Map Data now labels the operation as `Ingest + Classify` and reports when a categorizer request exists but no results were applied, so stale fallback geometry is visible to the user.
+- Re-ingested official Event Companion page 9 with classifier results. The ingestion report shows 31 classifier results present and 31 applied from `data/processed/review/visual-categorizer-results.json`.
+- The page-9 classifier split the 31 dense candidates into 11 `floor-or-platform` review features, 6 `ruined-wall-l`, 5 `ruined-wall-u`, 5 `armoured-container`, and 4 `solid-los-blocker` results.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`125 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`

@@ -30,6 +30,16 @@ IngestionPageOption = Annotated[
         help="Event Companion page to ingest. Repeat for a subset smoke run.",
     ),
 ]
+ClassifyFeaturesOption = Annotated[
+    bool,
+    typer.Option(
+        "--classify-features/--skip-classifier",
+        help=(
+            "Generate local catalog classifier results before packet projection. "
+            "Use --skip-classifier to preserve hand-authored visual results."
+        ),
+    ),
+]
 
 
 @cli.command()
@@ -70,9 +80,14 @@ def list_sources() -> None:
 def ingest_official(
     data_dir: DataDirOption = DEFAULT_DATA_DIR,
     page: IngestionPageOption = None,
+    classify_features: ClassifyFeaturesOption = True,
 ) -> None:
     """Extract official PDFs and generate processed map packet JSON."""
-    report = run_official_ingestion(paths=IngestionPaths(data_dir), layout_pages=page)
+    report = run_official_ingestion(
+        paths=IngestionPaths(data_dir),
+        layout_pages=page,
+        classify_features=classify_features,
+    )
     typer.echo(
         f"Generated {report.packet_count} packet(s) from {report.layout_count} layout(s) "
         f"in {report.duration_seconds:.2f}s."

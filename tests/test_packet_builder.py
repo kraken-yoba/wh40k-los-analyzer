@@ -308,6 +308,24 @@ def test_run_official_ingestion_reports_unmatched_visual_categorizations(tmp_pat
     assert any("unmatched visual categorizer result IDs" in warning for warning in report.warnings)
 
 
+def test_run_official_ingestion_can_generate_catalog_classifier_results(tmp_path: Path) -> None:
+    paths = IngestionPaths(tmp_path / "data")
+    paths.raw_dir.mkdir(parents=True)
+    _synthetic_footprint_pdf(paths.raw_dir / "terrain-area-footprints.pdf")
+    _synthetic_event_pdf(paths.raw_dir / "event-companion.pdf")
+
+    report = run_official_ingestion(paths=paths, layout_pages=[1], classify_features=True)
+
+    payload = json.loads(paths.visual_categorizer_results_path.read_text(encoding="utf-8"))
+    packets = load_packet_directory(paths.map_packets_dir)
+    assert report.visual_categorizer_results_present
+    assert report.visual_categorizer_result_count == 1
+    assert report.visual_categorizer_applied_count == 1
+    assert payload["provider"] == "local_catalog_classifier"
+    assert any(feature.profile == "floor_or_platform" for feature in packets[0].light_features)
+    assert all(not feature.blocks_los for feature in packets[0].light_features)
+
+
 def test_run_official_ingestion_reports_stale_visual_categorization_digest(
     tmp_path: Path,
 ) -> None:

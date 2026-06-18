@@ -136,7 +136,7 @@ def map_data(request: Request) -> HTMLResponse:
 @app.post("/map-data/ingest", response_class=HTMLResponse)
 def trigger_ingestion() -> RedirectResponse:
     try:
-        run_official_ingestion(paths=ingestion_paths)
+        run_official_ingestion(paths=ingestion_paths, classify_features=True)
     except Exception as exc:
         return RedirectResponse(
             f"/map-data?ingestion=failed&message={quote(str(exc))}",

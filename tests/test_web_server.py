@@ -21,7 +21,13 @@ def test_map_data_ingestion_runs_and_reloads_repository(
     repository = FileBackedMapRepository(paths.map_packets_dir, fallback=SAMPLE_PACKETS)
     official_packet = _official_packet()
 
-    def fake_ingestion(*, paths: IngestionPaths, layout_pages=None) -> IngestionReport:
+    def fake_ingestion(
+        *,
+        paths: IngestionPaths,
+        layout_pages=None,
+        classify_features: bool = False,
+    ) -> IngestionReport:
+        assert classify_features
         write_packet(official_packet, paths.map_packets_dir / f"{official_packet.id}.json")
         return IngestionReport(
             started_at_epoch=1.0,

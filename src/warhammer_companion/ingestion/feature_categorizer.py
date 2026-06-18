@@ -100,6 +100,8 @@ class FeatureCategorization(BaseModel):
 
 class CategorizerResults(BaseModel):
     schema_version: int = 1
+    provider: str = "codex_visual_classifier"
+    catalog_version: int = FEATURE_CATALOG_VERSION
     categorizations: list[FeatureCategorization] = Field(default_factory=list)
 
 
