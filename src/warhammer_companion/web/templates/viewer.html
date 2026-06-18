@@ -24,6 +24,31 @@
     </label>
     <button type="submit">Load</button>
   </form>
+  {% if packet.layout_metadata %}
+  <dl class="packet-summary" aria-label="Selected map packet summary">
+    <div>
+      <dt>Force dispositions</dt>
+      <dd>
+        {{ packet.layout_metadata.first_player.force_disposition }}
+        vs {{ packet.layout_metadata.second_player.force_disposition }}
+      </dd>
+    </div>
+    <div>
+      <dt>Primary missions</dt>
+      <dd>
+        {{ packet.layout_metadata.first_player.primary_mission }}
+        vs {{ packet.layout_metadata.second_player.primary_mission }}
+      </dd>
+    </div>
+    <div>
+      <dt>Layout source</dt>
+      <dd>
+        Layout {{ packet.layout_metadata.layout_variant }}
+        - Event Companion page {{ packet.layout_metadata.source_page }}
+      </dd>
+    </div>
+  </dl>
+  {% endif %}
   <div class="map-wrap">{{ map_svg | safe }}</div>
 </section>
 

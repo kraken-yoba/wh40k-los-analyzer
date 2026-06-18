@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from shapely.geometry import Point
+from shapely.ops import unary_union
 
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import load_packet_directory
@@ -299,6 +302,56 @@ def test_official_label_features_project_to_standard_blockers() -> None:
     assert all(feature.blocks_los for feature in packet.dense_features)
 
 
+def test_rotated_official_wall_features_follow_local_feature_sides() -> None:
+    center = (12.0, 14.0)
+    x_axis = _unit_vector(math.radians(35.0))
+    y_axis = (-x_axis[1], x_axis[0])
+    width = 8.0
+    height = 5.0
+    wall_thickness = 0.75
+    terrain_area = LayoutElement(
+        id="area-rotated",
+        label="Rotated Area",
+        kind="terrain_area",
+        footprint=_oriented_rectangle(center, x_axis, y_axis, 10.0, 7.0),
+        source_page=1,
+        source_bbox=(100.0, 100.0, 300.0, 300.0),
+    )
+    label_feature = LayoutElement(
+        id="feature-rotated-ab",
+        label="AB Terrain Feature",
+        kind="terrain_feature",
+        feature_type="dense",
+        feature_profile="ruined_wall_l",
+        feature_wall_sides=["left", "top"],
+        official_feature_code="AB",
+        terrain_area_id=terrain_area.id,
+        footprint=_oriented_rectangle(center, x_axis, y_axis, width, height),
+        source_page=1,
+        source_bbox=(120.0, 120.0, 180.0, 180.0),
+    )
+    layout = _layout_with_dense_feature(
+        feature_profile="floor_or_platform",
+        feature_footprint=[(4.0, 4.0), (16.0, 4.0), (16.0, 16.0), (4.0, 16.0)],
+    ).model_copy(update={"terrain_areas": [terrain_area], "terrain_features": [label_feature]})
+
+    packet = build_map_packet(layout)
+
+    blockers = unary_union([feature.polygon() for feature in packet.dense_features])
+    assert blockers.covers(
+        Point(_offset_point(center, x_axis, -(width / 2.0 - wall_thickness / 2.0)))
+    )
+    assert blockers.covers(
+        Point(_offset_point(center, y_axis, height / 2.0 - wall_thickness / 2.0))
+    )
+    assert not blockers.covers(
+        Point(_offset_point(center, x_axis, width / 2.0 - wall_thickness / 2.0))
+    )
+    assert not blockers.covers(
+        Point(_offset_point(center, y_axis, -(height / 2.0 - wall_thickness / 2.0)))
+    )
+
+
 def test_validate_packet_rejects_missing_deployment_zone(
     tmp_path: Path,
 ) -> None:
@@ -588,6 +641,35 @@ def _stair_step_rectangle(
         x = min_x + (0.08 if index % 2 else 0.0)
         points.append((x, y))
     return points
+
+
+def _unit_vector(angle_radians: float) -> tuple[float, float]:
+    return (math.cos(angle_radians), math.sin(angle_radians))
+
+
+def _oriented_rectangle(
+    center: tuple[float, float],
+    x_axis: tuple[float, float],
+    y_axis: tuple[float, float],
+    width: float,
+    height: float,
+) -> list[tuple[float, float]]:
+    half_width = width / 2.0
+    half_height = height / 2.0
+    return [
+        _offset_point(_offset_point(center, x_axis, -half_width), y_axis, -half_height),
+        _offset_point(_offset_point(center, x_axis, half_width), y_axis, -half_height),
+        _offset_point(_offset_point(center, x_axis, half_width), y_axis, half_height),
+        _offset_point(_offset_point(center, x_axis, -half_width), y_axis, half_height),
+    ]
+
+
+def _offset_point(
+    point: tuple[float, float],
+    axis: tuple[float, float],
+    distance: float,
+) -> tuple[float, float]:
+    return (point[0] + axis[0] * distance, point[1] + axis[1] * distance)
 
 
 def _layout_with_dense_feature(

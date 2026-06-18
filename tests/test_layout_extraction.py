@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
+from collections import Counter
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from PIL import Image
 
+from warhammer_companion.ingestion.coordinates import BoardTransform
 from warhammer_companion.ingestion.layouts import (
     BLUE_DEPLOYMENT,
     DARK_STROKE,
@@ -15,12 +18,14 @@ from warhammer_companion.ingestion.layouts import (
     DEFAULT_LAYOUT_START_PAGE,
     RED_DEPLOYMENT,
     TERRAIN_GREY,
+    LayoutElement,
     detect_board_rect,
     extract_layout_from_pdf,
     write_layout_library,
     write_layout_review_overlay,
     write_official_layout_artifacts,
 )
+from warhammer_companion.ingestion.official_features import extract_official_feature_labels
 
 
 def test_detect_board_rect_selects_dark_44_by_60_rectangle(tmp_path: Path) -> None:
@@ -83,6 +88,86 @@ def test_extract_layout_from_pdf_uses_official_feature_labels_for_dense_template
     assert "official-feature-code:AB" in dense_features[0].warnings
     assert "official-feature-anchor:raster-dense" in dense_features[0].warnings
     assert "raster-dense-segmentation" not in dense_features[0].warnings
+
+
+def test_official_feature_labels_are_extracted_from_individual_words() -> None:
+    transform = BoardTransform((0.0, 0.0, 100.0, 100.0), 100.0, 100.0)
+    terrain_area = LayoutElement(
+        id="area-1",
+        label="Area 1",
+        kind="terrain_area",
+        footprint=[(0.0, 0.0), (40.0, 0.0), (40.0, 40.0), (0.0, 40.0)],
+        source_page=1,
+        source_bbox=(0.0, 60.0, 40.0, 100.0),
+    )
+    page = _FakeWordPage(
+        [
+            (9.0, 79.0, 11.0, 81.0, "EF", 0, 0, 0),
+            (19.0, 79.0, 21.0, 81.0, "CD", 0, 0, 1),
+        ]
+    )
+
+    features = extract_official_feature_labels(
+        page,
+        transform,
+        [terrain_area],
+        source_page=1,
+        element_factory=LayoutElement,
+    )
+
+    assert Counter(feature.official_feature_code for feature in features) == {
+        "CD": 1,
+        "EF": 1,
+    }
+    assert all(feature.terrain_area_id == terrain_area.id for feature in features)
+
+
+def test_synthetic_rotated_official_feature_template_follows_rotated_terrain_area() -> None:
+    transform = BoardTransform((0.0, 0.0, 100.0, 100.0), 100.0, 100.0)
+    center = (30.0, 30.0)
+    angle = math.radians(35.0)
+    x_axis = (math.cos(angle), math.sin(angle))
+    y_axis = (-x_axis[1], x_axis[0])
+    terrain_area = LayoutElement(
+        id="area-rotated",
+        label="Rotated Area",
+        kind="terrain_area",
+        footprint=_oriented_rectangle(center, x_axis, y_axis, 18.0, 10.0),
+        source_page=1,
+        source_bbox=(0.0, 0.0, 100.0, 100.0),
+    )
+    image_center = (center[0], 100.0 - center[1])
+    page = _FakeWordPage(
+        [
+            (
+                image_center[0] - 1.0,
+                image_center[1] - 1.0,
+                image_center[0] + 1.0,
+                image_center[1] + 1.0,
+                "AB",
+                0,
+                0,
+                0,
+            )
+        ]
+    )
+
+    features = extract_official_feature_labels(
+        page,
+        transform,
+        [terrain_area],
+        source_page=1,
+        element_factory=LayoutElement,
+    )
+
+    assert len(features) == 1
+    assert (
+        _angle_delta(
+            _major_axis_angle_degrees(features[0].polygon()),
+            _major_axis_angle_degrees(terrain_area.polygon()),
+        )
+        < 10.0
+    )
 
 
 def test_deployment_roles_follow_colour_not_drawing_order(tmp_path: Path) -> None:
@@ -208,6 +293,46 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     assert not layout.warnings
 
 
+def test_official_layout_page20_extracts_word_level_feature_labels() -> None:
+    pdf_path = Path("data/raw/event-companion.pdf")
+    if not pdf_path.exists():
+        pytest.skip("official Event Companion PDF is not available")
+
+    layout = extract_layout_from_pdf(pdf_path, page_number=20)
+
+    official_code_counts = Counter(
+        feature.official_feature_code
+        for feature in layout.terrain_features
+        if feature.official_feature_code is not None
+    )
+    assert official_code_counts == {"AB": 2, "CD": 2, "EF": 2, "GH": 2}
+
+
+def test_official_layout_page52_rotated_feature_templates_follow_terrain_footprint() -> None:
+    pdf_path = Path("data/raw/event-companion.pdf")
+    if not pdf_path.exists():
+        pytest.skip("official Event Companion PDF is not available")
+
+    layout = extract_layout_from_pdf(pdf_path, page_number=52)
+    terrain_by_ordinal = dict(enumerate(layout.terrain_areas, start=1))
+
+    for terrain_ordinal, official_code in ((15, "AB"), (16, "EF")):
+        terrain_area = terrain_by_ordinal[terrain_ordinal]
+        feature = next(
+            feature
+            for feature in layout.terrain_features
+            if feature.terrain_area_id == terrain_area.id
+            and feature.official_feature_code == official_code
+        )
+        assert (
+            _angle_delta(
+                _major_axis_angle_degrees(feature.polygon()),
+                _major_axis_angle_degrees(terrain_area.polygon()),
+            )
+            < 10.0
+        )
+
+
 def test_default_layout_page_range_constants_are_current_mvp_range() -> None:
     assert DEFAULT_LAYOUT_START_PAGE == 9
     assert DEFAULT_LAYOUT_END_PAGE == 53
@@ -251,6 +376,59 @@ def _synthetic_layout_pdf(
     document.save(pdf_path)
     document.close()
     return pdf_path
+
+
+class _FakeWordPage:
+    def __init__(self, words: list[tuple[float, float, float, float, str, int, int, int]]) -> None:
+        self._words = words
+
+    def get_text(self, mode: str) -> list[tuple[float, float, float, float, str, int, int, int]]:
+        assert mode == "words"
+        return self._words
+
+
+def _oriented_rectangle(
+    center: tuple[float, float],
+    x_axis: tuple[float, float],
+    y_axis: tuple[float, float],
+    width: float,
+    height: float,
+) -> list[tuple[float, float]]:
+    half_width = width / 2.0
+    half_height = height / 2.0
+    offsets = [
+        (-half_width, -half_height),
+        (half_width, -half_height),
+        (half_width, half_height),
+        (-half_width, half_height),
+    ]
+    return [
+        (
+            center[0] + x_axis[0] * x_offset + y_axis[0] * y_offset,
+            center[1] + x_axis[1] * x_offset + y_axis[1] * y_offset,
+        )
+        for x_offset, y_offset in offsets
+    ]
+
+
+def _major_axis_angle_degrees(polygon) -> float:
+    rectangle = polygon.minimum_rotated_rectangle
+    coords = list(rectangle.exterior.coords)[:-1]
+    edges: list[tuple[float, float, float]] = []
+    for index, start in enumerate(coords):
+        end = coords[(index + 1) % len(coords)]
+        dx = float(end[0] - start[0])
+        dy = float(end[1] - start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        edges.append((length, dx, dy))
+    _, dx, dy = max(edges, key=lambda edge: edge[0])
+    angle = math.degrees(math.atan2(dy, dx)) % 180.0
+    return angle
+
+
+def _angle_delta(left: float, right: float) -> float:
+    delta = abs(left - right) % 180.0
+    return min(delta, 180.0 - delta)
 
 
 def _fitz() -> Any:

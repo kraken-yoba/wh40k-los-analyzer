@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 
@@ -45,6 +46,12 @@ PACKET_POLYGON_SIMPLIFICATION_TOLERANCE = 0.5
 RUIN_WALL_THICKNESS_INCHES = 0.75
 NON_BLOCKING_DENSE_PROFILES = {"floor_or_platform"}
 WALL_SIDE_PROFILES = {"ruined_wall_l", "ruined_wall_u", "ruined_wall_perimeter"}
+
+
+@dataclass(frozen=True)
+class _OrientedFrame:
+    x_axis: Point
+    y_axis: Point
 
 
 class PacketValidationResult(BaseModel):
@@ -426,44 +433,55 @@ def _wall_strip_footprints(
     if polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
         return [_safe_points(feature.footprint)]
 
-    min_x, min_y, max_x, max_y = polygon.bounds
+    frame = _oriented_frame(polygon)
+    local_points = [
+        _to_local(_coordinate_point(point), frame) for point in polygon.exterior.coords[:-1]
+    ]
+    min_x = min(point[0] for point in local_points)
+    max_x = max(point[0] for point in local_points)
+    min_y = min(point[1] for point in local_points)
+    max_y = max(point[1] for point in local_points)
     width = max_x - min_x
     height = max_y - min_y
     if width <= 0 or height <= 0:
         return [_safe_points(feature.footprint)]
     thickness = min(RUIN_WALL_THICKNESS_INCHES, width / 2.0, height / 2.0)
     strip_by_side = {
-        "left": Polygon(
+        "left": _local_polygon_to_world(
             [
                 (min_x, min_y),
                 (min_x + thickness, min_y),
                 (min_x + thickness, max_y),
                 (min_x, max_y),
-            ]
+            ],
+            frame,
         ),
-        "right": Polygon(
+        "right": _local_polygon_to_world(
             [
                 (max_x - thickness, min_y),
                 (max_x, min_y),
                 (max_x, max_y),
                 (max_x - thickness, max_y),
-            ]
+            ],
+            frame,
         ),
-        "top": Polygon(
+        "top": _local_polygon_to_world(
             [
                 (min_x, max_y - thickness),
                 (max_x, max_y - thickness),
                 (max_x, max_y),
                 (min_x, max_y),
-            ]
+            ],
+            frame,
         ),
-        "bottom": Polygon(
+        "bottom": _local_polygon_to_world(
             [
                 (min_x, min_y),
                 (max_x, min_y),
                 (max_x, min_y + thickness),
                 (min_x, min_y + thickness),
-            ]
+            ],
+            frame,
         ),
     }
     selected_sides = list(dict.fromkeys(sides))
@@ -485,6 +503,61 @@ def _wall_strip_footprints(
     if isinstance(combined, MultiPolygon):
         return [_safe_points(_polygon_points(strip)) for strip in combined.geoms]
     return [_safe_points(_polygon_points(strip)) for strip in selected_polygons]
+
+
+def _oriented_frame(polygon: Polygon) -> _OrientedFrame:
+    rectangle = polygon.minimum_rotated_rectangle
+    if not isinstance(rectangle, Polygon):
+        return _OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    coords = [_coordinate_point(point) for point in rectangle.exterior.coords[:-1]]
+    if len(coords) < 2:
+        return _OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    edges: list[tuple[float, float, float]] = []
+    for index, start in enumerate(coords):
+        end = coords[(index + 1) % len(coords)]
+        dx = float(end[0] - start[0])
+        dy = float(end[1] - start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        edges.append((length, dx, dy))
+    horizontal_edges = [edge for edge in edges if abs(edge[2]) <= max(edge[0] * 0.02, 1e-9)]
+    if horizontal_edges:
+        length, dx, dy = max(horizontal_edges, key=lambda edge: edge[0])
+    else:
+        max_length = max(edge[0] for edge in edges)
+        longest_edges = [
+            edge for edge in edges if abs(edge[0] - max_length) <= max(max_length * 0.001, 1e-9)
+        ]
+        length, dx, dy = max(longest_edges, key=lambda edge: abs(edge[1]))
+    if length <= 1e-9:
+        return _OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    if (abs(dx) >= abs(dy) and dx < 0) or (abs(dx) < abs(dy) and dy < 0):
+        dx = -dx
+        dy = -dy
+    x_axis = (dx / length, dy / length)
+    y_axis = (-x_axis[1], x_axis[0])
+    return _OrientedFrame(x_axis=x_axis, y_axis=y_axis)
+
+
+def _to_local(point: Point, frame: _OrientedFrame) -> Point:
+    return (
+        point[0] * frame.x_axis[0] + point[1] * frame.x_axis[1],
+        point[0] * frame.y_axis[0] + point[1] * frame.y_axis[1],
+    )
+
+
+def _to_world(point: Point, frame: _OrientedFrame) -> Point:
+    return (
+        point[0] * frame.x_axis[0] + point[1] * frame.y_axis[0],
+        point[0] * frame.x_axis[1] + point[1] * frame.y_axis[1],
+    )
+
+
+def _local_polygon_to_world(points: Sequence[Point], frame: _OrientedFrame) -> Polygon:
+    return Polygon([_to_world(point, frame) for point in points])
+
+
+def _coordinate_point(point: Sequence[float]) -> Point:
+    return (float(point[0]), float(point[1]))
 
 
 def _area_id(index: int) -> str:

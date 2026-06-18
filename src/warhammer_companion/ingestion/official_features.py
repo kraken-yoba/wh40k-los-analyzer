@@ -24,6 +24,18 @@ class OfficialFeatureTemplate:
     height: float
 
 
+@dataclass(frozen=True)
+class OfficialFeatureLabel:
+    code: OfficialFeatureCode
+    bbox: BBox
+
+
+@dataclass(frozen=True)
+class OrientedFrame:
+    x_axis: Point
+    y_axis: Point
+
+
 OFFICIAL_FEATURE_TEMPLATES: dict[OfficialFeatureCode, OfficialFeatureTemplate] = {
     "AB": OfficialFeatureTemplate("ruined_wall_l", width=5.0, height=4.5),
     "CD": OfficialFeatureTemplate("ruined_wall_l", width=6.0, height=4.5),
@@ -44,14 +56,9 @@ def extract_official_feature_labels(
     elements: list[Any] = []
     code_ordinals: dict[OfficialFeatureCode, int] = {}
     used_anchor_ids: set[str] = set()
-    text_payload = page.get_text("dict")
-    for block in text_payload["blocks"]:
-        if block.get("type") != 0:
-            continue
-        code = official_feature_code_from_text(_text_block_content(block))
-        if code is None:
-            continue
-        bbox = cast(BBox, tuple(float(value) for value in block["bbox"]))
+    for label in _official_feature_label_candidates(page):
+        code = label.code
+        bbox = label.bbox
         center = image_to_board_point(
             ((bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0),
             transform,
@@ -117,10 +124,21 @@ def official_feature_code_from_text(text: str) -> OfficialFeatureCode | None:
     return None
 
 
-def _text_block_content(block: dict[str, Any]) -> str:
-    return " ".join(
-        str(span["text"]) for line in block.get("lines", []) for span in line.get("spans", [])
-    )
+def _official_feature_label_candidates(page: Any) -> list[OfficialFeatureLabel]:
+    labels: list[OfficialFeatureLabel] = []
+    for word in page.get_text("words"):
+        if len(word) < 5:
+            continue
+        code = official_feature_code_from_text(str(word[4]))
+        if code is None:
+            continue
+        labels.append(
+            OfficialFeatureLabel(
+                code=code,
+                bbox=cast(BBox, tuple(float(value) for value in word[:4])),
+            )
+        )
+    return labels
 
 
 def _terrain_area_for_point(
@@ -173,18 +191,25 @@ def _official_feature_template_footprint(
     height: float,
 ) -> list[Point] | None:
     area_polygon = terrain_area.polygon()
-    min_x, min_y, max_x, max_y = area_polygon.bounds
+    frame = _oriented_frame(area_polygon)
+    local_area_points = [_to_local(point, frame) for point in area_polygon.exterior.coords[:-1]]
+    min_x = min(point[0] for point in local_area_points)
+    max_x = max(point[0] for point in local_area_points)
+    min_y = min(point[1] for point in local_area_points)
+    max_y = max(point[1] for point in local_area_points)
     width = min(width, max(max_x - min_x, 0.1))
     height = min(height, max(max_y - min_y, 0.1))
-    x0 = _clamp(center[0] - width / 2.0, min_x, max_x - width)
-    y0 = _clamp(center[1] - height / 2.0, min_y, max_y - height)
-    candidate = Polygon(
+    local_center = _to_local(center, frame)
+    x0 = _clamp(local_center[0] - width / 2.0, min_x, max_x - width)
+    y0 = _clamp(local_center[1] - height / 2.0, min_y, max_y - height)
+    candidate = _local_polygon_to_world(
         [
             (x0, y0),
             (x0 + width, y0),
             (x0 + width, y0 + height),
             (x0, y0 + height),
-        ]
+        ],
+        frame,
     )
     clipped = _largest_polygon(candidate.intersection(area_polygon))
     if clipped.is_empty or clipped.area <= 0.05:
@@ -199,9 +224,16 @@ def _official_feature_wall_sides(
 ) -> list[WallSide] | None:
     if profile not in {"ruined_wall_l", "ruined_wall_u", "ruined_wall_perimeter"}:
         return None
-    min_x, min_y, max_x, max_y = terrain_area.polygon().bounds
-    rx = (center[0] - min_x) / max(max_x - min_x, 1e-9)
-    ry = (center[1] - min_y) / max(max_y - min_y, 1e-9)
+    area_polygon = terrain_area.polygon()
+    frame = _oriented_frame(area_polygon)
+    local_area_points = [_to_local(point, frame) for point in area_polygon.exterior.coords[:-1]]
+    min_x = min(point[0] for point in local_area_points)
+    max_x = max(point[0] for point in local_area_points)
+    min_y = min(point[1] for point in local_area_points)
+    max_y = max(point[1] for point in local_area_points)
+    local_center = _to_local(center, frame)
+    rx = (local_center[0] - min_x) / max(max_x - min_x, 1e-9)
+    ry = (local_center[1] - min_y) / max(max_y - min_y, 1e-9)
     horizontal: WallSide = "left" if rx < 0.5 else "right"
     vertical: WallSide = "bottom" if ry < 0.5 else "top"
     if profile == "ruined_wall_l":
@@ -221,6 +253,57 @@ def _nearest_side(rx: float, ry: float) -> WallSide:
         "top": 1.0 - ry,
     }
     return min(distances, key=lambda side: distances[side])
+
+
+def _oriented_frame(polygon: Polygon) -> OrientedFrame:
+    rectangle = polygon.minimum_rotated_rectangle
+    if not isinstance(rectangle, Polygon):
+        return OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    coords = list(rectangle.exterior.coords)[:-1]
+    if len(coords) < 2:
+        return OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    edges: list[tuple[float, float, float]] = []
+    for index, start in enumerate(coords):
+        end = coords[(index + 1) % len(coords)]
+        dx = float(end[0] - start[0])
+        dy = float(end[1] - start[1])
+        length = (dx * dx + dy * dy) ** 0.5
+        edges.append((length, dx, dy))
+    horizontal_edges = [edge for edge in edges if abs(edge[2]) <= max(edge[0] * 0.02, 1e-9)]
+    if horizontal_edges:
+        length, dx, dy = max(horizontal_edges, key=lambda edge: edge[0])
+    else:
+        max_length = max(edge[0] for edge in edges)
+        longest_edges = [
+            edge for edge in edges if abs(edge[0] - max_length) <= max(max_length * 0.001, 1e-9)
+        ]
+        length, dx, dy = max(longest_edges, key=lambda edge: abs(edge[1]))
+    if length <= 1e-9:
+        return OrientedFrame(x_axis=(1.0, 0.0), y_axis=(0.0, 1.0))
+    if (abs(dx) >= abs(dy) and dx < 0) or (abs(dx) < abs(dy) and dy < 0):
+        dx = -dx
+        dy = -dy
+    x_axis = (dx / length, dy / length)
+    y_axis = (-x_axis[1], x_axis[0])
+    return OrientedFrame(x_axis=x_axis, y_axis=y_axis)
+
+
+def _to_local(point: Point, frame: OrientedFrame) -> Point:
+    return (
+        point[0] * frame.x_axis[0] + point[1] * frame.x_axis[1],
+        point[0] * frame.y_axis[0] + point[1] * frame.y_axis[1],
+    )
+
+
+def _to_world(point: Point, frame: OrientedFrame) -> Point:
+    return (
+        point[0] * frame.x_axis[0] + point[1] * frame.y_axis[0],
+        point[0] * frame.x_axis[1] + point[1] * frame.y_axis[1],
+    )
+
+
+def _local_polygon_to_world(points: Sequence[Point], frame: OrientedFrame) -> Polygon:
+    return Polygon([_to_world(point, frame) for point in points])
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:

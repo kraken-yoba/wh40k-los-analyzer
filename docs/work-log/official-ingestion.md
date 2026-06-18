@@ -232,3 +232,19 @@
   - `.\.venv\Scripts\python.exe -m pytest` (`150 passed`)
 - Rendered-page verification via FastAPI `TestClient` confirmed 45 official packets, 15 selector groups, page-9 default ordering, grouped selectors for Take and Hold and Priority Assets matchups, page-53 Layout C/Sabotage metadata, a page-53 heatmap raster, and a page-53 LOS coverage raster.
 - Browser verification used Chromium through Playwright against `http://127.0.0.1:8046`: Viewer rendered 15 packet groups, 45 official packet options, page 9 selected by default, Take and Hold / Priority Assets groups, player metadata, and one map SVG; page-53 Viewer rendered Priority Assets / Sabotage / Layout C; page-53 Heatmap rendered one heatmap raster and 34 safe-zone outlines; page-53 LOS Checker rendered one coverage raster and one model base. No browser console warnings/errors were captured.
+
+### Official Feature Polish Slice
+
+- Fixed official dense-feature label extraction for PDF text blocks that contain multiple codes or nearby measurement text. Labels are now read from PDF words, so page-20 combined text such as `EF CD` yields both official features instead of dropping one code.
+- Official feature template placement now works in each terrain footprint's oriented local frame. Diagonal footprints such as page-52 terrain areas 15 and 16 project their L-shaped ruins along the same diagonal orientation instead of reusing board-axis blockers.
+- Packet wall-strip projection now also uses oriented local feature frames, while preserving board-axis semantics for axis-aligned square and rectangular wall-side fixtures. An adversarial review caught the square-feature regression before commit; the old axis-aligned L/U wall-side tests and new rotated-wall tests now pass together.
+- Map Viewer now shows the selected packet's force-disposition matchup, primary-mission matchup, layout variant, and source page directly above the map, so the user does not need to infer official organization from a collapsed select control or from panels below the map.
+- Re-ingested all 45 official Event Companion packets with classifier results. Generated artifact checks confirmed page 20 contains `AB`, `CD`, `EF`, and `GH` twice each; page 52 terrain 15 has a blocker angle of about `41.09` degrees against an area angle of `40.91`, and terrain 16 blockers align with the diagonal footprint.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --classify-features` (`Generated 45 packet(s) from 45 layout(s)`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets` (all 45 generated official packets valid)
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check .`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest` (`155 passed`)
+- Browser verification used the visible in-app browser on `http://127.0.0.1:8046`: page-20 Viewer rendered the `Take and Hold vs Reconnaissance - Layout C` map with the new packet summary, and page-52 Viewer rendered `Priority Assets vs Priority Assets - Layout B` with 18 dense features, 15 light features, and the new summary above the map.

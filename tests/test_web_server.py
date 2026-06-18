@@ -139,6 +139,7 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
     client = TestClient(server.app)
 
     response = client.get("/viewer?packet_id=official-event-companion-page-9")
+    normalized_response = " ".join(response.text.split())
 
     assert response.status_code == 200
     assert response.text.count("<optgroup") == 15
@@ -149,6 +150,11 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
     assert "Layout C - Battlefield Dominance vs Battlefield Dominance" in response.text
     assert '<optgroup label="Priority Assets vs Priority Assets">' in response.text
     assert "Layout C - Sabotage vs Sabotage" in response.text
+    assert 'class="packet-summary"' in response.text
+    assert "Force dispositions" in response.text
+    assert "Primary missions" in response.text
+    assert "Layout source" in response.text
+    assert "Layout A - Event Companion page 9" in normalized_response
     assert "First player" in response.text
     assert "Second player" in response.text
 
