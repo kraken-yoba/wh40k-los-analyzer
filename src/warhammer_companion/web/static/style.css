@@ -208,6 +208,13 @@ button,
 .metric {
   font-size: 30px;
   font-weight: 780;
+  line-height: 1.05;
+}
+
+.metric-status {
+  font-size: 22px;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .muted {

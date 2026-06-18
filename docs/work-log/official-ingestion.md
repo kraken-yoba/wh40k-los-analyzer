@@ -157,3 +157,14 @@
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser verification used `http://127.0.0.1:8038`: Map Viewer showed 14 dense blockers, LOS Checker rendered the same 14 blockers with one raster coverage image, one model base, 5 visible rays, and 29 blocked rays, and LOS Heatmap rendered the same blocker mix with one heatmap raster image. No browser warning/error logs were captured during those checks.
+
+### Housekeeping Slice
+
+- Moved official `AB`/`CD`/`EF`/`GH` feature-label extraction and template projection helpers out of the large layout extractor into `ingestion/official_features.py`. `layouts.py` still owns PDF page extraction and re-exports `OfficialFeatureCode` for existing callers.
+- Kept the refactor semantic-preserving: page-9 official label extraction still returns eight label-backed dense features, and the layout extraction tests cover the synthetic label path plus the official page smoke.
+- Settings now uses a smaller `.metric-status` style for backend/account status phrases, keeping the larger `.metric` style for numeric dashboard counters. Browser verification on `http://127.0.0.1:8039/settings` showed two status metrics at `22px` with no captured warning/error logs.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`129 passed`)

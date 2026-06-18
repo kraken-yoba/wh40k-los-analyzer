@@ -155,6 +155,7 @@ def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch)
     assert response.status_code == 200
     assert "App Python Backend" in response.text
     assert "Codex Account" in response.text
+    assert response.text.count("metric metric-status") == 2
     assert "Start Codex login" in response.text
     assert "ChatGPT Subscription" not in response.text
     assert "Open ChatGPT login" not in response.text
