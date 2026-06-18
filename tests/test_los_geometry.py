@@ -164,6 +164,88 @@ def test_binary_visibility_overlay_returns_board_cells() -> None:
     assert any(not cell.visible for cell in cells)
 
 
+def test_base_not_touching_terrain_footprint_can_see_into_but_not_through_it() -> None:
+    packet = _single_ruin_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+
+    assert polygon.covers(Point(16.0, 30.0))
+    assert not polygon.covers(Point(35.0, 54.0))
+
+
+def test_base_not_touching_terrain_footprint_still_blocked_by_dense_feature() -> None:
+    packet = _single_ruin_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+
+    assert not polygon.covers(Point(27.0, 30.0))
+
+
+def test_binary_visibility_overlay_can_see_into_but_not_through_footprint() -> None:
+    packet = _single_ruin_packet()
+
+    cells = binary_visibility_overlay_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+    by_position = {(cell.x, cell.y): cell.visible for cell in cells}
+
+    assert by_position[(16.5, 30.5)]
+    assert not by_position[(35.5, 54.5)]
+
+
+def test_heatmap_visibility_polygons_can_see_into_but_not_through_footprint() -> None:
+    packet = _side_deployment_single_ruin_packet()
+
+    polygons = heatmap_visibility_polygons_from_deployment_edge(
+        packet,
+        "attacker",
+        sample_step=100.0,
+    )
+
+    assert any(item.polygon.covers(Point(16.0, 30.0)) for item in polygons)
+    assert all(not item.polygon.covers(Point(35.0, 54.0)) for item in polygons)
+    assert all(not item.polygon.covers(Point(27.0, 30.0)) for item in polygons)
+
+
+def test_grid_heatmap_can_see_into_but_not_through_footprint() -> None:
+    packet = _point_deployment_single_ruin_packet()
+
+    cells = heatmap_from_deployment_zone(packet, "attacker")
+    by_position = {(cell.x, cell.y): cell.visibility for cell in cells}
+
+    assert by_position[(16.5, 30.5)] == 1.0
+    assert by_position[(27.5, 30.5)] == 0.0
+    assert by_position[(35.5, 54.5)] == 0.0
+
+
+def test_visibility_rays_apply_footprint_shadow_touching_and_dense_blockers() -> None:
+    packet = _single_ruin_packet()
+
+    outside_rays = visibility_rays_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+    touching_rays = visibility_rays_from_base(packet, center=(14.25, 30.0), base_diameter=1.57)
+    outside_by_target = {ray.target: ray.visible for ray in outside_rays}
+    touching_by_target = {ray.target: ray.visible for ray in touching_rays}
+
+    assert not outside_by_target[(42.0, 60.0)]
+    assert touching_by_target[(42.0, 60.0)]
+    assert not touching_by_target[(44.0, 30.0)]
+
+
+def test_concave_terrain_shadow_preserves_visible_notch() -> None:
+    packet = _concave_ruin_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(10.0, 35.0), base_diameter=1.57)
+
+    assert polygon.covers(Point(20.0, 30.0))
+    assert not polygon.covers(Point(35.0, 35.0))
+
+
+def test_concave_terrain_shadow_stops_at_first_intersection_interval() -> None:
+    packet = _u_shaped_ruin_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(10.0, 30.0), base_diameter=1.57)
+
+    assert not polygon.covers(Point(25.0, 30.0))
+
+
 def test_base_touching_terrain_footprint_sees_through_that_footprint() -> None:
     packet = _single_ruin_packet()
 
@@ -219,6 +301,93 @@ def _single_ruin_packet() -> MapPacket:
                 footprint=[(18, 26), (26, 26), (26, 34), (18, 34)],
             )
         ],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _side_deployment_single_ruin_packet() -> MapPacket:
+    packet = _single_ruin_packet()
+    return packet.model_copy(
+        update={
+            "deployment_zones": [
+                DeploymentZone(
+                    id="attacker",
+                    label="Attacker",
+                    footprint=[(0, 0), (13, 0), (13, 60), (0, 60)],
+                )
+            ]
+        }
+    )
+
+
+def _point_deployment_single_ruin_packet() -> MapPacket:
+    packet = _single_ruin_packet()
+    return packet.model_copy(
+        update={
+            "deployment_zones": [
+                DeploymentZone(
+                    id="attacker",
+                    label="Attacker",
+                    footprint=[(12.5, 29.5), (13.5, 29.5), (13.5, 30.5), (12.5, 30.5)],
+                )
+            ]
+        }
+    )
+
+
+def _concave_ruin_packet() -> MapPacket:
+    return MapPacket(
+        id="concave-ruin",
+        name="Concave Ruin",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="l",
+                label="L",
+                kind=TerrainKind.RUINS,
+                footprint=[(15, 20), (30, 20), (30, 40), (25, 40), (25, 25), (15, 25)],
+            )
+        ],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _u_shaped_ruin_packet() -> MapPacket:
+    return MapPacket(
+        id="u-ruin",
+        name="U Ruin",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="u",
+                label="U",
+                kind=TerrainKind.RUINS,
+                footprint=[
+                    (15, 20),
+                    (30, 20),
+                    (30, 40),
+                    (25, 40),
+                    (25, 25),
+                    (20, 25),
+                    (20, 40),
+                    (15, 40),
+                ],
+            )
+        ],
+        dense_features=[],
         deployment_zones=[
             DeploymentZone(
                 id="attacker",

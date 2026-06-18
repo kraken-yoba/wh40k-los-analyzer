@@ -6,8 +6,8 @@ from math import atan2, ceil, cos, sin
 from shapely.geometry import (
     GeometryCollection,
     LineString,
+    MultiLineString,
     MultiPoint,
-    MultiPolygon,
     Point,
     Polygon,
 )
@@ -42,7 +42,13 @@ class CoverageCell:
 @dataclass(frozen=True)
 class VisibilityPolygon:
     origin: tuple[float, float]
-    polygon: Polygon
+    polygon: BaseGeometry
+
+
+@dataclass(frozen=True)
+class _LosBlockers:
+    opaque: list[Polygon]
+    obscuring: list[Polygon]
 
 
 def circular_base(center: tuple[float, float], diameter: float, resolution: int = 48) -> Polygon:
@@ -81,19 +87,19 @@ def visibility_rays_from_base(
     target_spacing: float = 6.0,
 ) -> list[VisibilityRay]:
     base = circular_base(center, base_diameter)
-    blockers = _blocker_union(_blockers_for_base(packet, base)).difference(base)
+    blockers = _los_blockers_for_base(packet, base)
     rays: list[VisibilityRay] = []
 
     x = 0.0
     while x <= packet.board.width:
-        rays.append(_ray_to(packet, center, (x, 0.0), blockers))
-        rays.append(_ray_to(packet, center, (x, packet.board.height), blockers))
+        rays.append(_ray_to(packet, center, (x, 0.0), blockers, ignored_area=base))
+        rays.append(_ray_to(packet, center, (x, packet.board.height), blockers, ignored_area=base))
         x += target_spacing
 
     y = target_spacing
     while y < packet.board.height:
-        rays.append(_ray_to(packet, center, (0.0, y), blockers))
-        rays.append(_ray_to(packet, center, (packet.board.width, y), blockers))
+        rays.append(_ray_to(packet, center, (0.0, y), blockers, ignored_area=base))
+        rays.append(_ray_to(packet, center, (packet.board.width, y), blockers, ignored_area=base))
         y += target_spacing
 
     return rays
@@ -106,7 +112,7 @@ def binary_visibility_overlay_from_base(
     grid_step: float = 1.0,
 ) -> list[CoverageCell]:
     base = circular_base(center, base_diameter)
-    blockers = _blocker_union(_blockers_for_base(packet, base)).difference(base)
+    blockers = _los_blockers_for_base(packet, base)
     cells: list[CoverageCell] = []
 
     y = grid_step / 2.0
@@ -114,7 +120,7 @@ def binary_visibility_overlay_from_base(
         x = grid_step / 2.0
         while x < packet.board.width:
             target = (x, y)
-            visible = not _is_segment_blocked(center, target, blockers)
+            visible = not _is_los_blocked(center, target, blockers, ignored_area=base)
             cells.append(CoverageCell(x=x, y=y, visible=visible))
             x += grid_step
         y += grid_step
@@ -126,9 +132,11 @@ def visibility_polygon_from_base(
     packet: MapPacket,
     center: tuple[float, float],
     base_diameter: float,
-) -> Polygon:
+) -> BaseGeometry:
     base = circular_base(center, base_diameter)
-    return visibility_polygon_from_point(packet, center, blockers=_blockers_for_base(packet, base))
+    return visibility_polygon_from_point(
+        packet, center, blockers=_los_blockers_for_base(packet, base)
+    )
 
 
 def heatmap_visibility_polygons_from_deployment_zone(
@@ -199,15 +207,22 @@ def deployment_edge_sample_points(
 def visibility_polygon_from_point(
     packet: MapPacket,
     origin: tuple[float, float],
-    blockers: list[Polygon] | None = None,
-) -> Polygon:
+    blockers: _LosBlockers | list[Polygon] | None = None,
+) -> BaseGeometry:
     board = _board_polygon(packet)
-    active_blockers = packet.blockers() if blockers is None else blockers
-    segments = _polygon_segments(board) + [
-        segment for blocker in active_blockers for segment in _polygon_segments(blocker)
+    active_blockers = (
+        _los_blockers_for_point(packet, origin)
+        if blockers is None
+        else _coerce_los_blockers(blockers)
+    )
+    board_segments = _polygon_segments(board)
+    opaque_segments = [
+        segment for blocker in active_blockers.opaque for segment in _polygon_segments(blocker)
     ]
     vertices = _polygon_vertices(board) + [
-        vertex for blocker in active_blockers for vertex in _polygon_vertices(blocker)
+        vertex
+        for blocker in active_blockers.opaque + active_blockers.obscuring
+        for vertex in _polygon_vertices(blocker)
     ]
     ray_length = max(packet.board.width, packet.board.height) * 3.0
     angles = sorted(
@@ -220,21 +235,25 @@ def visibility_polygon_from_point(
     points = [
         hit
         for angle in angles
-        for hit in [_nearest_ray_hit(origin, angle, ray_length, segments)]
+        for hit in [
+            _nearest_visibility_hit(
+                origin,
+                angle,
+                ray_length,
+                board_segments,
+                opaque_segments,
+                active_blockers.obscuring,
+            )
+        ]
         if hit is not None
     ]
     if len(points) < 3:
         return Polygon()
 
-    polygon = Polygon(points)
+    polygon: BaseGeometry = Polygon(points)
     if not polygon.is_valid:
         polygon = polygon.buffer(0)
-    clipped = polygon.intersection(board)
-    if isinstance(clipped, Polygon):
-        return clipped
-    if isinstance(clipped, MultiPolygon):
-        return max(clipped.geoms, key=lambda item: item.area)
-    return Polygon()
+    return polygon.intersection(board)
 
 
 def heatmap_from_deployment_zone(
@@ -244,8 +263,10 @@ def heatmap_from_deployment_zone(
     sample_step: float = 2.0,
 ) -> list[HeatmapCell]:
     zone = packet.deployment_zone(deployment_zone_id).polygon()
-    blockers = _blocker_union(packet.blockers())
     sample_points = _points_in_polygon(zone, sample_step)
+    sample_blockers = [
+        (sample, _los_blockers_for_point(packet, sample)) for sample in sample_points
+    ]
     cells: list[HeatmapCell] = []
 
     y = grid_step / 2.0
@@ -254,8 +275,8 @@ def heatmap_from_deployment_zone(
         while x < packet.board.width:
             target = (x, y)
             visible_count = 0
-            for sample in sample_points:
-                if not _is_segment_blocked(sample, target, blockers):
+            for sample, blockers in sample_blockers:
+                if not _is_los_blocked(sample, target, blockers):
                     visible_count += 1
             visibility = visible_count / len(sample_points) if sample_points else 0.0
             cells.append(HeatmapCell(x=x, y=y, visibility=visibility))
@@ -269,25 +290,45 @@ def _ray_to(
     packet: MapPacket,
     origin: tuple[float, float],
     target: tuple[float, float],
-    blockers: BaseGeometry,
+    blockers: _LosBlockers,
+    ignored_area: Polygon | None = None,
 ) -> VisibilityRay:
     board = _board_polygon(packet)
     target_point = Point(target)
     if not board.covers(target_point):
         return VisibilityRay(target=target, visible=False)
-    visible = not _is_segment_blocked(origin, target, blockers)
+    visible = not _is_los_blocked(origin, target, blockers, ignored_area=ignored_area)
     return VisibilityRay(target=target, visible=visible)
 
 
-def _blockers_for_base(packet: MapPacket, base: Polygon) -> list[Polygon]:
+def _los_blockers_for_point(packet: MapPacket, origin: tuple[float, float]) -> _LosBlockers:
+    origin_point = Point(origin)
+    return _LosBlockers(
+        opaque=[feature.polygon() for feature in packet.dense_features if feature.blocks_los],
+        obscuring=[
+            area.polygon()
+            for area in packet.terrain_areas
+            if area.blocks_los and not area.polygon().covers(origin_point)
+        ],
+    )
+
+
+def _los_blockers_for_base(packet: MapPacket, base: Polygon) -> _LosBlockers:
     touched_area_ids = _terrain_area_ids_touched_by_base(packet, base)
-    blockers = [
-        area.polygon()
-        for area in packet.terrain_areas
-        if area.blocks_los and area.id not in touched_area_ids
-    ]
-    blockers.extend(feature.polygon() for feature in packet.dense_features if feature.blocks_los)
-    return blockers
+    return _LosBlockers(
+        opaque=[feature.polygon() for feature in packet.dense_features if feature.blocks_los],
+        obscuring=[
+            area.polygon()
+            for area in packet.terrain_areas
+            if area.blocks_los and area.id not in touched_area_ids
+        ],
+    )
+
+
+def _coerce_los_blockers(blockers: _LosBlockers | list[Polygon]) -> _LosBlockers:
+    if isinstance(blockers, _LosBlockers):
+        return blockers
+    return _LosBlockers(opaque=blockers, obscuring=[])
 
 
 def _terrain_area_ids_touched_by_base(packet: MapPacket, base: Polygon) -> set[str]:
@@ -321,6 +362,33 @@ def _is_segment_blocked(
         return False
 
     return effective_blockers.intersects(line)
+
+
+def _is_los_blocked(
+    origin: tuple[float, float],
+    target: tuple[float, float],
+    blockers: _LosBlockers,
+    ignored_area: Polygon | None = None,
+) -> bool:
+    line = LineString([origin, target])
+    if line.length == 0:
+        return False
+
+    opaque_blockers = _blocker_union(blockers.opaque)
+    if ignored_area is not None:
+        opaque_blockers = opaque_blockers.difference(ignored_area)
+    if not opaque_blockers.is_empty and opaque_blockers.intersects(line):
+        return True
+
+    origin_point = Point(origin)
+    target_point = Point(target)
+    for terrain_area in blockers.obscuring:
+        if terrain_area.covers(origin_point) or terrain_area.covers(target_point):
+            continue
+        intersection = line.intersection(terrain_area)
+        if not intersection.is_empty and intersection.length > 1e-9:
+            return True
+    return False
 
 
 def _board_polygon(packet: MapPacket) -> Polygon:
@@ -425,6 +493,85 @@ def _nearest_ray_hit(
     return closest
 
 
+def _nearest_visibility_hit(
+    origin: tuple[float, float],
+    angle: float,
+    ray_length: float,
+    board_segments: list[tuple[tuple[float, float], tuple[float, float]]],
+    opaque_segments: list[tuple[tuple[float, float], tuple[float, float]]],
+    obscuring_polygons: list[Polygon],
+) -> tuple[float, float] | None:
+    candidates = [
+        _nearest_ray_hit(origin, angle, ray_length, board_segments),
+        _nearest_ray_hit(origin, angle, ray_length, opaque_segments),
+        _nearest_obscuring_exit_hit(origin, angle, ray_length, obscuring_polygons),
+    ]
+    hits = [hit for hit in candidates if hit is not None]
+    if not hits:
+        return None
+    return min(hits, key=lambda hit: (hit[0] - origin[0]) ** 2 + (hit[1] - origin[1]) ** 2)
+
+
+def _nearest_obscuring_exit_hit(
+    origin: tuple[float, float],
+    angle: float,
+    ray_length: float,
+    obscuring_polygons: list[Polygon],
+) -> tuple[float, float] | None:
+    ox, oy = origin
+    dx = cos(angle)
+    dy = sin(angle)
+    ray = LineString([(ox, oy), (ox + dx * ray_length, oy + dy * ray_length)])
+    closest_entry = float("inf")
+    closest_hit: tuple[float, float] | None = None
+
+    for polygon in obscuring_polygons:
+        intersection = ray.intersection(polygon)
+        if intersection.is_empty or intersection.length <= 1e-9:
+            continue
+        interval = _first_ray_intersection_interval(
+            intersection,
+            origin,
+            (dx, dy),
+            ray_length,
+        )
+        if interval is None:
+            continue
+        entry_distance, exit_distance = interval
+        if entry_distance < closest_entry:
+            closest_entry = entry_distance
+            closest_hit = (ox + dx * exit_distance, oy + dy * exit_distance)
+
+    return closest_hit
+
+
+def _first_ray_intersection_interval(
+    intersection: BaseGeometry,
+    origin: tuple[float, float],
+    direction: tuple[float, float],
+    ray_length: float,
+) -> tuple[float, float] | None:
+    intervals: list[tuple[float, float]] = []
+    for line in _intersection_lines(intersection):
+        distances = [
+            _project_ray_distance(point, origin, direction) for point in _intersection_points(line)
+        ]
+        distances = [distance for distance in distances if 1e-9 < distance <= ray_length + 1e-9]
+        if distances:
+            intervals.append((min(distances), max(distances)))
+    if not intervals:
+        return None
+    return min(intervals, key=lambda interval: interval[0])
+
+
+def _project_ray_distance(
+    point: tuple[float, float],
+    origin: tuple[float, float],
+    direction: tuple[float, float],
+) -> float:
+    return (point[0] - origin[0]) * direction[0] + (point[1] - origin[1]) * direction[1]
+
+
 def _ray_segment_hit(
     origin: tuple[float, float],
     direction: tuple[float, float],
@@ -466,11 +613,31 @@ def _intersection_points(geometry: BaseGeometry) -> list[tuple[float, float]]:
         return [(point.x, point.y) for point in geometry.geoms]
     if isinstance(geometry, LineString):
         return [(float(x), float(y)) for x, y in geometry.coords]
+    if isinstance(geometry, MultiLineString):
+        line_points: list[tuple[float, float]] = []
+        for line in geometry.geoms:
+            line_points.extend(_intersection_points(line))
+        return line_points
     if isinstance(geometry, GeometryCollection):
         points: list[tuple[float, float]] = []
         for part in geometry.geoms:
             points.extend(_intersection_points(part))
         return points
+    return []
+
+
+def _intersection_lines(geometry: BaseGeometry) -> list[LineString]:
+    if geometry.is_empty:
+        return []
+    if isinstance(geometry, LineString):
+        return [geometry]
+    if isinstance(geometry, MultiLineString):
+        return list(geometry.geoms)
+    if isinstance(geometry, GeometryCollection):
+        lines: list[LineString] = []
+        for part in geometry.geoms:
+            lines.extend(_intersection_lines(part))
+        return lines
     return []
 
 

@@ -7,7 +7,8 @@ from io import BytesIO
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image, ImageDraw
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry.base import BaseGeometry
 
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.los.geometry import (
@@ -23,7 +24,7 @@ def render_map_svg(
     heatmap: list[HeatmapCell] | None = None,
     heatmap_polygons: list[VisibilityPolygon] | None = None,
     coverage: list[CoverageCell] | None = None,
-    coverage_polygon: Polygon | None = None,
+    coverage_polygon: BaseGeometry | None = None,
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
     base_diameter: float | None = None,
@@ -125,7 +126,7 @@ def _render_heatmap_raster(
             continue
         mask = Image.new("L", (width, height), 0)
         draw = ImageDraw.Draw(mask)
-        _draw_polygon_mask(draw, item.polygon, scale, packet.board.height, exterior_fill=1)
+        _draw_geometry_mask(draw, item.polygon, scale, packet.board.height, exterior_fill=1)
         accumulator += np.asarray(mask, dtype=np.uint16)
 
     visibility = accumulator.astype(np.float64) / max(len(polygons), 1)
@@ -133,20 +134,35 @@ def _render_heatmap_raster(
     return [_image_data_uri(image, width, height, "heatmap-image")]
 
 
-def _render_coverage_raster(packet: MapPacket, polygon: Polygon, scale: int) -> list[str]:
+def _render_coverage_raster(packet: MapPacket, polygon: BaseGeometry, scale: int) -> list[str]:
     if polygon.is_empty:
         return []
     width = int(round(packet.board.width * scale))
     height = int(round(packet.board.height * scale))
     mask = Image.new("L", (width, height), 0)
     draw = ImageDraw.Draw(mask)
-    _draw_polygon_mask(draw, polygon, scale, packet.board.height, exterior_fill=255)
+    _draw_geometry_mask(draw, polygon, scale, packet.board.height, exterior_fill=255)
 
     rgba: NDArray[np.uint8] = np.zeros((height, width, 4), dtype=np.uint8)
     visible = np.asarray(mask, dtype=np.uint8) > 0
     rgba[visible] = (42, 140, 158, 118)
     image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "coverage-image")]
+
+
+def _draw_geometry_mask(
+    draw: ImageDraw.ImageDraw,
+    geometry: BaseGeometry,
+    scale: int,
+    board_height: float,
+    exterior_fill: int,
+) -> None:
+    if isinstance(geometry, MultiPolygon):
+        for polygon in geometry.geoms:
+            _draw_polygon_mask(draw, polygon, scale, board_height, exterior_fill)
+        return
+    if isinstance(geometry, Polygon):
+        _draw_polygon_mask(draw, geometry, scale, board_height, exterior_fill)
 
 
 def _draw_polygon_mask(
