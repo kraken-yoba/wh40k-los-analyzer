@@ -13,7 +13,7 @@ from shapely.geometry import (
     Polygon,
 )
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import unary_union
+from shapely.ops import nearest_points, unary_union
 
 from warhammer_companion.domain.models import MapPacket, TerrainArea
 
@@ -407,8 +407,7 @@ def _obscuring_terrain_geometries(
         geometry = unary_union(polygons)
         if not geometry.is_empty:
             geometries.append(geometry)
-    geometries.extend(_hairline_contact_bridges(geometries))
-    return geometries
+    return _merge_hairline_contact_geometries(geometries)
 
 
 def _terrain_group_key(area: TerrainArea) -> str:
@@ -466,26 +465,33 @@ def _is_los_blocked(
     return False
 
 
-def _hairline_contact_bridges(geometries: list[BaseGeometry]) -> list[BaseGeometry]:
-    bridges: list[BaseGeometry] = []
+def _merge_hairline_contact_geometries(geometries: list[BaseGeometry]) -> list[BaseGeometry]:
     if len(geometries) < 2:
-        return bridges
+        return geometries
 
     half_tolerance = TERRAIN_CONTACT_TOLERANCE_INCHES / 2.0
+    bridged_geometries: list[BaseGeometry] = list(geometries)
     for left, right in combinations(geometries, 2):
         if left.distance(right) > TERRAIN_CONTACT_TOLERANCE_INCHES:
             continue
-        original = unary_union([left, right])
-        closed = unary_union(
-            [
-                left.buffer(half_tolerance, join_style=2),
-                right.buffer(half_tolerance, join_style=2),
-            ]
-        ).buffer(-half_tolerance, join_style=2)
-        bridge = closed.difference(original)
-        if not bridge.is_empty and bridge.area > 1e-6:
-            bridges.append(bridge)
-    return bridges
+        left_point, right_point = nearest_points(left, right)
+        if left_point.distance(right_point) <= 1e-9:
+            connector = left_point.buffer(half_tolerance, quad_segs=2)
+        else:
+            connector = LineString([left_point, right_point]).buffer(
+                half_tolerance,
+                cap_style=1,
+                join_style=2,
+            )
+        if not connector.is_empty and connector.area > 1e-6:
+            bridged_geometries.append(connector)
+
+    merged = unary_union(bridged_geometries)
+    if merged.is_empty:
+        return []
+    if hasattr(merged, "geoms"):
+        return [geometry for geometry in merged.geoms if not geometry.is_empty]
+    return [merged]
 
 
 def _board_polygon(packet: MapPacket) -> Polygon:

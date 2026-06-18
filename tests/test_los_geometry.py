@@ -10,6 +10,7 @@ from warhammer_companion.domain.models import (
     TerrainKind,
 )
 from warhammer_companion.los.geometry import (
+    _los_blockers_for_base,
     binary_visibility_overlay_from_base,
     circular_base,
     deployment_edge_sample_points,
@@ -329,6 +330,17 @@ def test_hairline_gap_between_touching_footprints_does_not_create_los_slit() -> 
     assert not polygon.covers(Point(35.0, 30.0))
 
 
+def test_corner_hairline_gap_between_touching_footprints_does_not_create_los_slit() -> None:
+    packet = _corner_gap_ruins_packet()
+
+    base = circular_base((1.0, 28.0), 1.57)
+    blockers = _los_blockers_for_base(packet, base)
+    polygon = visibility_polygon_from_base(packet, center=(1.0, 28.0), base_diameter=1.57)
+
+    assert len(blockers.obscuring) == 1
+    assert not polygon.covers(Point(20.0, 0.0))
+
+
 def test_base_touching_terrain_footprint_still_blocked_by_dense_feature() -> None:
     packet = _single_ruin_packet()
 
@@ -525,6 +537,36 @@ def _hairline_gap_ruins_packet() -> MapPacket:
                 id="attacker",
                 label="Attacker",
                 footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _corner_gap_ruins_packet() -> MapPacket:
+    return MapPacket(
+        id="corner-gap-ruins",
+        name="Corner Gap Ruins",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="vertical",
+                label="Vertical",
+                kind=TerrainKind.RUINS,
+                footprint=[(4, 13), (4, 25), (11, 25), (11, 13)],
+            ),
+            TerrainArea(
+                id="horizontal",
+                label="Horizontal",
+                kind=TerrainKind.RUINS,
+                footprint=[(11.02, 9), (18, 9), (18, 12.98), (11.02, 12.98)],
+            ),
+        ],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 50), (44, 50), (44, 60), (0, 60)],
             )
         ],
     )
