@@ -66,14 +66,12 @@ def test_file_backed_repository_uses_fallback_when_no_packets_exist(tmp_path: Pa
     assert repository.default_packet() == SAMPLE_PACKETS[0]
 
 
-def test_file_backed_repository_uses_explicit_reload_contract(tmp_path: Path) -> None:
+def test_file_backed_repository_auto_refreshes_when_packet_files_change(tmp_path: Path) -> None:
     repository = FileBackedMapRepository(tmp_path, fallback=SAMPLE_PACKETS)
     packet = SAMPLE_PACKETS[0].model_copy(update={"id": "official-a", "name": "Official A"})
 
     write_packet(packet, tmp_path / "official-a.json")
 
-    assert repository.list_packets() == SAMPLE_PACKETS
-    repository.reload()
     assert repository.list_packets() == [packet]
 
 

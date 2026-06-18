@@ -10,6 +10,7 @@ from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 PacketDirectory = str | PathLike[str]
+PacketDirectorySignature = tuple[tuple[str, int, int], ...]
 
 
 class MapRepository(Protocol):
@@ -56,18 +57,30 @@ class FileBackedMapRepository:
     ) -> None:
         self._directory = Path(directory)
         self._fallback = list(fallback) if fallback is not None else []
+        self._signature = self._directory_signature()
         self._repository = self._load_repository()
 
     def list_packets(self) -> list[MapPacket]:
+        self._reload_if_changed()
         return self._repository.list_packets()
 
     def get_packet(self, packet_id: str) -> MapPacket:
+        self._reload_if_changed()
         return self._repository.get_packet(packet_id)
 
     def default_packet(self) -> MapPacket:
+        self._reload_if_changed()
         return self._repository.default_packet()
 
     def reload(self) -> None:
+        self._signature = self._directory_signature()
+        self._repository = self._load_repository()
+
+    def _reload_if_changed(self) -> None:
+        signature = self._directory_signature()
+        if signature == self._signature:
+            return
+        self._signature = signature
         self._repository = self._load_repository()
 
     def _load_repository(self) -> StaticMapRepository:
@@ -75,6 +88,15 @@ class FileBackedMapRepository:
         if not packets:
             packets = self._fallback
         return StaticMapRepository(packets)
+
+    def _directory_signature(self) -> PacketDirectorySignature:
+        if not self._directory.exists():
+            return ()
+        return tuple(
+            (path.name, path.stat().st_mtime_ns, path.stat().st_size)
+            for path in sorted(self._directory.glob("*.json"))
+            if path.is_file()
+        )
 
 
 class InMemoryMapRepository(StaticMapRepository):

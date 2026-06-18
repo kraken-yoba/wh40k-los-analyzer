@@ -112,6 +112,17 @@ def test_pages_do_not_load_custom_frontend_javascript() -> None:
     assert "app.js" not in response.text
 
 
+def test_viewer_reports_light_review_feature_counts() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/viewer")
+
+    assert response.status_code == 200
+    assert "Dense Blockers" in response.text
+    assert "Light / Review Features" in response.text
+    assert "Floor / Platform Review" in response.text
+
+
 def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch) -> None:
     class FakeCodexBackend:
         def current_status(self):

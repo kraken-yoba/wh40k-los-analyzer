@@ -137,3 +137,5 @@
   - `.\.venv\Scripts\python.exe -m pytest -q` (`125 passed`)
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- Browser follow-up found that the already-running `8031` server could keep serving a stale in-memory packet after CLI re-ingestion. File-backed repositories now auto-refresh when packet JSON files change, and the viewer reports dense blockers, light/review features, and floor/platform review counts separately.
+- Fresh browser verification on `http://127.0.0.1:8037` showed official page 9 with 36 dense blockers, 26 light/review features, 11 floor/platform review features, and LOS checker coverage rendered from the same refreshed packet.

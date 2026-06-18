@@ -29,8 +29,16 @@
     <p class="metric">{{ packet.terrain_areas | length }}</p>
   </article>
   <article class="panel">
-    <h2>Dense Features</h2>
+    <h2>Dense Blockers</h2>
     <p class="metric">{{ packet.dense_features | length }}</p>
+  </article>
+  <article class="panel">
+    <h2>Light / Review Features</h2>
+    <p class="metric">{{ packet.light_features | length }}</p>
+  </article>
+  <article class="panel">
+    <h2>Floor / Platform Review</h2>
+    <p class="metric">{{ packet.light_features | selectattr("profile", "equalto", "floor_or_platform") | list | length }}</p>
   </article>
   <article class="panel">
     <h2>Deployment Zones</h2>
@@ -38,4 +46,3 @@
   </article>
 </section>
 {% endblock %}
-
