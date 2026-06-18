@@ -14,6 +14,9 @@ from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
+from warhammer_companion.integrations.chatgpt_subscription import (
+    current_chatgpt_subscription_status,
+)
 from warhammer_companion.los.geometry import (
     clamp_base_center,
     heatmap_visibility_polygons_from_deployment_edge,
@@ -59,13 +62,18 @@ def index() -> RedirectResponse:
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings(request: Request) -> HTMLResponse:
+    chatgpt_subscription = current_chatgpt_subscription_status()
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
             "active_page": "settings",
-            "codex_status": "not wired",
-            "chatgpt_status": "not connected",
+            "codex_status": "python ingestion backend ready",
+            "codex_detail": (
+                "Official PDF extraction, LOS geometry, and visual categorizer artifacts "
+                "run through Python service boundaries."
+            ),
+            "chatgpt_subscription": chatgpt_subscription,
         },
     )
 

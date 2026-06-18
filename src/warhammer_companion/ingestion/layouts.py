@@ -22,11 +22,16 @@ BBox = tuple[float, float, float, float]
 LayoutPath = str | PathLike[str]
 LayoutElementKind = Literal["deployment", "terrain_area", "terrain_feature"]
 FeatureType = Literal["dense", "light"]
+WallSide = Literal["left", "right", "top", "bottom"]
 FeatureProfile = Literal[
     "light_area",
     "ruined_wall_section",
+    "ruined_wall_l",
+    "ruined_wall_u",
+    "ruined_wall_perimeter",
     "container_or_solid",
     "solid_los_blocker",
+    "floor_or_platform",
     "unknown_dense",
 ]
 
@@ -51,6 +56,7 @@ class LayoutElement(BaseModel):
     kind: LayoutElementKind
     feature_type: FeatureType | None = None
     feature_profile: FeatureProfile | None = None
+    feature_wall_sides: list[WallSide] | None = None
     terrain_area_id: str | None = None
     source_role: str | None = None
     footprint: list[Point]

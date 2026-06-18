@@ -16,6 +16,8 @@ from warhammer_companion.ingestion.layouts import (
     DARK_STROKE,
     RED_DEPLOYMENT,
     TERRAIN_GREY,
+    ExtractedLayout,
+    LayoutElement,
     extract_layout_from_pdf,
 )
 from warhammer_companion.ingestion.packet_builder import (
@@ -77,6 +79,112 @@ def test_build_map_packet_simplifies_high_vertex_polygons(tmp_path: Path) -> Non
 
     assert len(packet.terrain_areas[0].footprint) < len(high_vertex_area.footprint)
     assert len(packet.dense_features[0].footprint) < len(high_vertex_dense.footprint)
+    assert validate_packet(packet).valid
+
+
+def test_ruined_wall_perimeter_profile_keeps_floor_interior_non_blocking() -> None:
+    layout = _layout_with_dense_feature(
+        feature_profile="ruined_wall_perimeter",
+        feature_footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
+    )
+
+    packet = build_map_packet(layout)
+
+    assert len(packet.dense_features) == 4
+    assert all(feature.profile == "ruined_wall_perimeter" for feature in packet.dense_features)
+    assert not any(
+        feature.polygon().covers(_point(10.0, 10.0)) for feature in packet.dense_features
+    )
+    assert any(feature.polygon().covers(_point(2.25, 10.0)) for feature in packet.dense_features)
+    assert validate_packet(packet).valid
+
+
+def test_floor_or_platform_profile_is_preserved_as_non_blocking_review_feature() -> None:
+    layout = _layout_with_dense_feature(
+        feature_profile="floor_or_platform",
+        feature_footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
+    )
+
+    packet = build_map_packet(layout)
+
+    assert packet.dense_features == []
+    assert len(packet.light_features) == 1
+    assert packet.light_features[0].profile == "floor_or_platform"
+    assert not packet.light_features[0].blocks_los
+    assert validate_packet(packet).valid
+
+
+def test_solid_dense_profile_ignores_stale_wall_sides() -> None:
+    layout = _layout_with_dense_feature(
+        feature_profile="container_or_solid",
+        feature_footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
+        feature_wall_sides=["left", "top"],
+    )
+
+    packet = build_map_packet(layout)
+
+    assert len(packet.dense_features) == 1
+    assert packet.dense_features[0].polygon().covers(_point(10.0, 10.0))
+    assert validate_packet(packet).valid
+
+
+@pytest.mark.parametrize(
+    ("wall_sides", "covered_points", "open_points"),
+    [
+        (["left", "top"], [(2.25, 10.0), (10.0, 17.75)], [(17.75, 10.0), (10.0, 2.25)]),
+        (["right", "top"], [(17.75, 10.0), (10.0, 17.75)], [(2.25, 10.0), (10.0, 2.25)]),
+        (["left", "bottom"], [(2.25, 10.0), (10.0, 2.25)], [(17.75, 10.0), (10.0, 17.75)]),
+        (["right", "bottom"], [(17.75, 10.0), (10.0, 2.25)], [(2.25, 10.0), (10.0, 17.75)]),
+    ],
+)
+def test_ruined_wall_l_profile_uses_categorized_wall_sides(
+    wall_sides: list[str],
+    covered_points: list[tuple[float, float]],
+    open_points: list[tuple[float, float]],
+) -> None:
+    layout = _layout_with_dense_feature(
+        feature_profile="ruined_wall_l",
+        feature_footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
+        feature_wall_sides=wall_sides,
+    )
+
+    packet = build_map_packet(layout)
+
+    assert len(packet.dense_features) == 2
+    for point in covered_points:
+        assert any(feature.polygon().covers(_point(*point)) for feature in packet.dense_features)
+    for point in open_points:
+        assert not any(
+            feature.polygon().covers(_point(*point)) for feature in packet.dense_features
+        )
+    assert validate_packet(packet).valid
+
+
+@pytest.mark.parametrize(
+    ("wall_sides", "open_point"),
+    [
+        (["right", "top", "bottom"], (2.25, 10.0)),
+        (["left", "top", "bottom"], (17.75, 10.0)),
+        (["left", "right", "bottom"], (10.0, 17.75)),
+        (["left", "right", "top"], (10.0, 2.25)),
+    ],
+)
+def test_ruined_wall_u_profile_uses_categorized_wall_sides(
+    wall_sides: list[str],
+    open_point: tuple[float, float],
+) -> None:
+    layout = _layout_with_dense_feature(
+        feature_profile="ruined_wall_u",
+        feature_footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
+        feature_wall_sides=wall_sides,
+    )
+
+    packet = build_map_packet(layout)
+
+    assert len(packet.dense_features) == 3
+    assert not any(
+        feature.polygon().covers(_point(*open_point)) for feature in packet.dense_features
+    )
     assert validate_packet(packet).valid
 
 
@@ -153,7 +261,46 @@ def test_run_official_ingestion_persists_packets_and_report(tmp_path: Path) -> N
     assert paths.footprint_library_path.exists()
     assert paths.layout_library_path.exists()
     assert paths.ingestion_report_path.exists()
+    assert paths.visual_categorizer_request_path.exists()
+    assert report.visual_categorizer_request_path == str(paths.visual_categorizer_request_path)
+    assert report.visual_categorizer_result_count == 0
     assert (paths.layout_review_dir / "page-1.png").exists()
+    categorizer_request = json.loads(
+        paths.visual_categorizer_request_path.read_text(encoding="utf-8")
+    )
+    assert "floor_or_platform" in categorizer_request["profile_options"]
+    assert categorizer_request["provider"] == "chatgpt_subscription"
+
+
+def test_run_official_ingestion_reports_unmatched_visual_categorizations(tmp_path: Path) -> None:
+    paths = IngestionPaths(tmp_path / "data")
+    paths.raw_dir.mkdir(parents=True)
+    paths.visual_categorizer_results_path.parent.mkdir(parents=True)
+    _synthetic_footprint_pdf(paths.raw_dir / "terrain-area-footprints.pdf")
+    _synthetic_event_pdf(paths.raw_dir / "event-companion.pdf")
+    paths.visual_categorizer_results_path.write_text(
+        json.dumps(
+            {
+                "categorizations": [
+                    {
+                        "feature_id": "stale-feature-id",
+                        "profile": "floor_or_platform",
+                        "confidence": 0.9,
+                    }
+                ],
+                "schema_version": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = run_official_ingestion(paths=paths, layout_pages=[1])
+
+    assert report.visual_categorizer_result_count == 1
+    assert report.visual_categorizer_applied_count == 0
+    assert report.visual_categorizer_unmatched_count == 1
+    assert any("unmatched visual categorizer result IDs" in warning for warning in report.warnings)
 
 
 def test_run_official_ingestion_removes_stale_official_packets(tmp_path: Path) -> None:
@@ -272,6 +419,68 @@ def _stair_step_rectangle(
         x = min_x + (0.08 if index % 2 else 0.0)
         points.append((x, y))
     return points
+
+
+def _layout_with_dense_feature(
+    *,
+    feature_profile: str,
+    feature_footprint: list[tuple[float, float]],
+    feature_wall_sides: list[str] | None = None,
+) -> ExtractedLayout:
+    terrain_area = LayoutElement(
+        id="area-1",
+        label="Area 1",
+        kind="terrain_area",
+        footprint=[(0.0, 0.0), (20.0, 0.0), (20.0, 20.0), (0.0, 20.0)],
+        source_page=1,
+        source_bbox=(100.0, 100.0, 300.0, 300.0),
+    )
+    dense_feature = LayoutElement(
+        id="feature-1",
+        label="Dense Feature",
+        kind="terrain_feature",
+        feature_type="dense",
+        feature_profile=feature_profile,
+        feature_wall_sides=feature_wall_sides,
+        terrain_area_id=terrain_area.id,
+        footprint=feature_footprint,
+        source_page=1,
+        source_bbox=(120.0, 120.0, 280.0, 280.0),
+    )
+    return ExtractedLayout(
+        id="layout-1",
+        name="Layout 1",
+        source_page=1,
+        board_rect=(100.0, 100.0, 540.0, 700.0),
+        deployment_zones=[
+            LayoutElement(
+                id="attacker-zone",
+                label="Attacker",
+                kind="deployment",
+                source_role="attacker",
+                footprint=[(0.0, 0.0), (44.0, 0.0), (44.0, 10.0), (0.0, 10.0)],
+                source_page=1,
+                source_bbox=(100.0, 600.0, 540.0, 700.0),
+            ),
+            LayoutElement(
+                id="defender-zone",
+                label="Defender",
+                kind="deployment",
+                source_role="defender",
+                footprint=[(0.0, 50.0), (44.0, 50.0), (44.0, 60.0), (0.0, 60.0)],
+                source_page=1,
+                source_bbox=(100.0, 100.0, 540.0, 200.0),
+            ),
+        ],
+        terrain_areas=[terrain_area],
+        terrain_features=[dense_feature],
+    )
+
+
+def _point(x: float, y: float):
+    from shapely.geometry import Point
+
+    return Point(x, y)
 
 
 def _fitz() -> Any:

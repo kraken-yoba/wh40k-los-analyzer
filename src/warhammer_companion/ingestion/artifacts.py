@@ -41,5 +41,13 @@ class IngestionPaths:
         return self.processed_dir / "review" / "layouts"
 
     @property
+    def visual_categorizer_request_path(self) -> Path:
+        return self.processed_dir / "review" / "visual-categorizer-request.json"
+
+    @property
+    def visual_categorizer_results_path(self) -> Path:
+        return self.processed_dir / "review" / "visual-categorizer-results.json"
+
+    @property
     def map_packets_dir(self) -> Path:
         return self.processed_dir / "map-packets"

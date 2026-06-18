@@ -106,6 +106,18 @@ def test_pages_do_not_load_custom_frontend_javascript() -> None:
     assert "app.js" not in response.text
 
 
+def test_settings_exposes_chatgpt_subscription_login_without_javascript() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert "ChatGPT Subscription" in response.text
+    assert "Open ChatGPT login" in response.text
+    assert "Login not wired" not in response.text
+    assert "<script" not in response.text
+
+
 def _official_packet() -> MapPacket:
     return SAMPLE_PACKETS[0].model_copy(
         update={

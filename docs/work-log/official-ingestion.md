@@ -77,3 +77,23 @@
 - At least one official-derived packet loads in `/map-data`, `/viewer`, `/heatmap`, and `/los-checker`.
 - Visual overlays exist for footprint and layout extraction.
 - Full verifier set passes.
+
+## 2026-06-18
+
+### Terrain Feature Categorizer Slice
+
+- Reviewed core-rules terrain categories against the Event Companion pack behavior: feature categories are exposed, light, and dense; dense examples include buildings, ruins, armoured containers, and woods. Event layouts mark dense features green and light features yellow.
+- Added a visual categorizer artifact boundary for dense terrain features. Official ingestion now writes `data/processed/review/visual-categorizer-request.json` with dense feature IDs, source page/bbox, current heuristic profile, footprint geometry, and allowed profile options.
+- Kept ChatGPT subscription login as an external browser/account state. The app does not store ChatGPT credentials and does not treat a ChatGPT subscription as an API key. Instead, ChatGPT visual review can produce `data/processed/review/visual-categorizer-results.json`, which ingestion applies deterministically.
+- Added dense feature profiles for `ruined_wall_l`, `ruined_wall_u`, `ruined_wall_perimeter`, and `floor_or_platform`.
+- Packet projection now treats `floor_or_platform` as non-blocking review geometry and projects categorized ruin-wall profiles as narrow wall strips, so horizontal floors/platforms are no longer LOS blockers once categorized.
+- Containers, solid blockers, unknown dense candidates, and uncategorized dense candidates remain LOS blockers by default. This keeps the conservative fallback until visual categorizer results are supplied.
+- Adversarial review caught two categorizer hardening issues after the first pass: stale visual categorizer result IDs now report unmatched counts instead of "applied", and `wall_sides` is honored only for wall-side-capable ruin profiles with valid side counts.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\python.exe -m mypy src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`98 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- In-app browser verification on `http://127.0.0.1:8008` passed for Settings, Map Data, LOS Heatmap, and LOS Checker. Settings showed the external ChatGPT login link; Map Data showed the visual categorizer request but no results row when no results file existed; official page-9 heatmap and LOS checker rendered nonblank maps with no captured console warnings/errors.

@@ -7,7 +7,7 @@ from os import PathLike
 from pathlib import Path
 
 from pydantic import BaseModel, Field
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from warhammer_companion.domain.models import (
     BoardSize,
@@ -20,12 +20,18 @@ from warhammer_companion.domain.models import (
 )
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.ingestion.artifacts import IngestionPaths
+from warhammer_companion.ingestion.feature_categorizer import (
+    apply_layout_feature_categorizations_with_stats,
+    load_feature_categorizations,
+    write_visual_categorizer_request,
+)
 from warhammer_companion.ingestion.footprints import (
     write_official_footprint_artifacts,
 )
 from warhammer_companion.ingestion.layouts import (
     ExtractedLayout,
     LayoutElement,
+    write_layout_library,
     write_official_layout_artifacts,
 )
 
@@ -34,6 +40,9 @@ Point = tuple[float, float]
 
 DEFAULT_INGESTION_REPORT_PATH = Path("data/processed/ingestion-report.json")
 PACKET_POLYGON_SIMPLIFICATION_TOLERANCE = 0.5
+RUIN_WALL_THICKNESS_INCHES = 0.75
+NON_BLOCKING_DENSE_PROFILES = {"floor_or_platform"}
+WALL_SIDE_PROFILES = {"ruined_wall_l", "ruined_wall_u", "ruined_wall_perimeter"}
 
 
 class PacketValidationResult(BaseModel):
@@ -55,6 +64,12 @@ class IngestionReport(BaseModel):
     packet_count: int
     layout_count: int
     validation: list[PacketValidationResult]
+    visual_categorizer_request_path: str | None = None
+    visual_categorizer_results_path: str | None = None
+    visual_categorizer_results_present: bool = False
+    visual_categorizer_result_count: int = 0
+    visual_categorizer_applied_count: int = 0
+    visual_categorizer_unmatched_count: int = 0
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -179,7 +194,46 @@ def run_official_ingestion(
         review_dir=paths.layout_review_dir,
         pages=layout_pages,
     )
-    packets = [build_map_packet(layout) for layout in layout_library.layouts]
+    write_visual_categorizer_request(
+        layout_library.layouts,
+        paths.visual_categorizer_request_path,
+        review_dir=paths.layout_review_dir,
+    )
+    categorizer_results_present = paths.visual_categorizer_results_path.exists()
+    categorizations = load_feature_categorizations(paths.visual_categorizer_results_path)
+    layouts = layout_library.layouts
+    categorizer_warnings: list[str] = []
+    categorizer_applied_count = 0
+    categorizer_unmatched_count = 0
+    if categorizations:
+        categorization_application = apply_layout_feature_categorizations_with_stats(
+            layouts,
+            categorizations,
+        )
+        layouts = categorization_application.layouts
+        categorizer_applied_count = categorization_application.applied_count
+        categorizer_unmatched_count = len(categorization_application.unmatched_feature_ids)
+        layout_library = write_layout_library(
+            layouts,
+            paths.layout_library_path,
+            source_pdf=str(layout_pdf),
+        )
+        if categorization_application.unmatched_feature_ids:
+            categorizer_warnings.append(
+                "Ignored unmatched visual categorizer result IDs: "
+                + ", ".join(categorization_application.unmatched_feature_ids)
+            )
+        if categorization_application.low_confidence_feature_ids:
+            categorizer_warnings.append(
+                "Ignored low-confidence visual categorizer result IDs: "
+                + ", ".join(categorization_application.low_confidence_feature_ids)
+            )
+    else:
+        categorizer_warnings.append(
+            "Visual categorizer request written; no ChatGPT subscription review results "
+            "were present, so heuristic dense-feature profiles were used."
+        )
+    packets = [build_map_packet(layout) for layout in layouts]
     validation = [validate_packet(packet) for packet in packets]
     duration = time.time() - started
     report = IngestionReport(
@@ -191,9 +245,18 @@ def run_official_ingestion(
         layout_library_path=str(paths.layout_library_path),
         map_packets_dir=str(paths.map_packets_dir),
         packet_count=len(packets),
-        layout_count=len(layout_library.layouts),
+        layout_count=len(layouts),
         validation=validation,
-        warnings=_report_warnings(footprint_library.templates, layout_library.layouts, validation),
+        visual_categorizer_request_path=str(paths.visual_categorizer_request_path),
+        visual_categorizer_results_path=(
+            str(paths.visual_categorizer_results_path) if categorizer_results_present else None
+        ),
+        visual_categorizer_results_present=categorizer_results_present,
+        visual_categorizer_result_count=len(categorizations),
+        visual_categorizer_applied_count=categorizer_applied_count,
+        visual_categorizer_unmatched_count=categorizer_unmatched_count,
+        warnings=_report_warnings(footprint_library.templates, layouts, validation)
+        + categorizer_warnings,
     )
     write_ingestion_report(report, paths.ingestion_report_path)
 
@@ -243,17 +306,20 @@ def _dense_features(
         packet_area_id = area_id_lookup.get(feature.terrain_area_id)
         if packet_area_id is None:
             continue
-        dense_index = len(dense_features) + 1
-        dense_features.append(
-            DenseTerrainFeature(
-                id=f"{packet_area_id}-dense-{dense_index}",
-                terrain_area_id=packet_area_id,
-                label=f"Dense {dense_index}",
-                footprint=_safe_points(feature.footprint),
-                profile=feature.feature_profile,
-                blocks_los=True,
+        if feature.feature_profile in NON_BLOCKING_DENSE_PROFILES:
+            continue
+        for blocker_footprint in _dense_blocker_footprints(feature):
+            dense_index = len(dense_features) + 1
+            dense_features.append(
+                DenseTerrainFeature(
+                    id=f"{packet_area_id}-dense-{dense_index}",
+                    terrain_area_id=packet_area_id,
+                    label=f"Dense {dense_index}",
+                    footprint=_safe_points(blocker_footprint),
+                    profile=feature.feature_profile,
+                    blocks_los=True,
+                )
             )
-        )
     return dense_features
 
 
@@ -263,23 +329,97 @@ def _light_features(
 ) -> list[LightTerrainFeature]:
     light_features: list[LightTerrainFeature] = []
     for feature in features:
-        if feature.feature_type != "light" or feature.terrain_area_id is None:
+        is_non_blocking_dense = feature.feature_profile in NON_BLOCKING_DENSE_PROFILES
+        if (
+            feature.feature_type != "light" and not is_non_blocking_dense
+        ) or feature.terrain_area_id is None:
             continue
         packet_area_id = area_id_lookup.get(feature.terrain_area_id)
         if packet_area_id is None:
             continue
         light_index = len(light_features) + 1
+        label_prefix = "Review" if is_non_blocking_dense else "Light"
         light_features.append(
             LightTerrainFeature(
                 id=f"{packet_area_id}-light-{light_index}",
                 terrain_area_id=packet_area_id,
-                label=f"Light {light_index}",
+                label=f"{label_prefix} {light_index}",
                 footprint=_safe_points(feature.footprint),
                 profile=feature.feature_profile,
                 blocks_los=False,
             )
         )
     return light_features
+
+
+def _dense_blocker_footprints(feature: LayoutElement) -> list[list[Point]]:
+    if feature.feature_profile in WALL_SIDE_PROFILES and feature.feature_wall_sides:
+        return _wall_strip_footprints(feature, sides=feature.feature_wall_sides)
+    if feature.feature_profile == "ruined_wall_perimeter":
+        return _wall_strip_footprints(feature, sides=("left", "right", "top", "bottom"))
+    if feature.feature_profile == "ruined_wall_u":
+        return _wall_strip_footprints(feature, sides=("left", "right", "top"))
+    if feature.feature_profile == "ruined_wall_l":
+        return _wall_strip_footprints(feature, sides=("left", "top"))
+    return [_safe_points(feature.footprint)]
+
+
+def _wall_strip_footprints(
+    feature: LayoutElement,
+    *,
+    sides: Sequence[str],
+) -> list[list[Point]]:
+    polygon = Polygon(feature.footprint)
+    if polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
+        return [_safe_points(feature.footprint)]
+
+    min_x, min_y, max_x, max_y = polygon.bounds
+    width = max_x - min_x
+    height = max_y - min_y
+    if width <= 0 or height <= 0:
+        return [_safe_points(feature.footprint)]
+    thickness = min(RUIN_WALL_THICKNESS_INCHES, width / 2.0, height / 2.0)
+    strip_by_side = {
+        "left": Polygon(
+            [
+                (min_x, min_y),
+                (min_x + thickness, min_y),
+                (min_x + thickness, max_y),
+                (min_x, max_y),
+            ]
+        ),
+        "right": Polygon(
+            [
+                (max_x - thickness, min_y),
+                (max_x, min_y),
+                (max_x, max_y),
+                (max_x - thickness, max_y),
+            ]
+        ),
+        "top": Polygon(
+            [
+                (min_x, max_y - thickness),
+                (max_x, max_y - thickness),
+                (max_x, max_y),
+                (min_x, max_y),
+            ]
+        ),
+        "bottom": Polygon(
+            [
+                (min_x, min_y),
+                (max_x, min_y),
+                (max_x, min_y + thickness),
+                (min_x, min_y + thickness),
+            ]
+        ),
+    }
+    footprints: list[list[Point]] = []
+    for side in sides:
+        strip = strip_by_side[side].intersection(polygon)
+        clipped = _largest_polygon(strip)
+        if not clipped.is_empty and clipped.area > 0:
+            footprints.append(_safe_points(_polygon_points(clipped)))
+    return footprints or [_safe_points(feature.footprint)]
 
 
 def _area_id(index: int) -> str:
@@ -296,6 +436,18 @@ def _safe_points(points: Sequence[Point]) -> list[Point]:
         if isinstance(simplified, Polygon) and not simplified.is_empty and simplified.area > 0:
             points = [(float(x), float(y)) for x, y in list(simplified.exterior.coords)[:-1]]
     return [(round(float(x), 6), round(float(y), 6)) for x, y in points]
+
+
+def _polygon_points(polygon: Polygon) -> list[Point]:
+    return [(float(x), float(y)) for x, y in list(polygon.exterior.coords)[:-1]]
+
+
+def _largest_polygon(geometry: object) -> Polygon:
+    if isinstance(geometry, Polygon):
+        return geometry
+    if isinstance(geometry, MultiPolygon) and geometry.geoms:
+        return max(geometry.geoms, key=lambda polygon: polygon.area)
+    return Polygon()
 
 
 def _check_unique(label: str, ids: Sequence[str], errors: list[str]) -> None:

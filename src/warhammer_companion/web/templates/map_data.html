@@ -63,6 +63,24 @@
       </div>
       <span class="tag tag-ready">complete</span>
     </div>
+    {% if report.visual_categorizer_request_path %}
+    <div class="status-row">
+      <div>
+        <strong>Visual categorizer request</strong>
+        <div class="muted">{{ report.visual_categorizer_request_path }}</div>
+      </div>
+      <span class="tag tag-ready">written</span>
+    </div>
+    {% endif %}
+    {% if report.visual_categorizer_results_present and report.visual_categorizer_results_path %}
+    <div class="status-row">
+      <div>
+        <strong>Visual categorizer results</strong>
+        <div class="muted">{{ report.visual_categorizer_applied_count }} applied, {{ report.visual_categorizer_unmatched_count }} unmatched from {{ report.visual_categorizer_results_path }}</div>
+      </div>
+      <span class="tag">{{ report.visual_categorizer_applied_count }}/{{ report.visual_categorizer_result_count }}</span>
+    </div>
+    {% endif %}
     {% for result in report.validation %}
     <div class="status-row">
       <div>

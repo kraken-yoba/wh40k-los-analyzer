@@ -12,13 +12,13 @@
   <article class="panel">
     <h2>Codex Backend</h2>
     <p class="metric">{{ codex_status }}</p>
-    <p class="muted">Vision review and LLM-assisted sanity checks are planned behind a service boundary.</p>
+    <p class="muted">{{ codex_detail }}</p>
   </article>
   <article class="panel">
     <h2>ChatGPT Subscription</h2>
-    <p class="metric">{{ chatgpt_status }}</p>
-    <button type="button" class="button-secondary" disabled>Login not wired</button>
+    <p class="metric">{{ chatgpt_subscription.label }}</p>
+    <p class="muted">{{ chatgpt_subscription.detail }}</p>
+    <a class="button button-secondary" href="{{ chatgpt_subscription.action_url }}">{{ chatgpt_subscription.action_label }}</a>
   </article>
 </section>
 {% endblock %}
-
