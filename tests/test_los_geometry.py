@@ -125,6 +125,21 @@ def test_deployment_edge_samples_ignore_near_board_edges_from_extraction_noise()
     assert all(attacker_zone.disjoint(Point(sample)) for sample in offset_samples)
 
 
+def test_deployment_edge_offset_samples_follow_rounded_corner_distance() -> None:
+    packet = _l_shaped_deployment_packet()
+
+    offset_samples = deployment_edge_sample_points(
+        packet,
+        "attacker",
+        sample_step=1.0,
+        offset_inches=5,
+    )
+
+    assert any(sample[0] > 22.0 and sample[1] < 40.0 for sample in offset_samples)
+    zone = packet.deployment_zone("attacker").polygon()
+    assert all(abs(zone.distance(Point(sample)) - 5.0) <= 0.15 for sample in offset_samples)
+
+
 def test_heatmap_visibility_polygons_can_use_offset_deployment_edge() -> None:
     packet = SAMPLE_PACKETS[0]
 
@@ -161,6 +176,20 @@ def test_heatmap_exclusion_zone_covers_owned_zone_and_edge_offset() -> None:
     assert edge_exclusion.covers(Point(22.0, 5.0))
     assert edge_exclusion.covers(Point(22.0, 16.0))
     assert not edge_exclusion.covers(Point(22.0, 16.5))
+
+
+def test_heatmap_exclusion_zone_uses_rounded_corner_distance_for_edge_offset() -> None:
+    packet = _l_shaped_deployment_packet()
+
+    edge_exclusion = heatmap_exclusion_zone(
+        packet,
+        "attacker",
+        source="edge",
+        offset_inches=5,
+    )
+
+    assert edge_exclusion.covers(Point(25.0, 37.0))
+    assert not edge_exclusion.covers(Point(26.0, 36.0))
 
 
 def test_safe_heatmap_regions_exclude_owned_zone_and_visible_areas() -> None:
@@ -388,6 +417,23 @@ def _single_ruin_packet() -> MapPacket:
                 id="attacker",
                 label="Attacker",
                 footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _l_shaped_deployment_packet() -> MapPacket:
+    return MapPacket(
+        id="l-deployment",
+        name="L Deployment",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 60), (44, 60), (44, 50), (22, 50), (22, 40), (0, 40)],
             )
         ],
     )

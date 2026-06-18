@@ -18,6 +18,7 @@ from shapely.ops import nearest_points, unary_union
 from warhammer_companion.domain.models import MapPacket, TerrainArea
 
 BOARD_BOUNDARY_EDGE_TOLERANCE = 0.25
+OFFSET_SAMPLE_DISTANCE_TOLERANCE_INCHES = 0.15
 TERRAIN_CONTACT_TOLERANCE_INCHES = 0.15
 
 
@@ -183,24 +184,7 @@ def heatmap_exclusion_zone(
     board = _board_polygon(packet)
     if source == "interior" or offset_inches <= 0:
         return zone.intersection(board)
-
-    strips: list[Polygon] = []
-    for start, end in _front_edge_segments(zone, board):
-        normal = _front_edge_normal(start, end, zone, board)
-        shifted_start = (
-            start[0] + normal[0] * offset_inches,
-            start[1] + normal[1] * offset_inches,
-        )
-        shifted_end = (
-            end[0] + normal[0] * offset_inches,
-            end[1] + normal[1] * offset_inches,
-        )
-        strip = Polygon([start, end, shifted_end, shifted_start])
-        if strip.is_valid and not strip.is_empty:
-            strips.append(strip)
-
-    geometry = unary_union([zone, *strips]) if strips else zone
-    return geometry.intersection(board).buffer(0)
+    return zone.buffer(offset_inches).intersection(board).buffer(0)
 
 
 def safe_heatmap_regions(
@@ -232,6 +216,15 @@ def deployment_edge_sample_points(
         raise ValueError("sample_step must be positive")
     zone = packet.deployment_zone(deployment_zone_id).polygon()
     board = _board_polygon(packet)
+    if offset_inches > 0:
+        samples = _offset_frontier_sample_points(
+            zone,
+            board,
+            sample_step=sample_step,
+            offset_inches=offset_inches,
+        )
+        if samples:
+            return samples
     samples: list[tuple[float, float]] = []
     for start, end in _front_edge_segments(zone, board):
         normal = _front_edge_normal(start, end, zone, board)
@@ -540,6 +533,38 @@ def _front_edge_segments(
     return segments
 
 
+def _offset_frontier_sample_points(
+    zone: Polygon,
+    board: Polygon,
+    *,
+    sample_step: float,
+    offset_inches: float,
+) -> list[tuple[float, float]]:
+    expanded_zone = zone.buffer(offset_inches).intersection(board).buffer(0)
+    if expanded_zone.is_empty:
+        return []
+
+    samples: list[tuple[float, float]] = []
+    seen: set[tuple[float, float]] = set()
+    for line in _intersection_lines(expanded_zone.boundary):
+        if line.length <= 0:
+            continue
+        if _is_board_boundary_segment(line, board):
+            continue
+        for sample in _sample_line(line, sample_step):
+            point = Point(sample)
+            if not board.covers(point) or zone.covers(point):
+                continue
+            if abs(zone.distance(point) - offset_inches) > OFFSET_SAMPLE_DISTANCE_TOLERANCE_INCHES:
+                continue
+            rounded = (round(sample[0], 6), round(sample[1], 6))
+            if rounded in seen:
+                continue
+            seen.add(rounded)
+            samples.append(rounded)
+    return samples
+
+
 def _is_board_boundary_segment(line: LineString, board: Polygon) -> bool:
     if line.intersection(board.boundary).length >= line.length - 1e-7:
         return True
@@ -560,14 +585,20 @@ def _sample_segment(
     spacing: float,
 ) -> list[tuple[float, float]]:
     line = LineString([start, end])
+    return _sample_line(line, spacing)
+
+
+def _sample_line(line: LineString, spacing: float) -> list[tuple[float, float]]:
     count = max(1, ceil(line.length / spacing))
     return [
-        (
-            start[0] + (end[0] - start[0]) * ((index + 0.5) / count),
-            start[1] + (end[1] - start[1]) * ((index + 0.5) / count),
-        )
+        _line_interpolated_point(line, line.length * ((index + 0.5) / count))
         for index in range(count)
     ]
+
+
+def _line_interpolated_point(line: LineString, distance: float) -> tuple[float, float]:
+    point = line.interpolate(distance)
+    return (point.x, point.y)
 
 
 def _front_edge_normal(
