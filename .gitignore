@@ -11,6 +11,8 @@ __pycache__/
 data/raw/
 data/processed/
 data/cache/
+data/codex-home/
+data/codex-home*/
 *.sqlite3
 *.db
 coverage.xml

@@ -97,3 +97,27 @@
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - In-app browser verification on `http://127.0.0.1:8008` passed for Settings, Map Data, LOS Heatmap, and LOS Checker. Settings showed the external ChatGPT login link; Map Data showed the visual categorizer request but no results row when no results file existed; official page-9 heatmap and LOS checker rendered nonblank maps with no captured console warnings/errors.
+
+### Codex Backend And Known Feature Catalog Slice
+
+- Replaced the external ChatGPT subscription placeholder with a real Codex account/backend integration boundary using the `openai-codex` Python SDK.
+- Settings now separates the app's Python ingestion backend from the Codex account backend. The app reads sanitized SDK/runtime/account status and exposes server-rendered POST actions for browser login, device-code login, and logout.
+- The Codex backend uses the packaged `openai-codex-cli-bin` runtime supplied by `openai-codex`, not a globally installed `codex` executable. This is required for standalone downloads/releases.
+- Codex state defaults to the OS user-data directory (`%LOCALAPPDATA%\WarhammerTournamentCompanion\codex-home` on Windows); packaged builds can override this with `WARHAMMER_COMPANION_CODEX_HOME`.
+- Credentials remain owned by Codex local auth storage. The app does not read, render, copy, or persist `auth.json`, access tokens, API keys, or ChatGPT browser-session data.
+- Added a known dense terrain feature catalog with versioning, stable type IDs, representative top-down image assets, display names, descriptions, blocker templates, typical positions, default wall sides, and classification hints.
+- Initial catalog entries cover L-shaped ruined walls, U-shaped ruined walls, perimeter ruined walls, armoured containers, generic solid LOS blockers, and horizontal floor/platform review features.
+- Visual categorizer requests now identify the provider as `codex_visual_classifier`, include the catalog version and known type options, and require each result to echo a deterministic feature digest.
+- Visual categorizer results may now supply `type_id` and footprint position. Catalog type IDs resolve into deterministic feature profiles and default blocker templates; the LOS engine still consumes deterministic geometry, not free-form model output.
+- Hardened result application: stale geometry digests are ignored, conflicting duplicate rows are ignored, low-confidence rows remain ignored, and all such refusals are reported in ingestion output.
+- No temporary TypeScript or JavaScript component was introduced. This slice stayed Python-only because server-rendered controls are sufficient for Codex account actions and artifact-driven categorizer workflow. Future temporary TypeScript exceptions must be isolated, documented with a specific justification, and removable without changing the Python domain model.
+- Added `docs/packaging.md` with the Codex runtime packaging contract and the temporary TypeScript exception policy.
+- Codex state handling now supports standalone OS user-data defaults, explicit `WARHAMMER_COMPANION_CODEX_HOME` packager overrides, and portable state directories for Codex desktop/sandboxed development runs.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`120 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- Browser verification used `http://127.0.0.1:8031`: Settings showed `Codex SDK ready`, packaged runtime `openai-codex-cli-bin` `0.137.0a4`, state under an app-owned Codex home, and server-rendered `Start Codex login` / `Device code` controls; Map Data, LOS Heatmap, and LOS Checker rendered the official page-9 packet with no captured console warnings/errors.

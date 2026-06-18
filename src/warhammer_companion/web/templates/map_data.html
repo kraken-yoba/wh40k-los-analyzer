@@ -76,7 +76,13 @@
     <div class="status-row">
       <div>
         <strong>Visual categorizer results</strong>
-        <div class="muted">{{ report.visual_categorizer_applied_count }} applied, {{ report.visual_categorizer_unmatched_count }} unmatched from {{ report.visual_categorizer_results_path }}</div>
+        <div class="muted">
+          {{ report.visual_categorizer_applied_count }} applied,
+          {{ report.visual_categorizer_unmatched_count }} unmatched,
+          {{ report.visual_categorizer_digest_mismatch_count }} stale,
+          {{ report.visual_categorizer_duplicate_conflict_count }} duplicate conflicts
+          from {{ report.visual_categorizer_results_path }}
+        </div>
       </div>
       <span class="tag">{{ report.visual_categorizer_applied_count }}/{{ report.visual_categorizer_result_count }}</span>
     </div>

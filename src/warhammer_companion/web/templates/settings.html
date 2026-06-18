@@ -4,21 +4,81 @@
 <header class="page-header">
   <div>
     <h1>Settings</h1>
-    <p class="lede">Backend connection state and future account controls live here.</p>
+    <p class="lede">Backend connection state and account controls live here.</p>
   </div>
 </header>
 
+{% if codex_action == "logout-complete" %}
+<div class="notice notice-success">Codex logout completed.</div>
+{% elif codex_action == "device-code-started" %}
+<div class="notice notice-success">
+  Codex device-code login started.
+  {% if codex_login_url %}<a href="{{ codex_login_url }}">{{ codex_login_url }}</a>{% endif %}
+  {% if codex_user_code %}<span class="tag">{{ codex_user_code }}</span>{% endif %}
+</div>
+{% elif codex_action == "error" %}
+<div class="notice notice-error">Codex action failed: {{ codex_message }}</div>
+{% endif %}
+
 <section class="grid">
   <article class="panel">
-    <h2>Codex Backend</h2>
-    <p class="metric">{{ codex_status }}</p>
-    <p class="muted">{{ codex_detail }}</p>
+    <h2>App Python Backend</h2>
+    <p class="metric">{{ app_backend_status }}</p>
+    <p class="muted">{{ app_backend_detail }}</p>
   </article>
   <article class="panel">
-    <h2>ChatGPT Subscription</h2>
-    <p class="metric">{{ chatgpt_subscription.label }}</p>
-    <p class="muted">{{ chatgpt_subscription.detail }}</p>
-    <a class="button button-secondary" href="{{ chatgpt_subscription.action_url }}">{{ chatgpt_subscription.action_label }}</a>
+    <h2>Codex Account</h2>
+    <p class="metric">{{ codex_status.label }}</p>
+    <p class="muted">{{ codex_status.detail }}</p>
+    <div class="status-list">
+      <div class="status-row">
+        <span>SDK</span>
+        <span class="tag">{{ codex_status.sdk_version or "missing" }}</span>
+      </div>
+      <div class="status-row">
+        <span>Runtime</span>
+        <span class="tag">{{ codex_status.runtime_label or codex_status.state }}</span>
+      </div>
+      <div class="status-row">
+        <span>Runtime source</span>
+        <span class="tag">{{ codex_status.runtime_source }}</span>
+      </div>
+      <div class="status-row">
+        <span>Runtime package</span>
+        <span class="tag">{{ codex_status.runtime_package_version or "missing" }}</span>
+      </div>
+      <div class="status-row">
+        <span>State home</span>
+        <span class="tag">{{ codex_status.state_home or "default" }}</span>
+      </div>
+      <div class="status-row">
+        <span>Account</span>
+        <span class="tag">{{ codex_status.account_label }}</span>
+      </div>
+      {% if codex_status.active_login_label %}
+      <div class="status-row">
+        <span>Login</span>
+        <span class="tag">{{ codex_status.active_login_label }}</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="row-actions">
+      {% if codex_status.can_login %}
+      <form action="/settings/codex/login" method="post">
+        <input type="hidden" name="method" value="browser">
+        <button type="submit">Start Codex login</button>
+      </form>
+      <form action="/settings/codex/login" method="post">
+        <input type="hidden" name="method" value="device-code">
+        <button class="button-secondary" type="submit">Device code</button>
+      </form>
+      {% endif %}
+      {% if codex_status.can_logout %}
+      <form action="/settings/codex/logout" method="post">
+        <button class="button-danger" type="submit">Log out</button>
+      </form>
+      {% endif %}
+    </div>
   </article>
 </section>
 {% endblock %}

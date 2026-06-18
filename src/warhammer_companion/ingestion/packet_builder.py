@@ -70,6 +70,8 @@ class IngestionReport(BaseModel):
     visual_categorizer_result_count: int = 0
     visual_categorizer_applied_count: int = 0
     visual_categorizer_unmatched_count: int = 0
+    visual_categorizer_digest_mismatch_count: int = 0
+    visual_categorizer_duplicate_conflict_count: int = 0
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -205,6 +207,8 @@ def run_official_ingestion(
     categorizer_warnings: list[str] = []
     categorizer_applied_count = 0
     categorizer_unmatched_count = 0
+    categorizer_digest_mismatch_count = 0
+    categorizer_duplicate_conflict_count = 0
     if categorizations:
         categorization_application = apply_layout_feature_categorizations_with_stats(
             layouts,
@@ -213,6 +217,12 @@ def run_official_ingestion(
         layouts = categorization_application.layouts
         categorizer_applied_count = categorization_application.applied_count
         categorizer_unmatched_count = len(categorization_application.unmatched_feature_ids)
+        categorizer_digest_mismatch_count = len(
+            categorization_application.digest_mismatch_feature_ids
+        )
+        categorizer_duplicate_conflict_count = len(
+            categorization_application.duplicate_conflict_feature_ids
+        )
         layout_library = write_layout_library(
             layouts,
             paths.layout_library_path,
@@ -228,9 +238,19 @@ def run_official_ingestion(
                 "Ignored low-confidence visual categorizer result IDs: "
                 + ", ".join(categorization_application.low_confidence_feature_ids)
             )
+        if categorization_application.digest_mismatch_feature_ids:
+            categorizer_warnings.append(
+                "Ignored stale visual categorizer result digests: "
+                + ", ".join(categorization_application.digest_mismatch_feature_ids)
+            )
+        if categorization_application.duplicate_conflict_feature_ids:
+            categorizer_warnings.append(
+                "Ignored conflicting duplicate visual categorizer result IDs: "
+                + ", ".join(categorization_application.duplicate_conflict_feature_ids)
+            )
     else:
         categorizer_warnings.append(
-            "Visual categorizer request written; no ChatGPT subscription review results "
+            "Codex visual categorizer request written; no classifier results "
             "were present, so heuristic dense-feature profiles were used."
         )
     packets = [build_map_packet(layout) for layout in layouts]
@@ -255,6 +275,8 @@ def run_official_ingestion(
         visual_categorizer_result_count=len(categorizations),
         visual_categorizer_applied_count=categorizer_applied_count,
         visual_categorizer_unmatched_count=categorizer_unmatched_count,
+        visual_categorizer_digest_mismatch_count=categorizer_digest_mismatch_count,
+        visual_categorizer_duplicate_conflict_count=categorizer_duplicate_conflict_count,
         warnings=_report_warnings(footprint_library.templates, layouts, validation)
         + categorizer_warnings,
     )

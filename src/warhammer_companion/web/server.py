@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -14,9 +14,7 @@ from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import current_pipeline_status
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
-from warhammer_companion.integrations.chatgpt_subscription import (
-    current_chatgpt_subscription_status,
-)
+from warhammer_companion.integrations.codex_backend import CodexBackend, sanitize_status_message
 from warhammer_companion.los.geometry import (
     clamp_base_center,
     heatmap_visibility_polygons_from_deployment_edge,
@@ -34,6 +32,7 @@ app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
 ingestion_paths = IngestionPaths()
 repository = FileBackedMapRepository(ingestion_paths.map_packets_dir, fallback=SAMPLE_PACKETS)
+codex_backend = CodexBackend()
 
 
 @lru_cache(maxsize=32)
@@ -62,20 +61,57 @@ def index() -> RedirectResponse:
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings(request: Request) -> HTMLResponse:
-    chatgpt_subscription = current_chatgpt_subscription_status()
+    codex_status = codex_backend.current_status()
     return templates.TemplateResponse(
         request,
         "settings.html",
         {
             "active_page": "settings",
-            "codex_status": "python ingestion backend ready",
-            "codex_detail": (
+            "app_backend_status": "python ingestion backend ready",
+            "app_backend_detail": (
                 "Official PDF extraction, LOS geometry, and visual categorizer artifacts "
                 "run through Python service boundaries."
             ),
-            "chatgpt_subscription": chatgpt_subscription,
+            "codex_status": codex_status,
+            "codex_action": request.query_params.get("codex_action"),
+            "codex_message": request.query_params.get("codex_message"),
+            "codex_login_url": request.query_params.get("codex_login_url"),
+            "codex_user_code": request.query_params.get("codex_user_code"),
         },
     )
+
+
+@app.post("/settings/codex/login", response_class=HTMLResponse)
+def start_codex_login(method: str = Form("browser")) -> RedirectResponse:
+    try:
+        if method == "device-code":
+            login = codex_backend.start_chatgpt_device_code_login()
+            return RedirectResponse(
+                "/settings?"
+                + urlencode(
+                    {
+                        "codex_action": "device-code-started",
+                        "codex_login_url": login.verification_url or "",
+                        "codex_user_code": login.user_code or "",
+                    }
+                ),
+                status_code=303,
+            )
+        login = codex_backend.start_chatgpt_login()
+    except Exception as exc:
+        return _settings_codex_error_redirect(exc)
+    if not login.auth_url:
+        return RedirectResponse("/settings?codex_action=login-started", status_code=303)
+    return RedirectResponse(login.auth_url, status_code=303)
+
+
+@app.post("/settings/codex/logout", response_class=HTMLResponse)
+def logout_codex() -> RedirectResponse:
+    try:
+        codex_backend.logout()
+    except Exception as exc:
+        return _settings_codex_error_redirect(exc)
+    return RedirectResponse("/settings?codex_action=logout-complete", status_code=303)
 
 
 @app.get("/map-data", response_class=HTMLResponse)
@@ -240,3 +276,16 @@ def _packet_path(packet_id: str) -> Path:
     if not packet_id or candidate.name != f"{packet_id}.json":
         raise ValueError(f"Invalid packet id: {packet_id}")
     return candidate
+
+
+def _settings_codex_error_redirect(exc: Exception) -> RedirectResponse:
+    return RedirectResponse(
+        "/settings?"
+        + urlencode(
+            {
+                "codex_action": "error",
+                "codex_message": sanitize_status_message(str(exc)),
+            }
+        ),
+        status_code=303,
+    )

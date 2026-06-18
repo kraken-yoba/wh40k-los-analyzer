@@ -269,7 +269,12 @@ def test_run_official_ingestion_persists_packets_and_report(tmp_path: Path) -> N
         paths.visual_categorizer_request_path.read_text(encoding="utf-8")
     )
     assert "floor_or_platform" in categorizer_request["profile_options"]
-    assert categorizer_request["provider"] == "chatgpt_subscription"
+    assert categorizer_request["provider"] == "codex_visual_classifier"
+    assert categorizer_request["catalog_version"] >= 1
+    assert any(
+        feature_type["type_id"] == "ruined-wall-u"
+        for feature_type in categorizer_request["terrain_feature_types"]
+    )
 
 
 def test_run_official_ingestion_reports_unmatched_visual_categorizations(tmp_path: Path) -> None:
@@ -301,6 +306,39 @@ def test_run_official_ingestion_reports_unmatched_visual_categorizations(tmp_pat
     assert report.visual_categorizer_applied_count == 0
     assert report.visual_categorizer_unmatched_count == 1
     assert any("unmatched visual categorizer result IDs" in warning for warning in report.warnings)
+
+
+def test_run_official_ingestion_reports_stale_visual_categorization_digest(
+    tmp_path: Path,
+) -> None:
+    paths = IngestionPaths(tmp_path / "data")
+    paths.raw_dir.mkdir(parents=True)
+    paths.visual_categorizer_results_path.parent.mkdir(parents=True)
+    _synthetic_footprint_pdf(paths.raw_dir / "terrain-area-footprints.pdf")
+    _synthetic_event_pdf(paths.raw_dir / "event-companion.pdf")
+    paths.visual_categorizer_results_path.write_text(
+        json.dumps(
+            {
+                "categorizations": [
+                    {
+                        "feature_id": "page-1-terrain-feature-1",
+                        "feature_digest": "stale-digest",
+                        "type_id": "armoured-container",
+                        "confidence": 0.9,
+                    }
+                ],
+                "schema_version": 1,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = run_official_ingestion(paths=paths, layout_pages=[1])
+
+    assert report.visual_categorizer_result_count == 1
+    assert report.visual_categorizer_applied_count == 0
+    assert any("stale visual categorizer result digests" in warning for warning in report.warnings)
 
 
 def test_run_official_ingestion_removes_stale_official_packets(tmp_path: Path) -> None:

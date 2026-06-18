@@ -13,6 +13,7 @@ dependencies = [
   "jinja2>=3.1.0",
   "numpy>=2.0.0",
   "opencv-python-headless>=4.10.0",
+  "openai-codex>=0.1.0b3",
   "pillow>=10.4.0",
   "pydantic>=2.8.0",
   "pymupdf>=1.24.0",
@@ -39,7 +40,12 @@ warhammer-companion = "warhammer_companion.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-warhammer_companion = ["py.typed", "web/templates/*.html", "web/static/*.css"]
+warhammer_companion = [
+  "py.typed",
+  "catalog_assets/*.svg",
+  "web/templates/*.html",
+  "web/static/*.css"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

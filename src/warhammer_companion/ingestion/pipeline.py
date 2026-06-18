@@ -47,7 +47,7 @@ def current_pipeline_status() -> list[PipelineStage]:
         PipelineStage(
             id="visual_review",
             label="Visual AI sanity review",
-            status=PipelineStageStatus.BLOCKED,
-            note="Codex/vision backend integration is intentionally a later boundary.",
+            status=PipelineStageStatus.READY,
+            note="Codex visual categorizer artifacts and account status are wired.",
         ),
     ]

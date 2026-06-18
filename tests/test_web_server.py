@@ -106,16 +106,77 @@ def test_pages_do_not_load_custom_frontend_javascript() -> None:
     assert "app.js" not in response.text
 
 
-def test_settings_exposes_chatgpt_subscription_login_without_javascript() -> None:
+def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch) -> None:
+    class FakeCodexBackend:
+        def current_status(self):
+            from warhammer_companion.integrations.codex_backend import CodexBackendStatus
+
+            return CodexBackendStatus(
+                state="not-authenticated",
+                label="Codex SDK ready",
+                detail="No Codex account is signed in.",
+                sdk_available=True,
+                sdk_version="0.1",
+                runtime_label="Codex Test",
+                runtime_source="openai-codex bundled runtime",
+                runtime_package_version="0.1",
+                state_home="data/codex-home",
+                authenticated=False,
+                auth_method=None,
+                account_label="Not signed in",
+                requires_openai_auth=True,
+                can_login=True,
+                can_logout=False,
+                active_login_label=None,
+            )
+
+    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
     client = TestClient(server.app)
 
     response = client.get("/settings")
 
     assert response.status_code == 200
-    assert "ChatGPT Subscription" in response.text
-    assert "Open ChatGPT login" in response.text
-    assert "Login not wired" not in response.text
+    assert "App Python Backend" in response.text
+    assert "Codex Account" in response.text
+    assert "Start Codex login" in response.text
+    assert "ChatGPT Subscription" not in response.text
+    assert "Open ChatGPT login" not in response.text
+    assert "https://chatgpt.com" not in response.text
     assert "<script" not in response.text
+
+
+def test_codex_browser_login_route_redirects_to_sdk_auth_url(monkeypatch) -> None:
+    class FakeStart:
+        auth_url = "https://auth.example/login"
+
+    class FakeCodexBackend:
+        def start_chatgpt_login(self):
+            return FakeStart()
+
+    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
+    client = TestClient(server.app)
+
+    response = client.post("/settings/codex/login", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "https://auth.example/login"
+
+
+def test_codex_logout_route_redirects_to_settings(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class FakeCodexBackend:
+        def logout(self) -> None:
+            calls.append("logout")
+
+    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
+    client = TestClient(server.app)
+
+    response = client.post("/settings/codex/logout", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings?codex_action=logout-complete"
+    assert calls == ["logout"]
 
 
 def _official_packet() -> MapPacket:

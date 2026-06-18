@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="U shaped ruined wall top down">
+  <rect width="160" height="160" fill="#f4efe4"/>
+  <rect x="34" y="34" width="24" height="92" fill="#26342e"/>
+  <rect x="102" y="34" width="24" height="92" fill="#26342e"/>
+  <rect x="34" y="102" width="92" height="24" fill="#26342e"/>
+  <rect x="58" y="34" width="44" height="68" fill="none" stroke="#8b8070" stroke-width="3" stroke-dasharray="8 6"/>
+</svg>
