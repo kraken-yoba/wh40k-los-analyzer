@@ -68,10 +68,23 @@ class DeploymentZone(BaseModel):
         return Polygon(self.footprint)
 
 
+class OfficialLayoutSide(BaseModel):
+    force_disposition: str
+    primary_mission: str
+
+
+class OfficialLayoutMetadata(BaseModel):
+    source_page: int = Field(ge=1)
+    layout_variant: str
+    first_player: OfficialLayoutSide
+    second_player: OfficialLayoutSide
+
+
 class MapPacket(BaseModel):
     id: str
     name: str
     source: str
+    layout_metadata: OfficialLayoutMetadata | None = None
     board: BoardSize = Field(default_factory=BoardSize)
     terrain_areas: list[TerrainArea]
     dense_features: list[DenseTerrainFeature]

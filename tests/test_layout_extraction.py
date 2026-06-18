@@ -158,6 +158,11 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
 
     layout = extract_layout_from_pdf(pdf_path, page_number=9)
 
+    assert layout.layout_code == "A"
+    assert layout.official_metadata is not None
+    assert layout.official_metadata.first_player.force_disposition == "Take and Hold"
+    assert layout.official_metadata.second_player.force_disposition == "Take and Hold"
+    assert layout.official_metadata.layout_variant == "A"
     assert layout.board_rect == pytest.approx((127.99, 277.77, 468.15, 740.18), abs=0.2)
     assert len(layout.deployment_zones) == 2
     assert len(layout.terrain_areas) == 16

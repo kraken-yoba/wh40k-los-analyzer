@@ -107,8 +107,9 @@ def build_map_packet(layout: ExtractedLayout) -> MapPacket:
 
     return MapPacket(
         id=f"official-event-companion-page-{layout.source_page}",
-        name=f"{layout.name} Page {layout.source_page}",
-        source=f"Extracted from Event Companion page {layout.source_page}",
+        name=_packet_name(layout),
+        source=_packet_source(layout),
+        layout_metadata=layout.official_metadata,
         board=BoardSize(
             width=layout.board_width_inches,
             height=layout.board_height_inches,
@@ -117,6 +118,27 @@ def build_map_packet(layout: ExtractedLayout) -> MapPacket:
         dense_features=dense_features,
         light_features=light_features,
         deployment_zones=deployment_zones,
+    )
+
+
+def _packet_name(layout: ExtractedLayout) -> str:
+    metadata = layout.official_metadata
+    if metadata is None:
+        return f"{layout.name} Page {layout.source_page}"
+    return (
+        f"{metadata.first_player.force_disposition} vs "
+        f"{metadata.second_player.force_disposition} - "
+        f"Layout {metadata.layout_variant}"
+    )
+
+
+def _packet_source(layout: ExtractedLayout) -> str:
+    metadata = layout.official_metadata
+    if metadata is None:
+        return f"Extracted from Event Companion page {layout.source_page}"
+    return (
+        f"Extracted from Event Companion page {layout.source_page}: "
+        f"{metadata.first_player.primary_mission} vs {metadata.second_player.primary_mission}"
     )
 
 

@@ -38,6 +38,15 @@
     <div>
       <strong>{{ packet.name }}</strong>
       <div class="muted">{{ packet.source }}</div>
+      {% if packet.layout_metadata %}
+      <div class="muted">
+        First player: {{ packet.layout_metadata.first_player.force_disposition }}
+        ({{ packet.layout_metadata.first_player.primary_mission }});
+        second player: {{ packet.layout_metadata.second_player.force_disposition }}
+        ({{ packet.layout_metadata.second_player.primary_mission }});
+        layout {{ packet.layout_metadata.layout_variant }}
+      </div>
+      {% endif %}
     </div>
     <div class="row-actions">
       <a class="button button-secondary" href="/viewer?packet_id={{ packet.id }}">Open</a>

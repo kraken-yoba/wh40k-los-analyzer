@@ -6,8 +6,9 @@ from fastapi.testclient import TestClient
 
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
-from warhammer_companion.domain.repository import FileBackedMapRepository
+from warhammer_companion.domain.repository import FileBackedMapRepository, StaticMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
+from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
 from warhammer_companion.ingestion.packet_builder import IngestionReport, PacketValidationResult
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 from warhammer_companion.web import server
@@ -121,6 +122,35 @@ def test_viewer_reports_light_review_feature_counts() -> None:
     assert "Dense Blockers" in response.text
     assert "Light / Review Features" in response.text
     assert "Floor / Platform Review" in response.text
+
+
+def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monkeypatch) -> None:
+    packets = [
+        _official_packet().model_copy(
+            update={
+                "id": f"official-event-companion-page-{page}",
+                "name": f"Official Page {page}",
+                "layout_metadata": official_layout_metadata_for_page(page),
+            }
+        )
+        for page in range(9, 54)
+    ]
+    monkeypatch.setattr(server, "repository", StaticMapRepository(list(reversed(packets))))
+    client = TestClient(server.app)
+
+    response = client.get("/viewer?packet_id=official-event-companion-page-9")
+
+    assert response.status_code == 200
+    assert response.text.count("<optgroup") == 15
+    assert response.text.count('value="official-event-companion-page-') == 45
+    assert '<optgroup label="Take and Hold vs Take and Hold">' in response.text
+    assert "Layout A - Battlefield Dominance vs Battlefield Dominance" in response.text
+    assert "Layout B - Battlefield Dominance vs Battlefield Dominance" in response.text
+    assert "Layout C - Battlefield Dominance vs Battlefield Dominance" in response.text
+    assert '<optgroup label="Priority Assets vs Priority Assets">' in response.text
+    assert "Layout C - Sabotage vs Sabotage" in response.text
+    assert "First player" in response.text
+    assert "Second player" in response.text
 
 
 def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch) -> None:

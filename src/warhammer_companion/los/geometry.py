@@ -217,14 +217,14 @@ def deployment_edge_sample_points(
     zone = packet.deployment_zone(deployment_zone_id).polygon()
     board = _board_polygon(packet)
     if offset_inches > 0:
-        samples = _offset_frontier_sample_points(
+        offset_samples = _offset_frontier_sample_points(
             zone,
             board,
             sample_step=sample_step,
             offset_inches=offset_inches,
         )
-        if samples:
-            return samples
+        if offset_samples:
+            return offset_samples
     samples: list[tuple[float, float]] = []
     for start, end in _front_edge_segments(zone, board):
         normal = _front_edge_normal(start, end, zone, board)
@@ -473,8 +473,8 @@ def _merge_hairline_contact_geometries(geometries: list[BaseGeometry]) -> list[B
         else:
             connector = LineString([left_point, right_point]).buffer(
                 half_tolerance,
-                cap_style=1,
-                join_style=2,
+                cap_style="round",
+                join_style="mitre",
             )
         if not connector.is_empty and connector.area > 1e-6:
             bridged_geometries.append(connector)

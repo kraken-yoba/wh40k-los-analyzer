@@ -20,6 +20,7 @@ from warhammer_companion.ingestion.layouts import (
     LayoutElement,
     extract_layout_from_pdf,
 )
+from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
 from warhammer_companion.ingestion.packet_builder import (
     PacketValidationResult,
     build_map_packet,
@@ -47,6 +48,30 @@ def test_build_map_packet_translates_layout_roles_and_dense_features(tmp_path: P
         packet.dense_features[0].polygon().bounds[0] >= packet.terrain_areas[0].polygon().bounds[0]
     )
     assert validate_packet(packet).valid
+
+
+def test_build_map_packet_preserves_official_layout_metadata() -> None:
+    metadata = official_layout_metadata_for_page(9)
+    assert metadata is not None
+    layout = _layout_with_dense_feature(
+        feature_profile="container_or_solid",
+        feature_footprint=[(2.0, 2.0), (4.0, 2.0), (4.0, 4.0), (2.0, 4.0)],
+    ).model_copy(
+        update={
+            "source_page": 9,
+            "layout_code": "A",
+            "official_metadata": metadata,
+        }
+    )
+
+    packet = build_map_packet(layout)
+
+    assert packet.id == "official-event-companion-page-9"
+    assert packet.name == "Take and Hold vs Take and Hold - Layout A"
+    assert packet.layout_metadata == metadata
+    assert packet.source == (
+        "Extracted from Event Companion page 9: Battlefield Dominance vs Battlefield Dominance"
+    )
 
 
 def test_build_map_packet_preserves_terrain_group_ids() -> None:

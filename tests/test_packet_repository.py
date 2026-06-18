@@ -13,6 +13,7 @@ from warhammer_companion.domain.repository import (
     FileBackedMapRepository,
     StaticMapRepository,
 )
+from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 
@@ -45,6 +46,30 @@ def test_file_backed_repository_lists_and_fetches_packets(tmp_path: Path) -> Non
     assert repository.list_packets() == [packet]
     assert repository.default_packet() == packet
     assert repository.get_packet("official-a") == packet
+
+
+def test_static_repository_lists_official_packets_by_source_page() -> None:
+    page_10 = SAMPLE_PACKETS[0].model_copy(
+        update={
+            "id": "official-event-companion-page-10",
+            "name": "Take and Hold vs Take and Hold - Layout B",
+            "layout_metadata": official_layout_metadata_for_page(10),
+        }
+    )
+    page_9 = SAMPLE_PACKETS[0].model_copy(
+        update={
+            "id": "official-event-companion-page-9",
+            "name": "Take and Hold vs Take and Hold - Layout A",
+            "layout_metadata": official_layout_metadata_for_page(9),
+        }
+    )
+
+    repository = StaticMapRepository([page_10, page_9])
+
+    assert [packet.id for packet in repository.list_packets()] == [
+        "official-event-companion-page-9",
+        "official-event-companion-page-10",
+    ]
 
 
 def test_unknown_packets_raise_clear_key_errors(tmp_path: Path) -> None:

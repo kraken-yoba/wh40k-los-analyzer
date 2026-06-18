@@ -13,8 +13,12 @@
     <label>
       Map packet
       <select name="packet_id">
-        {% for option in packets %}
-        <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.name }}</option>
+        {% for group in packet_groups %}
+        <optgroup label="{{ group.label }}">
+          {% for option in group.options %}
+          <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.label }}</option>
+          {% endfor %}
+        </optgroup>
         {% endfor %}
       </select>
     </label>
@@ -22,6 +26,26 @@
   </form>
   <div class="map-wrap">{{ map_svg | safe }}</div>
 </section>
+
+{% if packet.layout_metadata %}
+<section class="grid">
+  <article class="panel">
+    <h2>First player</h2>
+    <p class="metric metric-status">{{ packet.layout_metadata.first_player.force_disposition }}</p>
+    <p class="muted">{{ packet.layout_metadata.first_player.primary_mission }}</p>
+  </article>
+  <article class="panel">
+    <h2>Second player</h2>
+    <p class="metric metric-status">{{ packet.layout_metadata.second_player.force_disposition }}</p>
+    <p class="muted">{{ packet.layout_metadata.second_player.primary_mission }}</p>
+  </article>
+  <article class="panel">
+    <h2>Layout</h2>
+    <p class="metric metric-status">{{ packet.layout_metadata.layout_variant }}</p>
+    <p class="muted">Event Companion page {{ packet.layout_metadata.source_page }}</p>
+  </article>
+</section>
+{% endif %}
 
 <section class="grid">
   <article class="panel">

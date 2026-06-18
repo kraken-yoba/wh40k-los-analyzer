@@ -32,7 +32,7 @@ class StaticMapRepository:
             self._packets[packet.id] = packet
 
     def list_packets(self) -> list[MapPacket]:
-        return sorted(self._packets.values(), key=lambda packet: packet.name)
+        return sorted(self._packets.values(), key=_packet_sort_key)
 
     def get_packet(self, packet_id: str) -> MapPacket:
         try:
@@ -104,3 +104,9 @@ class InMemoryMapRepository(StaticMapRepository):
 
     def __init__(self) -> None:
         super().__init__(SAMPLE_PACKETS)
+
+
+def _packet_sort_key(packet: MapPacket) -> tuple[int, int, str]:
+    if packet.layout_metadata is None:
+        return (1, 0, packet.name)
+    return (0, packet.layout_metadata.source_page, packet.name)

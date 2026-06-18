@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote, urlencode
@@ -9,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.repository import FileBackedMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
@@ -28,6 +30,19 @@ from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 PACKAGE_DIR = Path(__file__).resolve().parent
+
+
+@dataclass(frozen=True)
+class PacketSelectOption:
+    id: str
+    label: str
+
+
+@dataclass(frozen=True)
+class PacketSelectGroup:
+    label: str
+    options: list[PacketSelectOption]
+
 
 app = FastAPI(title="Warhammer Tournament Companion")
 app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
@@ -185,7 +200,7 @@ def viewer(request: Request, packet_id: str | None = None) -> HTMLResponse:
         {
             "active_page": "viewer",
             "packet": packet,
-            "packets": repository.list_packets(),
+            "packet_groups": _packet_select_groups(repository.list_packets()),
             "map_svg": render_map_svg(packet),
         },
     )
@@ -208,7 +223,7 @@ def heatmap(
         {
             "active_page": "heatmap",
             "packet": packet,
-            "packets": repository.list_packets(),
+            "packet_groups": _packet_select_groups(repository.list_packets()),
             "selected_zone_id": zone_id,
             "selected_source": heatmap_source,
             "selected_offset_inches": clamped_offset,
@@ -241,7 +256,7 @@ def los_checker(
         {
             "active_page": "los-checker",
             "packet": packet,
-            "packets": repository.list_packets(),
+            "packet_groups": _packet_select_groups(repository.list_packets()),
             "x": center[0],
             "y": center[1],
             "base": base,
@@ -276,6 +291,41 @@ def _latest_ingestion_report() -> IngestionReport | None:
         return IngestionReport.model_validate_json(path.read_text(encoding="utf-8"))
     except ValueError:
         return None
+
+
+def _packet_select_groups(packets: list[MapPacket]) -> list[PacketSelectGroup]:
+    grouped: dict[str, list[PacketSelectOption]] = {}
+    for packet in sorted(packets, key=_packet_sort_key):
+        grouped.setdefault(_packet_group_label(packet), []).append(
+            PacketSelectOption(id=packet.id, label=_packet_option_label(packet))
+        )
+    return [PacketSelectGroup(label=label, options=options) for label, options in grouped.items()]
+
+
+def _packet_sort_key(packet: MapPacket) -> tuple[int, int, str]:
+    metadata = packet.layout_metadata
+    if metadata is None:
+        return (1, 0, packet.name)
+    return (0, metadata.source_page, metadata.layout_variant)
+
+
+def _packet_group_label(packet: MapPacket) -> str:
+    metadata = packet.layout_metadata
+    if metadata is None:
+        return "Development fixtures"
+    return (
+        f"{metadata.first_player.force_disposition} vs {metadata.second_player.force_disposition}"
+    )
+
+
+def _packet_option_label(packet: MapPacket) -> str:
+    metadata = packet.layout_metadata
+    if metadata is None:
+        return packet.name
+    return (
+        f"Layout {metadata.layout_variant} - "
+        f"{metadata.first_player.primary_mission} vs {metadata.second_player.primary_mission}"
+    )
 
 
 def _deletable_packet_ids() -> set[str]:

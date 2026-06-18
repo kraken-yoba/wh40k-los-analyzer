@@ -14,12 +14,16 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel, Field
 from shapely.geometry import MultiPolygon, Polygon
 
+from warhammer_companion.domain.models import OfficialLayoutMetadata
 from warhammer_companion.ingestion.coordinates import BoardTransform, image_to_board_point
 from warhammer_companion.ingestion.official_features import (
     OfficialFeatureCode as OfficialFeatureCode,
 )
 from warhammer_companion.ingestion.official_features import (
     extract_official_feature_labels,
+)
+from warhammer_companion.ingestion.official_layout_metadata import (
+    official_layout_metadata_for_page,
 )
 from warhammer_companion.ingestion.pdf import pdf_page_count, render_pdf_page
 
@@ -90,6 +94,7 @@ class ExtractedLayout(BaseModel):
     source_pdf: str | None = None
     source_page: int = Field(ge=1)
     layout_code: str | None = None
+    official_metadata: OfficialLayoutMetadata | None = None
     board_rect: BBox
     board_width_inches: float = BOARD_WIDTH_INCHES
     board_height_inches: float = BOARD_HEIGHT_INCHES
@@ -154,7 +159,12 @@ def extract_layout_from_pdf(
         transform = BoardTransform(board_rect)
         board_polygon = _board_polygon()
         page_text = str(page.get_text("text"))
-        layout_code = _layout_code(page_text)
+        official_metadata = official_layout_metadata_for_page(page_number)
+        layout_code = (
+            official_metadata.layout_variant
+            if official_metadata is not None
+            else _layout_code(page_text)
+        )
 
         deployments = _extract_elements(
             drawings,
@@ -216,13 +226,14 @@ def extract_layout_from_pdf(
         if not terrain_features:
             warnings.append("no-terrain-features-detected")
 
-        name = f"Official Layout {layout_code or page_number}"
+        name = _layout_name(page_number, layout_code, official_metadata)
         return ExtractedLayout(
             id=f"official-layout-page-{page_number}",
             name=name,
             source_pdf=str(pdf_path),
             source_page=page_number,
             layout_code=layout_code,
+            official_metadata=official_metadata,
             board_rect=board_rect,
             deployment_zones=deployments,
             terrain_areas=terrain_areas,
@@ -231,6 +242,20 @@ def extract_layout_from_pdf(
         )
     finally:
         document.close()
+
+
+def _layout_name(
+    page_number: int,
+    layout_code: str | None,
+    official_metadata: OfficialLayoutMetadata | None,
+) -> str:
+    if official_metadata is None:
+        return f"Official Layout {layout_code or page_number}"
+    return (
+        f"{official_metadata.first_player.force_disposition} vs "
+        f"{official_metadata.second_player.force_disposition} - "
+        f"Layout {official_metadata.layout_variant}"
+    )
 
 
 def detect_board_rect(drawings: Sequence[Any]) -> BBox:
