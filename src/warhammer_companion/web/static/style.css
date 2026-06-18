@@ -242,6 +242,15 @@ button,
   border-bottom: 0;
 }
 
+.settings-status-list .status-row {
+  grid-template-columns: minmax(8rem, 0.45fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.settings-status-list .status-row > span:first-child {
+  min-width: 0;
+}
+
 .tag {
   display: inline-flex;
   align-items: center;
@@ -252,6 +261,18 @@ button,
   color: var(--ink);
   font-size: 12px;
   font-weight: 750;
+}
+
+.tag-wrap {
+  justify-self: end;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 26px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .tag-ready {

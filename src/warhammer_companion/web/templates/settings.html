@@ -30,35 +30,35 @@
     <h2>Codex Account</h2>
     <p class="metric metric-status">{{ codex_status.label }}</p>
     <p class="muted">{{ codex_status.detail }}</p>
-    <div class="status-list">
+    <div class="status-list settings-status-list">
       <div class="status-row">
         <span>SDK</span>
-        <span class="tag">{{ codex_status.sdk_version or "missing" }}</span>
+        <span class="tag tag-wrap">{{ codex_status.sdk_version or "missing" }}</span>
       </div>
       <div class="status-row">
         <span>Runtime</span>
-        <span class="tag">{{ codex_status.runtime_label or codex_status.state }}</span>
+        <span class="tag tag-wrap">{{ codex_status.runtime_label or codex_status.state }}</span>
       </div>
       <div class="status-row">
         <span>Runtime source</span>
-        <span class="tag">{{ codex_status.runtime_source }}</span>
+        <span class="tag tag-wrap">{{ codex_status.runtime_source }}</span>
       </div>
       <div class="status-row">
         <span>Runtime package</span>
-        <span class="tag">{{ codex_status.runtime_package_version or "missing" }}</span>
+        <span class="tag tag-wrap">{{ codex_status.runtime_package_version or "missing" }}</span>
       </div>
       <div class="status-row">
         <span>State home</span>
-        <span class="tag">{{ codex_status.state_home or "default" }}</span>
+        <span class="tag tag-wrap">{{ codex_status.state_home or "default" }}</span>
       </div>
       <div class="status-row">
         <span>Account</span>
-        <span class="tag">{{ codex_status.account_label }}</span>
+        <span class="tag tag-wrap">{{ codex_status.account_label }}</span>
       </div>
       {% if codex_status.active_login_label %}
       <div class="status-row">
         <span>Login</span>
-        <span class="tag">{{ codex_status.active_login_label }}</span>
+        <span class="tag tag-wrap">{{ codex_status.active_login_label }}</span>
       </div>
       {% endif %}
     </div>

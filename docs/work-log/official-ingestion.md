@@ -201,6 +201,7 @@
   - `.\.venv\Scripts\python.exe -m ruff check src tests`
   - `.\.venv\Scripts\mypy.exe src`
   - `.\.venv\Scripts\python.exe -m pytest -q` (`129 passed`)
+- Follow-up settings status layout fix: Codex account status rows now use a settings-specific wrapping list and bounded value chips, so long SDK/runtime/source/state-home values wrap inside the panel instead of forcing horizontal overflow. Browser verification on `http://127.0.0.1:8045/settings` showed `documentScrollWidth == documentClientWidth`, no horizontal overflow, and all six status values constrained inside a 511px panel.
 
 ### Heatmap Safe-Zone Slice
 

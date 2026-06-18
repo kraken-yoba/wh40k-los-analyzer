@@ -163,6 +163,16 @@ def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch)
     assert "<script" not in response.text
 
 
+def test_settings_status_values_use_wrapping_layout() -> None:
+    css = (server.PACKAGE_DIR / "static" / "style.css").read_text()
+
+    assert "settings-status-list" in css
+    assert "grid-template-columns: minmax(8rem, 0.45fr) minmax(0, 1fr)" in css
+    assert "tag-wrap" in css
+    assert "white-space: normal" in css
+    assert "overflow-wrap: anywhere" in css
+
+
 def test_codex_browser_login_route_redirects_to_sdk_auth_url(monkeypatch) -> None:
     class FakeStart:
         auth_url = "https://auth.example/login"
