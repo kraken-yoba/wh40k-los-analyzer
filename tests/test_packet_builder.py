@@ -49,6 +49,42 @@ def test_build_map_packet_translates_layout_roles_and_dense_features(tmp_path: P
     assert validate_packet(packet).valid
 
 
+def test_build_map_packet_preserves_terrain_group_ids() -> None:
+    grouped_area = LayoutElement(
+        id="area-1",
+        label="Area 1",
+        kind="terrain_area",
+        terrain_group_id="page-9-merge-1",
+        footprint=[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)],
+        source_page=9,
+        source_bbox=(100.0, 100.0, 200.0, 200.0),
+    )
+    other_grouped_area = grouped_area.model_copy(
+        update={
+            "id": "area-2",
+            "label": "Area 2",
+            "footprint": [(15.0, 0.0), (25.0, 0.0), (25.0, 10.0), (15.0, 10.0)],
+            "source_bbox": (250.0, 100.0, 350.0, 200.0),
+        }
+    )
+    layout = _layout_with_dense_feature(
+        feature_profile="container_or_solid",
+        feature_footprint=[(2.0, 2.0), (4.0, 2.0), (4.0, 4.0), (2.0, 4.0)],
+    ).model_copy(
+        update={
+            "terrain_areas": [grouped_area, other_grouped_area],
+            "terrain_features": [],
+        }
+    )
+
+    packet = build_map_packet(layout)
+
+    assert [area.terrain_group_id for area in packet.terrain_areas] == [
+        "page-9-merge-1",
+        "page-9-merge-1",
+    ]
+
+
 def test_build_map_packet_simplifies_high_vertex_polygons(tmp_path: Path) -> None:
     layout = extract_layout_from_pdf(
         _synthetic_event_pdf(tmp_path),

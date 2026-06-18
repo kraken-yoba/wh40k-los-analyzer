@@ -14,7 +14,7 @@ from shapely.geometry import (
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
-from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.models import MapPacket, TerrainArea
 
 BOARD_BOUNDARY_EDGE_TOLERANCE = 0.25
 
@@ -48,7 +48,7 @@ class VisibilityPolygon:
 @dataclass(frozen=True)
 class _LosBlockers:
     opaque: list[Polygon]
-    obscuring: list[Polygon]
+    obscuring: list[BaseGeometry]
 
 
 def circular_base(center: tuple[float, float], diameter: float, resolution: int = 48) -> Polygon:
@@ -222,7 +222,7 @@ def visibility_polygon_from_point(
     vertices = _polygon_vertices(board) + [
         vertex
         for blocker in active_blockers.opaque + active_blockers.obscuring
-        for vertex in _polygon_vertices(blocker)
+        for vertex in _geometry_vertices(blocker)
     ]
     ray_length = max(packet.board.width, packet.board.height) * 3.0
     angles = sorted(
@@ -303,25 +303,18 @@ def _ray_to(
 
 def _los_blockers_for_point(packet: MapPacket, origin: tuple[float, float]) -> _LosBlockers:
     origin_point = Point(origin)
+    ignored_group_ids = _terrain_group_ids_covering_point(packet, origin_point)
     return _LosBlockers(
         opaque=[feature.polygon() for feature in packet.dense_features if feature.blocks_los],
-        obscuring=[
-            area.polygon()
-            for area in packet.terrain_areas
-            if area.blocks_los and not area.polygon().covers(origin_point)
-        ],
+        obscuring=_obscuring_terrain_geometries(packet, ignored_group_ids=ignored_group_ids),
     )
 
 
 def _los_blockers_for_base(packet: MapPacket, base: Polygon) -> _LosBlockers:
-    touched_area_ids = _terrain_area_ids_touched_by_base(packet, base)
+    touched_group_ids = _terrain_group_ids_touched_by_base(packet, base)
     return _LosBlockers(
         opaque=[feature.polygon() for feature in packet.dense_features if feature.blocks_los],
-        obscuring=[
-            area.polygon()
-            for area in packet.terrain_areas
-            if area.blocks_los and area.id not in touched_area_ids
-        ],
+        obscuring=_obscuring_terrain_geometries(packet, ignored_group_ids=touched_group_ids),
     )
 
 
@@ -331,13 +324,47 @@ def _coerce_los_blockers(blockers: _LosBlockers | list[Polygon]) -> _LosBlockers
     return _LosBlockers(opaque=blockers, obscuring=[])
 
 
-def _terrain_area_ids_touched_by_base(packet: MapPacket, base: Polygon) -> set[str]:
+def _terrain_group_ids_covering_point(packet: MapPacket, point: Point) -> set[str]:
+    covered: set[str] = set()
+    for area in packet.terrain_areas:
+        polygon = area.polygon()
+        if polygon.covers(point):
+            covered.add(_terrain_group_key(area))
+    return covered
+
+
+def _terrain_group_ids_touched_by_base(packet: MapPacket, base: Polygon) -> set[str]:
     touched: set[str] = set()
     for area in packet.terrain_areas:
         polygon = area.polygon()
         if base.intersects(polygon) or base.distance(polygon) <= 1e-7:
-            touched.add(area.id)
+            touched.add(_terrain_group_key(area))
     return touched
+
+
+def _obscuring_terrain_geometries(
+    packet: MapPacket,
+    *,
+    ignored_group_ids: set[str],
+) -> list[BaseGeometry]:
+    grouped_polygons: dict[str, list[Polygon]] = {}
+    for area in packet.terrain_areas:
+        if not area.blocks_los:
+            continue
+        group_key = _terrain_group_key(area)
+        if group_key in ignored_group_ids:
+            continue
+        grouped_polygons.setdefault(group_key, []).append(area.polygon())
+    geometries: list[BaseGeometry] = []
+    for polygons in grouped_polygons.values():
+        geometry = unary_union(polygons)
+        if not geometry.is_empty:
+            geometries.append(geometry)
+    return geometries
+
+
+def _terrain_group_key(area: TerrainArea) -> str:
+    return area.terrain_group_id or area.id
 
 
 def _blocker_union(blockers: list[Polygon]) -> BaseGeometry:
@@ -404,6 +431,17 @@ def _board_polygon(packet: MapPacket) -> Polygon:
 
 def _polygon_vertices(polygon: Polygon) -> list[tuple[float, float]]:
     return [(float(x), float(y)) for x, y in list(polygon.exterior.coords)[:-1]]
+
+
+def _geometry_vertices(geometry: BaseGeometry) -> list[tuple[float, float]]:
+    if isinstance(geometry, Polygon):
+        return _polygon_vertices(geometry)
+    if hasattr(geometry, "geoms"):
+        vertices: list[tuple[float, float]] = []
+        for part in geometry.geoms:
+            vertices.extend(_geometry_vertices(part))
+        return vertices
+    return []
 
 
 def _polygon_segments(polygon: Polygon) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -499,7 +537,7 @@ def _nearest_visibility_hit(
     ray_length: float,
     board_segments: list[tuple[tuple[float, float], tuple[float, float]]],
     opaque_segments: list[tuple[tuple[float, float], tuple[float, float]]],
-    obscuring_polygons: list[Polygon],
+    obscuring_polygons: list[BaseGeometry],
 ) -> tuple[float, float] | None:
     candidates = [
         _nearest_ray_hit(origin, angle, ray_length, board_segments),
@@ -516,7 +554,7 @@ def _nearest_obscuring_exit_hit(
     origin: tuple[float, float],
     angle: float,
     ray_length: float,
-    obscuring_polygons: list[Polygon],
+    obscuring_polygons: list[BaseGeometry],
 ) -> tuple[float, float] | None:
     ox, oy = origin
     dx = cos(angle)

@@ -171,6 +171,22 @@
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser verification used `http://127.0.0.1:8040`: Map Viewer showed the official page-9 packet with 15 dense blockers and 15 light/review features; LOS Checker rendered the same 15 blockers with one binary coverage raster, one model base, 5 visible rays, and 29 blocked rays; LOS Heatmap rendered one heatmap raster image from the same blocker set. No browser warning/error logs were captured during those checks.
+
+### Official Terrain Merge Slice
+
+- Added `terrain_group_id` to extracted terrain areas and map-packet terrain areas so official "open eye" relationships can be represented without merging away the original extracted polygons.
+- LOS now treats terrain areas with the same `terrain_group_id` as one effective obscuring footprint. A model base touching any member, or a visibility sample inside any member, sees through the whole grouped footprint; dense terrain features on the grouped footprint remain opaque blockers.
+- Added page-9 official merge hints for the open-eye relationships currently visible in Layout A: terrain 3/7/11 share one effective footprint group, and terrain 14/15 share a second group. Crossed-eye nearby pairs such as 16/1 and 5/12 remain ungrouped.
+- The page-9 packet was regenerated with the new group metadata and validates successfully.
+- Current implementation uses explicit official page-9 merge hints. The next extraction hardening step should replace or augment this with a deterministic icon-detection pass for open-eye and crossed-eye markers across all official layouts.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_los_geometry.py tests\test_packet_builder.py tests\test_layout_extraction.py -q` (`58 passed`)
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`135 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- Browser verification used `http://127.0.0.1:8041`: LOS Checker rendered page 9 with 15 dense blockers, 15 light/review features, one binary coverage raster, one model base, 11 visible rays, and 23 blocked rays; LOS Heatmap rendered one heatmap raster image from the same grouped packet. No browser warning/error logs were captured during those checks.
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser verification used `http://127.0.0.1:8038`: Map Viewer showed 14 dense blockers, LOS Checker rendered the same 14 blockers with one raster coverage image, one model base, 5 visible rays, and 29 blocked rays, and LOS Heatmap rendered the same blocker mix with one heatmap raster image. No browser warning/error logs were captured during those checks.

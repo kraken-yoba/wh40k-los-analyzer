@@ -84,6 +84,7 @@ def build_map_packet(layout: ExtractedLayout) -> MapPacket:
             label=f"Terrain {index}",
             kind=TerrainKind.RUINS,
             footprint=_safe_points(area.footprint),
+            terrain_group_id=area.terrain_group_id,
             blocks_los=True,
         )
         for index, area in enumerate(layout.terrain_areas, start=1)

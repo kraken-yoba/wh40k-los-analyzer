@@ -259,6 +259,27 @@ def test_base_touching_terrain_footprint_sees_through_that_footprint() -> None:
     assert touching_polygon.covers(target_through_footprint)
 
 
+def test_base_touching_grouped_terrain_footprint_sees_through_group() -> None:
+    packet = _merged_ruin_packet()
+
+    outside_polygon = visibility_polygon_from_base(packet, center=(13.0, 30.0), base_diameter=1.57)
+    touching_polygon = visibility_polygon_from_base(
+        packet, center=(14.25, 30.0), base_diameter=1.57
+    )
+
+    target_behind_second_member = Point(40.0, 30.0)
+    assert not outside_polygon.covers(target_behind_second_member)
+    assert touching_polygon.covers(target_behind_second_member)
+
+
+def test_point_inside_grouped_terrain_footprint_sees_through_group() -> None:
+    packet = _merged_ruin_packet()
+
+    polygon = visibility_polygon_from_base(packet, center=(20.0, 30.0), base_diameter=1.57)
+
+    assert polygon.covers(Point(40.0, 30.0))
+
+
 def test_base_touching_terrain_footprint_still_blocked_by_dense_feature() -> None:
     packet = _single_ruin_packet()
 
@@ -301,6 +322,38 @@ def _single_ruin_packet() -> MapPacket:
                 footprint=[(18, 26), (26, 26), (26, 34), (18, 34)],
             )
         ],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0, 0), (44, 0), (44, 10), (0, 10)],
+            )
+        ],
+    )
+
+
+def _merged_ruin_packet() -> MapPacket:
+    return MapPacket(
+        id="merged-ruin",
+        name="Merged Ruin",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[
+            TerrainArea(
+                id="a",
+                label="A",
+                kind=TerrainKind.RUINS,
+                terrain_group_id="merged-a-b",
+                footprint=[(15, 24), (29, 24), (29, 36), (15, 36)],
+            ),
+            TerrainArea(
+                id="b",
+                label="B",
+                kind=TerrainKind.RUINS,
+                terrain_group_id="merged-a-b",
+                footprint=[(30, 24), (36, 24), (36, 36), (30, 36)],
+            ),
+        ],
+        dense_features=[],
         deployment_zones=[
             DeploymentZone(
                 id="attacker",

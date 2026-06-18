@@ -55,6 +55,12 @@ BLUE_DEPLOYMENT = (0.0, 0.241, 0.408)
 TERRAIN_GREY = (0.82, 0.826, 0.832)
 _NO_MATCH = object()
 
+OFFICIAL_TERRAIN_MERGE_GROUPS_BY_PAGE: dict[int, tuple[tuple[int, ...], ...]] = {
+    # Page 9 Layout A uses open-eye markers for these effective footprint groups.
+    # Crossed-eye markers on nearby pieces deliberately remain ungrouped.
+    9: ((3, 7, 11), (14, 15)),
+}
+
 
 class LayoutElement(BaseModel):
     id: str
@@ -65,6 +71,7 @@ class LayoutElement(BaseModel):
     feature_wall_sides: list[WallSide] | None = None
     official_feature_code: OfficialFeatureCode | None = None
     terrain_area_id: str | None = None
+    terrain_group_id: str | None = None
     source_role: str | None = None
     footprint: list[Point]
     source_page: int = Field(ge=1)
@@ -167,6 +174,10 @@ def extract_layout_from_pdf(
             color_roles=((TERRAIN_GREY, None),),
             min_area_pdf=750.0,
         )
+        terrain_areas = _apply_official_terrain_merge_groups(
+            terrain_areas,
+            source_page=page_number,
+        )
         rendered = render_pdf_page(pdf_path, page_index=page_number - 1, dpi=feature_dpi)
         terrain_features = _extract_raster_features(
             rendered.image,
@@ -246,6 +257,40 @@ def detect_board_rect(drawings: Sequence[Any]) -> BBox:
     if not candidates:
         raise ValueError("Could not detect board rectangle")
     return max(candidates, key=lambda candidate: (candidate[1], candidate[0]))[2]
+
+
+def _apply_official_terrain_merge_groups(
+    terrain_areas: Sequence[LayoutElement],
+    *,
+    source_page: int,
+) -> list[LayoutElement]:
+    groups = OFFICIAL_TERRAIN_MERGE_GROUPS_BY_PAGE.get(source_page)
+    if not groups:
+        return list(terrain_areas)
+
+    group_by_ordinal: dict[int, str] = {}
+    for group_index, ordinals in enumerate(groups, start=1):
+        group_id = f"page-{source_page}-terrain-merge-{group_index}"
+        for ordinal in ordinals:
+            group_by_ordinal[ordinal] = group_id
+
+    updated: list[LayoutElement] = []
+    for ordinal, area in enumerate(terrain_areas, start=1):
+        area_group_id = group_by_ordinal.get(ordinal)
+        if area_group_id is None:
+            updated.append(area)
+            continue
+        warnings = list(area.warnings)
+        warnings.append(f"official-terrain-merge-group:{area_group_id}")
+        updated.append(
+            area.model_copy(
+                update={
+                    "terrain_group_id": area_group_id,
+                    "warnings": warnings,
+                }
+            )
+        )
+    return updated
 
 
 def write_layout_library(

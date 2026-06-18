@@ -28,6 +28,7 @@ class TerrainArea(BaseModel):
     label: str
     kind: TerrainKind
     footprint: list[Point]
+    terrain_group_id: str | None = None
     blocks_los: bool = True
 
     def polygon(self) -> Polygon:

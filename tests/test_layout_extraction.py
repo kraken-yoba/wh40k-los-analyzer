@@ -189,6 +189,17 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     ]
     assert cd_features
     assert {feature.feature_profile for feature in cd_features} == {"ruined_wall_l"}
+    terrain_by_ordinal = dict(enumerate(layout.terrain_areas, start=1))
+    central_group = terrain_by_ordinal[3].terrain_group_id
+    assert central_group is not None
+    assert terrain_by_ordinal[7].terrain_group_id == central_group
+    assert terrain_by_ordinal[11].terrain_group_id == central_group
+    assert terrain_by_ordinal[14].terrain_group_id == terrain_by_ordinal[15].terrain_group_id
+    assert terrain_by_ordinal[14].terrain_group_id is not None
+    assert terrain_by_ordinal[16].terrain_group_id is None
+    assert terrain_by_ordinal[1].terrain_group_id is None
+    assert terrain_by_ordinal[5].terrain_group_id is None
+    assert terrain_by_ordinal[12].terrain_group_id is None
     assert not layout.warnings
 
 
