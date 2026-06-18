@@ -372,7 +372,9 @@ def test_run_official_ingestion_can_generate_catalog_classifier_results(tmp_path
     assert report.visual_categorizer_result_count == 1
     assert report.visual_categorizer_applied_count == 1
     assert payload["provider"] == "local_catalog_classifier"
-    assert any(feature.profile == "floor_or_platform" for feature in packets[0].light_features)
+    assert any(feature.profile == "container_or_solid" for feature in packets[0].dense_features)
+    assert all(feature.blocks_los for feature in packets[0].dense_features)
+    assert any(feature.profile == "light_area" for feature in packets[0].light_features)
     assert all(not feature.blocks_los for feature in packets[0].light_features)
 
 

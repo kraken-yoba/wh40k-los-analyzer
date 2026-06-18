@@ -20,10 +20,10 @@ from warhammer_companion.ingestion.terrain_feature_catalog import (
 
 CATALOG_CLASSIFIER_PROVIDER = "local_catalog_classifier"
 OFFICIAL_CODE_TYPE_IDS = {
-    "AB": "ruined-wall-l",
-    "CD": "ruined-wall-u",
-    "EF": "ruined-wall-l",
-    "GH": "ruined-wall-l",
+    "AB": "official-ruined-wall-ab",
+    "CD": "official-ruined-wall-cd",
+    "EF": "official-ruined-wall-ef",
+    "GH": "official-ruined-wall-gh",
 }
 
 
@@ -82,6 +82,7 @@ def _classify_feature(feature: CategorizerFeature) -> FeatureCategorization:
     aspect = long_side / max(short_side, 1e-9)
     fill_ratio = polygon.area / max(width * height, 1e-9)
     current_profile = feature.current_profile
+    source_dense = "raster-dense-segmentation" in feature.warnings
 
     if aspect >= 4.0 and short_side <= 1.0:
         return _result(
@@ -90,6 +91,18 @@ def _classify_feature(feature: CategorizerFeature) -> FeatureCategorization:
             confidence=0.82,
             position="edge",
             rationale="Thin elongated dense feature is treated as a vertical wall strip.",
+        )
+
+    if source_dense and current_profile == "container_or_solid":
+        return _result(
+            feature,
+            type_id="armoured-container",
+            confidence=0.76,
+            position="center",
+            rationale=(
+                "Official layout colour extraction marked this feature as dense; "
+                "keep filled source-dense geometry as an LOS blocker."
+            ),
         )
 
     if fill_ratio >= 0.62 and aspect <= 2.8 and polygon.area >= 0.75:

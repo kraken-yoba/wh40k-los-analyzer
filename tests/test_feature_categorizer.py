@@ -56,6 +56,33 @@ def test_apply_feature_categorizations_accepts_catalog_type_id_and_position() ->
     assert "codex-categorizer-position:corner" in updated[0].warnings
 
 
+def test_apply_feature_categorizations_keeps_official_variant_metadata() -> None:
+    feature = _dense_feature(
+        "feature-1",
+        profile="container_or_solid",
+        official_feature_code="CD",
+        feature_wall_sides=["left", "top"],
+    )
+
+    updated = apply_feature_categorizations(
+        [feature],
+        [
+            FeatureCategorization(
+                feature_id="feature-1",
+                feature_digest=terrain_feature_digest(feature),
+                type_id="official-ruined-wall-cd",
+                confidence=0.95,
+                wall_sides=["right", "bottom"],
+            )
+        ],
+    )
+
+    assert updated[0].feature_profile == "ruined_wall_l"
+    assert updated[0].official_feature_code == "CD"
+    assert updated[0].feature_wall_sides == ["right", "bottom"]
+    assert "codex-categorizer-type:official-ruined-wall-cd" in updated[0].warnings
+
+
 def test_categorizer_request_lists_wall_container_and_floor_options() -> None:
     request = build_categorizer_request(
         [
@@ -92,6 +119,12 @@ def test_categorizer_request_lists_wall_container_and_floor_options() -> None:
     assert request.provider == "codex_visual_classifier"
     assert request.catalog_version >= 1
     assert any(option.type_id == "armoured-container" for option in request.terrain_feature_types)
+    assert any(
+        option.type_id == "official-ruined-wall-cd"
+        and option.official_feature_code == "CD"
+        and option.nominal_width_inches == 6.0
+        for option in request.terrain_feature_types
+    )
 
 
 def test_apply_layout_feature_categorizations_reports_unmatched_results() -> None:

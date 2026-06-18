@@ -177,14 +177,18 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     assert light_count > 0
     assert dense_profiles <= {
         "ruined_wall_l",
-        "ruined_wall_u",
         "ruined_wall_section",
         "container_or_solid",
         "solid_los_blocker",
         "unknown_dense",
     }
-    assert {"ruined_wall_l", "ruined_wall_u"} <= dense_profiles
+    assert "ruined_wall_l" in dense_profiles
     assert official_codes == {"AB", "CD", "EF", "GH"}
+    cd_features = [
+        feature for feature in layout.terrain_features if feature.official_feature_code == "CD"
+    ]
+    assert cd_features
+    assert {feature.feature_profile for feature in cd_features} == {"ruined_wall_l"}
     assert not layout.warnings
 
 

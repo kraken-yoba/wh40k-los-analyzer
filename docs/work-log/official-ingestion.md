@@ -154,6 +154,23 @@
   - `.\.venv\Scripts\python.exe -m ruff check src tests`
   - `.\.venv\Scripts\mypy.exe src`
   - `.\.venv\Scripts\python.exe -m pytest -q` (`129 passed`)
+
+### Official L-Variant Correction Slice
+
+- Corrected the official `CD` dense terrain label from a U-shaped ruin to an L-shaped ruin. Page-9 terrain areas 5 and 13 now project `CD` as `ruined_wall_l` instead of `ruined_wall_u`.
+- Added first-class catalog entries for official L-shaped variants `AB`, `CD`, `EF`, and `GH`. They share the deterministic L-wall LOS blocker profile but preserve distinct type IDs, official labels, nominal dimensions, names, descriptions, and classification hints for classifier/UI review.
+- The local catalog classifier now returns variant type IDs such as `official-ruined-wall-cd` for labeled official features, while the packet builder still receives the resolved `ruined_wall_l` blocker profile and extracted wall-side orientation.
+- Hardened green-source semantics: dense raster features extracted from official green markings remain LOS blockers by default. Broad filled green features are no longer demoted to non-blocking floor/platform review geometry solely because they are filled rectangles; explicit floor/platform classification is still supported for non-source or reviewed features.
+- Re-ingested official Event Companion page 9 with classifier results. The layout library now contains eight official L-variant features: `AB`, `CD`, `EF`, and `GH` each preserve their variant type metadata, and both `CD` instances are L-shaped. Terrain area 15 is now retained as a blocking `container_or_solid` feature rather than a non-blocking floor/platform review feature.
+- The regenerated page-9 packet validates and contains 15 dense blockers and 15 light/review features.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`132 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- Browser verification used `http://127.0.0.1:8040`: Map Viewer showed the official page-9 packet with 15 dense blockers and 15 light/review features; LOS Checker rendered the same 15 blockers with one binary coverage raster, one model base, 5 visible rays, and 29 blocked rays; LOS Heatmap rendered one heatmap raster image from the same blocker set. No browser warning/error logs were captured during those checks.
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser verification used `http://127.0.0.1:8038`: Map Viewer showed 14 dense blockers, LOS Checker rendered the same 14 blockers with one raster coverage image, one model base, 5 visible rays, and 29 blocked rays, and LOS Heatmap rendered the same blocker mix with one heatmap raster image. No browser warning/error logs were captured during those checks.

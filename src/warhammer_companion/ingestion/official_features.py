@@ -26,7 +26,7 @@ class OfficialFeatureTemplate:
 
 OFFICIAL_FEATURE_TEMPLATES: dict[OfficialFeatureCode, OfficialFeatureTemplate] = {
     "AB": OfficialFeatureTemplate("ruined_wall_l", width=5.0, height=4.5),
-    "CD": OfficialFeatureTemplate("ruined_wall_u", width=6.0, height=4.5),
+    "CD": OfficialFeatureTemplate("ruined_wall_l", width=6.0, height=4.5),
     "EF": OfficialFeatureTemplate("ruined_wall_l", width=5.0, height=4.5),
     "GH": OfficialFeatureTemplate("ruined_wall_l", width=4.0, height=3.6),
 }

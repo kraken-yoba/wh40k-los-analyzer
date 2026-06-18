@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from warhammer_companion.ingestion.layouts import FeatureProfile, WallSide
+from warhammer_companion.ingestion.layouts import FeatureProfile, OfficialFeatureCode, WallSide
 
 FeaturePosition = Literal["center", "edge", "corner", "multiple", "unknown"]
 BlockerTemplate = Literal[
@@ -29,6 +29,9 @@ class TerrainFeatureType(BaseModel):
     blocker_template: BlockerTemplate
     representative_image_path: str
     typical_positions: list[FeaturePosition]
+    official_feature_code: OfficialFeatureCode | None = None
+    nominal_width_inches: float | None = Field(default=None, gt=0.0)
+    nominal_height_inches: float | None = Field(default=None, gt=0.0)
     default_wall_sides: list[WallSide] | None = None
     classification_hints: list[str] = Field(default_factory=list)
 
@@ -51,6 +54,78 @@ TERRAIN_FEATURE_TYPES: tuple[TerrainFeatureType, ...] = (
         typical_positions=["corner", "edge"],
         default_wall_sides=["left", "top"],
         classification_hints=["two perpendicular wall runs", "open interior", "ruin corner"],
+    ),
+    TerrainFeatureType(
+        type_id="official-ruined-wall-ab",
+        display_name="AB L shaped ruined wall",
+        description=(
+            "Official AB dense ruin variant. It uses the L shaped wall blocker template while "
+            "preserving the official label and nominal footprint size for review."
+        ),
+        feature_profile="ruined_wall_l",
+        blocks_los=True,
+        blocker_template="l_wall",
+        representative_image_path="catalog_assets/ruined-wall-l.svg",
+        typical_positions=["corner", "edge"],
+        official_feature_code="AB",
+        nominal_width_inches=5.0,
+        nominal_height_inches=4.5,
+        default_wall_sides=["left", "top"],
+        classification_hints=["official AB label", "L ruin variant", "two wall runs"],
+    ),
+    TerrainFeatureType(
+        type_id="official-ruined-wall-cd",
+        display_name="CD L shaped ruined wall",
+        description=(
+            "Official CD dense ruin variant. It is a larger L shaped wall blocker, not a U "
+            "shaped ruin; floors and open interior remain non-blocking."
+        ),
+        feature_profile="ruined_wall_l",
+        blocks_los=True,
+        blocker_template="l_wall",
+        representative_image_path="catalog_assets/ruined-wall-l.svg",
+        typical_positions=["corner", "edge"],
+        official_feature_code="CD",
+        nominal_width_inches=6.0,
+        nominal_height_inches=4.5,
+        default_wall_sides=["left", "top"],
+        classification_hints=["official CD label", "large L ruin variant", "two wall runs"],
+    ),
+    TerrainFeatureType(
+        type_id="official-ruined-wall-ef",
+        display_name="EF L shaped ruined wall",
+        description=(
+            "Official EF dense ruin variant. It shares the L shaped wall blocker semantics "
+            "while keeping the official variant available to the classifier and UI."
+        ),
+        feature_profile="ruined_wall_l",
+        blocks_los=True,
+        blocker_template="l_wall",
+        representative_image_path="catalog_assets/ruined-wall-l.svg",
+        typical_positions=["corner", "edge"],
+        official_feature_code="EF",
+        nominal_width_inches=5.0,
+        nominal_height_inches=4.5,
+        default_wall_sides=["left", "top"],
+        classification_hints=["official EF label", "L ruin variant", "two wall runs"],
+    ),
+    TerrainFeatureType(
+        type_id="official-ruined-wall-gh",
+        display_name="GH L shaped ruined wall",
+        description=(
+            "Official GH dense ruin variant. It is the smaller official L shaped wall blocker "
+            "variant used by labeled event layouts."
+        ),
+        feature_profile="ruined_wall_l",
+        blocks_los=True,
+        blocker_template="l_wall",
+        representative_image_path="catalog_assets/ruined-wall-l.svg",
+        typical_positions=["corner", "edge"],
+        official_feature_code="GH",
+        nominal_width_inches=4.0,
+        nominal_height_inches=3.6,
+        default_wall_sides=["left", "top"],
+        classification_hints=["official GH label", "small L ruin variant", "two wall runs"],
     ),
     TerrainFeatureType(
         type_id="ruined-wall-u",

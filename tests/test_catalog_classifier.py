@@ -32,6 +32,24 @@ def test_catalog_classifier_marks_filled_ruin_slab_as_floor_or_platform() -> Non
     assert results.categorizations[0].confidence >= 0.7
 
 
+def test_catalog_classifier_keeps_source_dense_filled_features_blocking() -> None:
+    request = CategorizerRequest(
+        features=[
+            _feature(
+                "feature-1",
+                footprint=[(2.0, 2.0), (8.0, 2.0), (8.0, 8.0), (2.0, 8.0)],
+                current_profile="container_or_solid",
+                warnings=["raster-dense-segmentation"],
+            )
+        ]
+    )
+
+    results = classify_categorizer_request(request)
+
+    assert results.categorizations[0].type_id == "armoured-container"
+    assert results.categorizations[0].confidence >= 0.7
+
+
 def test_catalog_classifier_keeps_thin_wall_strips_blocking() -> None:
     request = CategorizerRequest(
         features=[
@@ -81,16 +99,44 @@ def test_catalog_classifier_uses_official_feature_codes_as_authoritative() -> No
                 footprint=[(2.0, 2.0), (8.0, 2.0), (8.0, 8.0), (2.0, 8.0)],
                 current_profile="container_or_solid",
                 official_feature_code="CD",
-                current_wall_sides=["left", "right", "top"],
+                current_wall_sides=["left", "top"],
             )
         ]
     )
 
     results = classify_categorizer_request(request)
 
-    assert results.categorizations[0].type_id == "ruined-wall-u"
-    assert results.categorizations[0].wall_sides == ["left", "right", "top"]
+    assert results.categorizations[0].type_id == "official-ruined-wall-cd"
+    assert results.categorizations[0].wall_sides == ["left", "top"]
     assert results.categorizations[0].confidence == 0.95
+
+
+def test_catalog_classifier_preserves_official_l_ruin_variants() -> None:
+    request = CategorizerRequest(
+        features=[
+            _feature(
+                f"feature-{code.lower()}",
+                footprint=[(2.0, 2.0), (8.0, 2.0), (8.0, 8.0), (2.0, 8.0)],
+                current_profile="container_or_solid",
+                official_feature_code=code,
+                current_wall_sides=["right", "bottom"],
+            )
+            for code in ("AB", "CD", "EF", "GH")
+        ]
+    )
+
+    results = classify_categorizer_request(request)
+
+    assert [categorization.type_id for categorization in results.categorizations] == [
+        "official-ruined-wall-ab",
+        "official-ruined-wall-cd",
+        "official-ruined-wall-ef",
+        "official-ruined-wall-gh",
+    ]
+    assert all(
+        categorization.wall_sides == ["right", "bottom"]
+        for categorization in results.categorizations
+    )
 
 
 def test_write_catalog_categorizer_results_writes_artifact(tmp_path: Path) -> None:
@@ -125,6 +171,7 @@ def _feature(
     current_profile: str,
     official_feature_code: str | None = None,
     current_wall_sides: list[str] | None = None,
+    warnings: list[str] | None = None,
 ) -> CategorizerFeature:
     return CategorizerFeature(
         feature_id=feature_id,
@@ -137,4 +184,5 @@ def _feature(
         source_page=9,
         source_bbox=(10.0, 10.0, 80.0, 80.0),
         footprint=footprint,
+        warnings=warnings or [],
     )

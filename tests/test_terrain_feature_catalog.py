@@ -15,6 +15,12 @@ def test_catalog_entries_require_database_fields_and_assets() -> None:
 
     type_ids = {entry.type_id for entry in TERRAIN_FEATURE_TYPES}
     assert {"ruined-wall-l", "ruined-wall-u", "armoured-container"}.issubset(type_ids)
+    assert {
+        "official-ruined-wall-ab",
+        "official-ruined-wall-cd",
+        "official-ruined-wall-ef",
+        "official-ruined-wall-gh",
+    }.issubset(type_ids)
 
     for entry in TERRAIN_FEATURE_TYPES:
         assert entry.type_id
@@ -29,6 +35,10 @@ def test_catalog_entries_require_database_fields_and_assets() -> None:
 
 def test_catalog_lookup_rejects_unknown_type_ids() -> None:
     assert terrain_feature_type_by_id("ruined-wall-u").feature_profile == "ruined_wall_u"
+    cd_variant = terrain_feature_type_by_id("official-ruined-wall-cd")
+    assert cd_variant.official_feature_code == "CD"
+    assert cd_variant.feature_profile == "ruined_wall_l"
+    assert cd_variant.nominal_width_inches == 6.0
 
     try:
         terrain_feature_type_by_id("missing-type")
