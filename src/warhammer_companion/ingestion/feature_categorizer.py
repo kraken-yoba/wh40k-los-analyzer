@@ -15,6 +15,7 @@ from warhammer_companion.ingestion.layouts import (
     ExtractedLayout,
     FeatureProfile,
     LayoutElement,
+    OfficialFeatureCode,
     Point,
     WallSide,
 )
@@ -56,6 +57,8 @@ class CategorizerFeature(BaseModel):
     feature_digest: str
     feature_type: Literal["dense"]
     current_profile: FeatureProfile | None = None
+    official_feature_code: OfficialFeatureCode | None = None
+    current_wall_sides: list[WallSide] | None = None
     terrain_area_id: str | None = None
     review_image_path: str | None = None
     source_page: int = Field(ge=1)
@@ -71,6 +74,8 @@ class CategorizerRequest(BaseModel):
     instructions: str = (
         "Classify each dense terrain feature from the official layout review images against "
         "the supplied known terrain feature type catalog. Use type_id when possible. Choose "
+        "an official_feature_code mapping when one is present, because official AB/CD/EF/GH "
+        "labels are deterministic source data. Choose "
         "wall types only for vertical ruined walls; choose floor-or-platform for horizontal "
         "upper floors, platforms, or surfaces that should be retained for review but must not "
         "block line of sight. Echo feature_digest in each result."
@@ -134,6 +139,8 @@ def build_categorizer_request(
             feature_digest=terrain_feature_digest(feature),
             feature_type="dense",
             current_profile=feature.feature_profile,
+            official_feature_code=feature.official_feature_code,
+            current_wall_sides=feature.feature_wall_sides,
             terrain_area_id=feature.terrain_area_id,
             review_image_path=(review_image_lookup or {}).get(feature.source_page),
             source_page=feature.source_page,
@@ -356,8 +363,11 @@ def _iter_layout_features(layouts: Iterable[ExtractedLayout]) -> list[LayoutElem
 def terrain_feature_digest(feature: LayoutElement) -> str:
     payload = {
         "catalog_version": FEATURE_CATALOG_VERSION,
+        "current_profile": feature.feature_profile,
         "feature_id": feature.id,
+        "feature_wall_sides": list(feature.feature_wall_sides or []),
         "footprint": _rounded_points(feature.footprint),
+        "official_feature_code": feature.official_feature_code,
         "source_bbox": _rounded_bbox(feature.source_bbox),
         "source_page": feature.source_page,
         "terrain_area_id": feature.terrain_area_id,

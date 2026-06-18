@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 from shapely.geometry import MultiPolygon, Polygon
+from shapely.ops import unary_union
 
 from warhammer_companion.domain.models import (
     BoardSize,
@@ -442,13 +443,25 @@ def _wall_strip_footprints(
             ]
         ),
     }
-    footprints: list[list[Point]] = []
-    for side in sides:
+    selected_sides = list(dict.fromkeys(sides))
+    selected_polygons: list[Polygon] = []
+    for side in selected_sides:
         strip = strip_by_side[side].intersection(polygon)
         clipped = _largest_polygon(strip)
         if not clipped.is_empty and clipped.area > 0:
-            footprints.append(_safe_points(_polygon_points(clipped)))
-    return footprints or [_safe_points(feature.footprint)]
+            selected_polygons.append(clipped)
+    if not selected_polygons:
+        return [_safe_points(feature.footprint)]
+
+    if set(selected_sides) == {"left", "right", "top", "bottom"}:
+        return [_safe_points(_polygon_points(strip)) for strip in selected_polygons]
+
+    combined = unary_union(selected_polygons)
+    if isinstance(combined, Polygon):
+        return [_safe_points(_polygon_points(combined))]
+    if isinstance(combined, MultiPolygon):
+        return [_safe_points(_polygon_points(strip)) for strip in combined.geoms]
+    return [_safe_points(_polygon_points(strip)) for strip in selected_polygons]
 
 
 def _area_id(index: int) -> str:

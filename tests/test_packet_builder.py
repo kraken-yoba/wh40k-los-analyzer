@@ -150,7 +150,7 @@ def test_ruined_wall_l_profile_uses_categorized_wall_sides(
 
     packet = build_map_packet(layout)
 
-    assert len(packet.dense_features) == 2
+    assert len(packet.dense_features) == 1
     for point in covered_points:
         assert any(feature.polygon().covers(_point(*point)) for feature in packet.dense_features)
     for point in open_points:
@@ -181,11 +181,61 @@ def test_ruined_wall_u_profile_uses_categorized_wall_sides(
 
     packet = build_map_packet(layout)
 
-    assert len(packet.dense_features) == 3
+    assert len(packet.dense_features) == 1
     assert not any(
         feature.polygon().covers(_point(*open_point)) for feature in packet.dense_features
     )
     assert validate_packet(packet).valid
+
+
+def test_official_label_features_project_to_standard_blockers() -> None:
+    terrain_area = LayoutElement(
+        id="area-1",
+        label="Area 1",
+        kind="terrain_area",
+        footprint=[(0.0, 0.0), (20.0, 0.0), (20.0, 20.0), (0.0, 20.0)],
+        source_page=1,
+        source_bbox=(100.0, 100.0, 300.0, 300.0),
+    )
+    label_features = [
+        LayoutElement(
+            id="feature-ef",
+            label="EF Terrain Feature",
+            kind="terrain_feature",
+            feature_type="dense",
+            feature_profile="ruined_wall_l",
+            feature_wall_sides=["left", "top"],
+            official_feature_code="EF",
+            terrain_area_id=terrain_area.id,
+            footprint=[(2.0, 10.0), (8.0, 10.0), (8.0, 16.0), (2.0, 16.0)],
+            source_page=1,
+            source_bbox=(120.0, 120.0, 180.0, 180.0),
+        ),
+        LayoutElement(
+            id="feature-gh",
+            label="GH Terrain Feature",
+            kind="terrain_feature",
+            feature_type="dense",
+            feature_profile="ruined_wall_l",
+            feature_wall_sides=["right", "bottom"],
+            official_feature_code="GH",
+            terrain_area_id=terrain_area.id,
+            footprint=[(12.0, 2.0), (18.0, 2.0), (18.0, 8.0), (12.0, 8.0)],
+            source_page=1,
+            source_bbox=(220.0, 220.0, 280.0, 280.0),
+        ),
+    ]
+    layout = _layout_with_dense_feature(
+        feature_profile="floor_or_platform",
+        feature_footprint=[(4.0, 4.0), (16.0, 4.0), (16.0, 16.0), (4.0, 16.0)],
+    ).model_copy(update={"terrain_areas": [terrain_area], "terrain_features": label_features})
+
+    packet = build_map_packet(layout)
+
+    assert len(packet.dense_features) == 2
+    assert {feature.profile for feature in packet.dense_features} == {"ruined_wall_l"}
+    assert all(len(feature.footprint) >= 6 for feature in packet.dense_features)
+    assert all(feature.blocks_los for feature in packet.dense_features)
 
 
 def test_validate_packet_rejects_missing_deployment_zone(

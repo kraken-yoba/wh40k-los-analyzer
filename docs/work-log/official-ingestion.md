@@ -139,3 +139,21 @@
   - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
 - Browser follow-up found that the already-running `8031` server could keep serving a stale in-memory packet after CLI re-ingestion. File-backed repositories now auto-refresh when packet JSON files change, and the viewer reports dense blockers, light/review features, and floor/platform review counts separately.
 - Fresh browser verification on `http://127.0.0.1:8037` showed official page 9 with 36 dense blockers, 26 light/review features, 11 floor/platform review features, and LOS checker coverage rendered from the same refreshed packet.
+
+### Official Feature Label Slice
+
+- Event Companion dense-feature labels `AB`, `CD`, `EF`, and `GH` are now extracted from PDF text as deterministic source data after terrain areas are found. Label-backed dense features replace raster dense candidates on the same footprint, while light/review features are preserved.
+- Official label templates currently map `AB`, `EF`, and `GH` to standard L-shaped ruined wall blockers and `CD` to a standard U-shaped ruined wall blocker. The label selects the type, while the nearest raster dense component on the same terrain footprint anchors placement when available. Label position remains the fallback anchor.
+- Anchor position inside the terrain footprint determines wall-side orientation, so mirrored footprints such as terrain areas 1 and 6 produce mirrored standard blockers instead of irregular raster fragments.
+- Visual categorizer requests now carry `official_feature_code` and current wall sides. The local catalog classifier treats official codes as authoritative and echoes the extracted wall sides instead of reinterpreting those features from noisy raster geometry. Feature digests include official code, current profile, and wall sides so stale categorizer artifacts are invalidated when label-derived interpretation changes.
+- Packet projection now unions L-shaped and U-shaped wall sides into one continuous blocker polygon per standard feature. Full perimeter walls remain separate side strips because the current packet model does not encode polygon holes.
+- Re-ingested official Event Companion page 9 with classifier results. The layout library contains eight official label-backed features: terrain areas 1 and 6 each have two `EF`/`GH` L-shaped blockers, terrain areas 3 and 11 have one `AB` L-shaped blocker each, and terrain areas 5 and 13 have one `CD` U-shaped blocker each.
+- The regenerated page-9 packet validates and contains 14 dense blockers total: six `ruined_wall_l`, two `ruined_wall_u`, five `container_or_solid`, and one `solid_los_blocker`.
+- Verification after the slice:
+  - `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  - `.\.venv\Scripts\python.exe -m ruff check src tests`
+  - `.\.venv\Scripts\mypy.exe src`
+  - `.\.venv\Scripts\python.exe -m pytest -q` (`129 passed`)
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli ingest-official --page 9 --classify-features`
+  - `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets`
+- Browser verification used `http://127.0.0.1:8038`: Map Viewer showed 14 dense blockers, LOS Checker rendered the same 14 blockers with one raster coverage image, one model base, 5 visible rays, and 29 blocked rays, and LOS Heatmap rendered the same blocker mix with one heatmap raster image. No browser warning/error logs were captured during those checks.

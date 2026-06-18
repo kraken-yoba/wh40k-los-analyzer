@@ -12,12 +12,19 @@ from warhammer_companion.ingestion.feature_categorizer import (
     CategorizerResults,
     FeatureCategorization,
 )
+from warhammer_companion.ingestion.layouts import WallSide
 from warhammer_companion.ingestion.terrain_feature_catalog import (
     FEATURE_CATALOG_VERSION,
     FeaturePosition,
 )
 
 CATALOG_CLASSIFIER_PROVIDER = "local_catalog_classifier"
+OFFICIAL_CODE_TYPE_IDS = {
+    "AB": "ruined-wall-l",
+    "CD": "ruined-wall-u",
+    "EF": "ruined-wall-l",
+    "GH": "ruined-wall-l",
+}
 
 
 def classify_categorizer_request(request: CategorizerRequest) -> CategorizerResults:
@@ -44,6 +51,19 @@ def write_catalog_categorizer_results(
 
 
 def _classify_feature(feature: CategorizerFeature) -> FeatureCategorization:
+    if feature.official_feature_code is not None:
+        return _result(
+            feature,
+            type_id=OFFICIAL_CODE_TYPE_IDS[feature.official_feature_code],
+            confidence=0.95,
+            position="corner",
+            wall_sides=feature.current_wall_sides,
+            rationale=(
+                "Official event companion dense terrain feature label "
+                f"{feature.official_feature_code} was used as deterministic source data."
+            ),
+        )
+
     polygon = Polygon(feature.footprint)
     if polygon.is_empty or not polygon.is_valid or polygon.area <= 0:
         return _result(
@@ -135,11 +155,13 @@ def _result(
     confidence: float,
     position: FeaturePosition,
     rationale: str,
+    wall_sides: list[WallSide] | None = None,
 ) -> FeatureCategorization:
     return FeatureCategorization(
         feature_id=feature.feature_id,
         feature_digest=feature.feature_digest,
         type_id=type_id,
+        wall_sides=wall_sides,
         confidence=confidence,
         position=position,
         rationale=rationale,

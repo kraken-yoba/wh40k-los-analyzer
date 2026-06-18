@@ -65,6 +65,26 @@ def test_extract_layout_from_pdf_returns_board_coordinate_geometry(tmp_path: Pat
     assert "raster-light-segmentation" in layout.terrain_features[1].warnings
 
 
+def test_extract_layout_from_pdf_uses_official_feature_labels_for_dense_templates(
+    tmp_path: Path,
+) -> None:
+    pdf_path = _synthetic_layout_pdf(tmp_path, include_official_feature_label=True)
+
+    layout = extract_layout_from_pdf(pdf_path, page_number=1, feature_dpi=72)
+
+    dense_features = [
+        feature for feature in layout.terrain_features if feature.feature_type == "dense"
+    ]
+    assert len(dense_features) == 1
+    assert dense_features[0].official_feature_code == "AB"
+    assert dense_features[0].feature_profile == "ruined_wall_l"
+    assert dense_features[0].feature_wall_sides is not None
+    assert dense_features[0].terrain_area_id == layout.terrain_areas[0].id
+    assert "official-feature-code:AB" in dense_features[0].warnings
+    assert "official-feature-anchor:raster-dense" in dense_features[0].warnings
+    assert "raster-dense-segmentation" not in dense_features[0].warnings
+
+
 def test_deployment_roles_follow_colour_not_drawing_order(tmp_path: Path) -> None:
     pdf_path = _synthetic_layout_pdf(tmp_path, reverse_deployment_order=True)
 
@@ -141,6 +161,11 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     assert layout.board_rect == pytest.approx((127.99, 277.77, 468.15, 740.18), abs=0.2)
     assert len(layout.deployment_zones) == 2
     assert len(layout.terrain_areas) == 16
+    official_codes = {
+        feature.official_feature_code
+        for feature in layout.terrain_features
+        if feature.official_feature_code is not None
+    }
     dense_count = sum(feature.feature_type == "dense" for feature in layout.terrain_features)
     light_count = sum(feature.feature_type == "light" for feature in layout.terrain_features)
     dense_profiles = {
@@ -151,11 +176,15 @@ def test_official_layout_page9_smoke_when_source_pdf_is_available() -> None:
     assert dense_count > 0
     assert light_count > 0
     assert dense_profiles <= {
+        "ruined_wall_l",
+        "ruined_wall_u",
         "ruined_wall_section",
         "container_or_solid",
         "solid_los_blocker",
         "unknown_dense",
     }
+    assert {"ruined_wall_l", "ruined_wall_u"} <= dense_profiles
+    assert official_codes == {"AB", "CD", "EF", "GH"}
     assert not layout.warnings
 
 
@@ -164,7 +193,12 @@ def test_default_layout_page_range_constants_are_current_mvp_range() -> None:
     assert DEFAULT_LAYOUT_END_PAGE == 53
 
 
-def _synthetic_layout_pdf(tmp_path: Path, *, reverse_deployment_order: bool = False) -> Path:
+def _synthetic_layout_pdf(
+    tmp_path: Path,
+    *,
+    reverse_deployment_order: bool = False,
+    include_official_feature_label: bool = False,
+) -> Path:
     pdf_path = tmp_path / "layout.pdf"
     fitz = _fitz()
     document = fitz.open()
@@ -191,6 +225,8 @@ def _synthetic_layout_pdf(tmp_path: Path, *, reverse_deployment_order: bool = Fa
         color=None,
         fill=(148 / 255, 112 / 255, 29 / 255),
     )
+    if include_official_feature_label:
+        page.insert_text((170, 270), "AB", fontsize=10)
     page.draw_rect(fitz.Rect(15, 15, 60, 60), color=None, fill=TERRAIN_GREY)
     document.save(pdf_path)
     document.close()

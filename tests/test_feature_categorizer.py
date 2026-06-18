@@ -58,7 +58,14 @@ def test_apply_feature_categorizations_accepts_catalog_type_id_and_position() ->
 
 def test_categorizer_request_lists_wall_container_and_floor_options() -> None:
     request = build_categorizer_request(
-        [_dense_feature("feature-1", profile="unknown_dense")],
+        [
+            _dense_feature(
+                "feature-1",
+                profile="unknown_dense",
+                official_feature_code="EF",
+                feature_wall_sides=["left", "top"],
+            )
+        ],
         review_image_lookup={9: "data/processed/review/layouts/page-9.png"},
     )
 
@@ -71,8 +78,15 @@ def test_categorizer_request_lists_wall_container_and_floor_options() -> None:
     assert "floor_or_platform" in options
     assert request.features[0].feature_id == "feature-1"
     assert request.features[0].feature_digest == terrain_feature_digest(
-        _dense_feature("feature-1", profile="unknown_dense")
+        _dense_feature(
+            "feature-1",
+            profile="unknown_dense",
+            official_feature_code="EF",
+            feature_wall_sides=["left", "top"],
+        )
     )
+    assert request.features[0].official_feature_code == "EF"
+    assert request.features[0].current_wall_sides == ["left", "top"]
     assert request.features[0].review_image_path == "data/processed/review/layouts/page-9.png"
     assert request.wall_side_options == ["left", "right", "top", "bottom"]
     assert request.provider == "codex_visual_classifier"
@@ -183,13 +197,21 @@ def test_apply_feature_categorizations_ignores_wrong_wall_side_count() -> None:
     assert "codex-categorizer-wall-sides-ignored:expected-3-sides" in updated[0].warnings
 
 
-def _dense_feature(feature_id: str, *, profile: str) -> LayoutElement:
+def _dense_feature(
+    feature_id: str,
+    *,
+    profile: str,
+    official_feature_code: str | None = None,
+    feature_wall_sides: list[str] | None = None,
+) -> LayoutElement:
     return LayoutElement(
         id=feature_id,
         label="Dense Feature",
         kind="terrain_feature",
         feature_type="dense",
         feature_profile=profile,
+        feature_wall_sides=feature_wall_sides,
+        official_feature_code=official_feature_code,
         terrain_area_id="area-1",
         footprint=[(2.0, 2.0), (18.0, 2.0), (18.0, 18.0), (2.0, 18.0)],
         source_page=9,
