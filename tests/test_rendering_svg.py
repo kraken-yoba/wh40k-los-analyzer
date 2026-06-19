@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from warhammer_companion.domain.models import DeploymentZone
 from warhammer_companion.los.geometry import (
@@ -76,6 +77,25 @@ def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:
     assert 'class="hidden-coverage-image"' in svg
     assert 'class="selected-terrain-area"' in svg
     assert 'class="hidden-sample-point"' in svg
+    assert "data:image/png;base64," in svg
+
+
+def test_hidden_coverage_raster_uses_pixel_accumulated_threat_regions() -> None:
+    packet = SAMPLE_PACKETS[0]
+    terrain_area_id = packet.terrain_areas[0].id
+    coverage = hidden_coverage_from_terrain_area(
+        packet,
+        terrain_area_id,
+        observer_grid_step=4.0,
+        hidden_sample_step=3.0,
+    )
+    assert coverage.threat_regions
+    pixel_only_coverage = replace(coverage, cells=[])
+
+    svg = render_map_svg(packet, hidden_coverage=pixel_only_coverage)
+
+    assert 'class="hidden-coverage-image"' in svg
+    assert 'width="528" height="720"' in svg
     assert "data:image/png;base64," in svg
 
 

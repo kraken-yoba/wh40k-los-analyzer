@@ -340,26 +340,23 @@ def _render_hidden_coverage_raster(
     coverage: HiddenCoverageResult,
     scale: int,
 ) -> list[str]:
-    if not coverage.cells:
+    if not coverage.threat_regions:
         return []
     width = int(round(packet.board.width * scale))
     height = int(round(packet.board.height * scale))
-    step = _infer_grid_step([cell.x for cell in coverage.cells])
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    accumulator: NDArray[np.uint16] = np.zeros((height, width), dtype=np.uint16)
 
-    for cell in coverage.cells:
-        if cell.exposure <= 0:
+    for region in coverage.threat_regions:
+        if region.is_empty:
             continue
-        x0, y0 = _to_svg_point(
-            (cell.x - step / 2.0, cell.y + step / 2.0),
-            scale,
-            packet.board.height,
-        )
-        x1 = x0 + step * scale
-        y1 = y0 + step * scale
-        draw.rectangle([x0, y0, x1, y1], fill=_hidden_coverage_rgba(cell.exposure))
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        _draw_geometry_mask(draw, region, scale, packet.board.height, exterior_fill=1)
+        accumulator += np.asarray(mask, dtype=np.uint16)
 
+    exposure = accumulator.astype(np.float64) / max(len(coverage.hidden_sample_points), 1)
+    rgba = _colorize_hidden_coverage_array(exposure)
+    image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "hidden-coverage-image")]
 
 
@@ -370,12 +367,12 @@ def _draw_geometry_mask(
     board_height: float,
     exterior_fill: int,
 ) -> None:
-    if isinstance(geometry, MultiPolygon):
-        for polygon in geometry.geoms:
-            _draw_polygon_mask(draw, polygon, scale, board_height, exterior_fill)
-        return
     if isinstance(geometry, Polygon):
         _draw_polygon_mask(draw, geometry, scale, board_height, exterior_fill)
+        return
+    if isinstance(geometry, MultiPolygon) or hasattr(geometry, "geoms"):
+        for part in geometry.geoms:
+            _draw_geometry_mask(draw, part, scale, board_height, exterior_fill)
 
 
 def _draw_polygon_mask(
@@ -505,8 +502,7 @@ def _heatmap_color(visibility: float) -> str:
     return "#9b3b35"
 
 
-def _hidden_coverage_rgba(exposure: float) -> tuple[int, int, int, int]:
-    clamped = min(max(exposure, 0.0), 1.0)
+def _colorize_hidden_coverage_array(exposure: NDArray[np.float64]) -> NDArray[np.uint8]:
     stops = np.array([0.0, 0.25, 0.5, 0.75, 1.0], dtype=np.float32)
     colors = np.array(
         [
@@ -518,12 +514,11 @@ def _hidden_coverage_rgba(exposure: float) -> tuple[int, int, int, int]:
         ],
         dtype=np.float32,
     )
-    return (
-        int(np.interp(clamped, stops, colors[:, 0])),
-        int(np.interp(clamped, stops, colors[:, 1])),
-        int(np.interp(clamped, stops, colors[:, 2])),
-        190,
-    )
+    rgba = np.zeros((*exposure.shape, 4), dtype=np.uint8)
+    for channel in range(3):
+        rgba[..., channel] = np.interp(exposure, stops, colors[:, channel]).astype(np.uint8)
+    rgba[exposure > 0, 3] = 190
+    return rgba
 
 
 def _feature_css_class(base_class: str, profile: str | None) -> str:

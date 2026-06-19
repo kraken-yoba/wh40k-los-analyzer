@@ -56,6 +56,7 @@ class HiddenCoverageResult:
     detection_range: float
     cells: list[HiddenCoverageCell]
     hidden_sample_points: list[tuple[float, float]]
+    threat_regions: list[BaseGeometry]
 
 
 @dataclass(frozen=True)
@@ -170,7 +171,7 @@ def hidden_coverage_from_terrain_area(
     threat_regions = [
         visibility_polygon_from_point(packet, sample).intersection(
             Point(sample).buffer(detection_range, quad_segs=32)
-        )
+        ).difference(selected_polygon).intersection(board)
         for sample in hidden_sample_points
     ]
     cells: list[HiddenCoverageCell] = []
@@ -193,6 +194,7 @@ def hidden_coverage_from_terrain_area(
         detection_range=detection_range,
         cells=cells,
         hidden_sample_points=hidden_sample_points,
+        threat_regions=threat_regions,
     )
 
 
