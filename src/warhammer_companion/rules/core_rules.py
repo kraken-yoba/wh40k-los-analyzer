@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
 from warhammer_companion.rules.models import (
     CanonicalRulesPack,
     ConceptMapping,
@@ -8,19 +7,15 @@ from warhammer_companion.rules.models import (
     ReadinessState,
     RuleSection,
     RuleSourceDocument,
-    ValidationRecord,
-    ValidationSeverity,
 )
-from warhammer_companion.rules.sources import (
-    SourceAuthority,
-    SourceKind,
-    SourceRef,
-    SourceTrustState,
-)
+from warhammer_companion.rules.sources import SourceAuthority, SourceKind, SourceRef, SourceTrustState
 
 CORE_RULES_DOCUMENT_ID = "core-rules-2026-06-01"
 CORE_RULES_PACK_ID = "wh40k-11e-core-2026-06-01"
-CORE_RULES_SOURCE = next(source for source in OFFICIAL_SOURCES if source.key == "core_rules")
+CORE_RULES_URL = (
+    "https://assets.warhammer-community.com/"
+    "eng_01-06_warhammer40k_new40k_core_rules-was6fbu1ix-hfewhmxyiy.pdf"
+)
 CORE_RULES_SHA256 = "f6a2443a44627ac5f0ef08407d29aa5ec7e97339998f05bc35f3ae37bf276833"
 
 
@@ -33,16 +28,6 @@ def build_core_rules_pack() -> CanonicalRulesPack:
         glossary_terms=_core_glossary_terms(),
         concept_mappings=_core_concept_mappings(),
         readiness=ReadinessState.TRUSTED,
-        validation_records=(
-            ValidationRecord(
-                code="project_edition_tag",
-                severity=ValidationSeverity.INFO,
-                message=(
-                    "wh40k-11e is the project edition tag supplied by the roadmap; "
-                    "external authority remains the official PDF source reference."
-                ),
-            ),
-        ),
     )
 
 
@@ -53,9 +38,9 @@ def _core_rules_document() -> RuleSourceDocument:
             authority=SourceAuthority.AUTHORITATIVE,
             trust_state=SourceTrustState.TRUSTED,
             source_document_id=CORE_RULES_DOCUMENT_ID,
-            source_label=CORE_RULES_SOURCE.label,
-            url=CORE_RULES_SOURCE.url,
-            local_filename=CORE_RULES_SOURCE.filename,
+            source_label="Warhammer 40,000 Core Rules",
+            url=CORE_RULES_URL,
+            local_filename="core-rules.pdf",
             sha256=CORE_RULES_SHA256,
             edition_id="wh40k-11e",
         ),
@@ -91,12 +76,6 @@ def _core_rules_sections() -> tuple[RuleSection, ...]:
         _section("18.04", "Disembark Move", 62, ("Disembark Move",)),
         _section("20.04", "Ingress Move", 72, ("Ingress Move",)),
         _section("24.09", "Deep Strike", 80, ("Deep Strike",)),
-        _section(
-            "24.03-24.38",
-            "Core and Weapon Abilities",
-            78,
-            ("Core Abilities", "Weapon Abilities"),
-        ),
     )
 
 

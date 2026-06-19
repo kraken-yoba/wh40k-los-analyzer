@@ -14,8 +14,6 @@ The current app is a Python-first Warhammer 40,000 tournament companion. Its use
 
 The GPT-Pro roadmap expands that table foundation into roster-aware matchup analysis. The expansion is too large for one implementation plan, so this spec decomposes it into phases and makes Phase 0 and Phase 1 the first buildable unit.
 
-The `wh40k-11e` edition id is a project edition tag supplied by the roadmap brief and user direction. External authority for the first RulesPack comes from the official PDF source reference, section anchors, and hash, not from the filename alone.
-
 LazyCodex/OMO status in this session:
 
 - `git_bash` is available and is the shell surface used for repo inspection.
@@ -39,7 +37,7 @@ RulesPack data may store:
 - section ids and page anchors
 - short internal concept mappings
 
-RulesPack data must not store long copied rules text, page images, full tables, near-verbatim rule blocks, or large extracted excerpts from official or community sources.
+RulesPack data must not store long copied rules text.
 
 ### Official Event Companion And Terrain PDFs
 
@@ -65,12 +63,6 @@ profile_resolution_confidence = provisional_10e_carryover
 ```
 
 Wahapedia must not control 11e terminology, movement rules, terrain rules, visibility rules, action rules, mission rules, or source-anchor wording.
-
-## Trust State And Readiness
-
-`SourceRef.trust_state` describes one source reference. `CanonicalRulesPack.readiness` describes whether the assembled pack is usable for deterministic app behavior.
-
-A RulesPack can be `trusted` when all controlling source refs are trusted and there are no error validation records. Informational validation records may still exist, such as recording that `wh40k-11e` is a project edition tag. Warnings make a pack `degraded` when they materially affect interpretation. Errors make a pack `blocked`.
 
 ## Architecture
 
@@ -189,9 +181,9 @@ Acceptance:
 - Findings include evidence, assumptions, source refs, confidence, and warnings.
 - Accepted findings can be reviewed later without recomputing the matchup.
 
-## Surface Implications
+## UI Implications
 
-The first implementation slice needs little product UI. It should expose source/rules readiness in code, tests, and a developer/QA CLI command first. A later UI can add a Rules/Profile Resolution screen once roster import exists.
+The first implementation slice needs little UI. It should expose source/rules readiness in code and tests first. A later UI can add a Rules/Profile Resolution screen once roster import exists.
 
 The existing web and desktop navigation should not gain a placeholder Matchup page until at least roster import or a useful rules/source status surface exists.
 

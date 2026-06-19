@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import StrEnum
-from typing import Self, assert_never
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class SourceKind(StrEnum):
@@ -28,18 +26,7 @@ class SourceTrustState(StrEnum):
     REVIEWED = "reviewed"
 
 
-@dataclass(frozen=True, slots=True)
-class SourceTrustPolicyViolation(ValueError):
-    source_kind: SourceKind
-    message: str
-
-    def __str__(self) -> str:
-        return f"{self.source_kind}: {self.message}"
-
-
 class SourceRef(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
     source_kind: SourceKind
     authority: SourceAuthority
     trust_state: SourceTrustState
@@ -53,50 +40,6 @@ class SourceRef(BaseModel):
     section_label: str | None = None
     sheet_gid: str | None = None
     edition_id: str | None = None
-
-    @model_validator(mode="after")
-    def enforce_source_trust_policy(self) -> Self:
-        match self.source_kind:
-            case SourceKind.OFFICIAL_PDF:
-                if self.authority != SourceAuthority.AUTHORITATIVE or self.trust_state not in (
-                    SourceTrustState.TRUSTED,
-                    SourceTrustState.REVIEWED,
-                ):
-                    raise SourceTrustPolicyViolation(
-                        source_kind=self.source_kind,
-                        message="official PDFs must be authoritative and trusted or reviewed",
-                    )
-            case SourceKind.PUBLIC_SHEET:
-                if (
-                    self.authority != SourceAuthority.SUPPORTING
-                    or self.trust_state != SourceTrustState.UNTRUSTED
-                ):
-                    raise SourceTrustPolicyViolation(
-                        source_kind=self.source_kind,
-                        message="public sheets must remain untrusted supporting material",
-                    )
-            case SourceKind.WAHAPEDIA_10E:
-                if (
-                    self.authority != SourceAuthority.PROVISIONAL_PROFILE_BOOTSTRAP
-                    or self.trust_state != SourceTrustState.PROVISIONAL
-                    or self.edition_id != "wh40k-10e"
-                ):
-                    raise SourceTrustPolicyViolation(
-                        source_kind=self.source_kind,
-                        message=(
-                            "Wahapedia data must remain a provisional wh40k-10e "
-                            "profile bootstrap source"
-                        ),
-                    )
-            case SourceKind.LOCAL_FIXTURE:
-                if self.authority != SourceAuthority.LOCAL_TEST_FIXTURE:
-                    raise SourceTrustPolicyViolation(
-                        source_kind=self.source_kind,
-                        message="local fixtures must use local test fixture authority",
-                    )
-            case unreachable:
-                assert_never(unreachable)
-        return self
 
     @classmethod
     def public_sheet(

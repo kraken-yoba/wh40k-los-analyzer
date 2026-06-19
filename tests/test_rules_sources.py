@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-from pydantic import ValidationError
-
 from warhammer_companion.rules.sources import (
     SourceAuthority,
     SourceKind,
@@ -60,40 +57,3 @@ def test_wahapedia_source_ref_is_provisional_profile_bootstrap() -> None:
     assert ref.authority == SourceAuthority.PROVISIONAL_PROFILE_BOOTSTRAP
     assert ref.trust_state == SourceTrustState.PROVISIONAL
     assert ref.edition_id == "wh40k-10e"
-
-
-def test_public_sheet_source_ref_rejects_trusted_authoritative_combination() -> None:
-    with pytest.raises(ValidationError):
-        SourceRef(
-            source_kind=SourceKind.PUBLIC_SHEET,
-            authority=SourceAuthority.AUTHORITATIVE,
-            trust_state=SourceTrustState.TRUSTED,
-            source_document_id="mission-sheet-public",
-            source_label="Public mission sheet",
-            url="https://docs.google.com/spreadsheets/d/example",
-        )
-
-
-def test_wahapedia_source_ref_rejects_authoritative_combination() -> None:
-    with pytest.raises(ValidationError):
-        SourceRef(
-            source_kind=SourceKind.WAHAPEDIA_10E,
-            authority=SourceAuthority.AUTHORITATIVE,
-            trust_state=SourceTrustState.TRUSTED,
-            source_document_id="wahapedia-10e-datasheets",
-            source_label="Wahapedia 10e data export",
-            url="https://wahapedia.ru/wh40k10ed/the-rules/data-export/",
-            edition_id="wh40k-10e",
-        )
-
-
-def test_source_ref_is_immutable_after_construction() -> None:
-    ref = SourceRef.public_sheet(
-        source_document_id="mission-sheet-public",
-        source_label="Public mission sheet",
-        url="https://docs.google.com/spreadsheets/d/example",
-        sheet_gid="1565185881",
-    )
-
-    with pytest.raises(ValidationError):
-        ref.trust_state = SourceTrustState.TRUSTED

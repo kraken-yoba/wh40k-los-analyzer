@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from warhammer_companion.rules.sources import SourceRef
 
@@ -20,23 +20,19 @@ class ValidationSeverity(StrEnum):
     ERROR = "error"
 
 
-class FrozenRulesModel(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-
-class ValidationRecord(FrozenRulesModel):
+class ValidationRecord(BaseModel):
     code: str
     severity: ValidationSeverity
     message: str
     source_ref: SourceRef | None = None
 
 
-class RuleSourceDocument(FrozenRulesModel):
+class RuleSourceDocument(BaseModel):
     source_ref: SourceRef
     page_count: int | None = Field(default=None, ge=1)
 
 
-class RuleSection(FrozenRulesModel):
+class RuleSection(BaseModel):
     source_document_id: str
     section_id: str
     section_label: str
@@ -44,14 +40,14 @@ class RuleSection(FrozenRulesModel):
     terms: tuple[str, ...] = Field(default_factory=tuple)
 
 
-class GlossaryTerm(FrozenRulesModel):
+class GlossaryTerm(BaseModel):
     term_id: str
     display_label: str
     source_section_ids: tuple[str, ...] = Field(default_factory=tuple)
     aliases: tuple[str, ...] = Field(default_factory=tuple)
 
 
-class ConceptMapping(FrozenRulesModel):
+class ConceptMapping(BaseModel):
     concept_id: str
     internal_name: str
     display_label: str
@@ -60,7 +56,7 @@ class ConceptMapping(FrozenRulesModel):
     mechanic_tags: tuple[str, ...] = Field(default_factory=tuple)
 
 
-class CanonicalRulesPack(FrozenRulesModel):
+class CanonicalRulesPack(BaseModel):
     rules_pack_id: str
     edition_id: str
     source_documents: tuple[RuleSourceDocument, ...]
