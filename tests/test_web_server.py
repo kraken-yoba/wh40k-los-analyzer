@@ -98,12 +98,20 @@ def test_map_data_delete_removes_generated_packet_and_reloads(
 def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
     calls: list[tuple[str, str, str, int]] = []
     packet = server.repository.default_packet()
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
 
     class FakeService:
         def heatmap_state(
             self,
             *,
             packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
             zone_id: str = "attacker",
             source: str = "edge",
             offset_inches: int = 0,
@@ -113,6 +121,7 @@ def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
             return HeatmapState(
                 packet=packet,
                 packet_groups=[],
+                packet_selector=packet_selector,
                 selected_zone_id=zone_id,
                 selected_source=source,
                 selected_offset_inches=offset_inches,
@@ -177,24 +186,25 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
     )
     client = TestClient(server.app)
 
-    response = client.get("/viewer?packet_id=official-event-companion-page-9")
+    response = client.get(
+        "/viewer?player_a=Take%20and%20Hold&player_b=Take%20and%20Hold&layout_variant=A"
+    )
     normalized_response = " ".join(response.text.split())
 
     assert response.status_code == 200
-    assert response.text.count("<optgroup") == 15
-    assert response.text.count('value="official-event-companion-page-') == 45
-    assert '<optgroup label="Take and Hold vs Take and Hold">' in response.text
-    assert (
-        "Layout A - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
-    ) in response.text
-    assert (
-        "Layout B - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
-    ) in response.text
-    assert (
-        "Layout C - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
-    ) in response.text
-    assert '<optgroup label="Priority Assets vs Priority Assets">' in response.text
-    assert ("Layout C - Priority Assets vs Priority Assets (Sabotage vs Sabotage)") in response.text
+    assert 'name="player_a"' in response.text
+    assert 'name="player_b"' in response.text
+    assert 'name="layout_variant"' in response.text
+    assert "Player A disposition" in response.text
+    assert "Player B disposition" in response.text
+    assert "Terrain layout" in response.text
+    assert response.text.count('value="Take and Hold"') == 2
+    assert response.text.count('value="Priority Assets"') == 2
+    assert response.text.count('value="A"') == 1
+    assert response.text.count('value="B"') == 1
+    assert response.text.count('value="C"') == 1
+    assert "Layout A - Battlefield Dominance vs Battlefield Dominance" in response.text
+    assert "Layout C - Battlefield Dominance vs Battlefield Dominance" in response.text
     assert 'class="packet-summary"' in response.text
     assert "Force dispositions" in response.text
     assert "Primary missions" in response.text
@@ -202,6 +212,37 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
     assert "Layout A - Event Companion page 9" in normalized_response
     assert "First player" in response.text
     assert "Second player" in response.text
+
+
+def test_viewer_resolves_packet_from_selector_query(monkeypatch) -> None:
+    packets = [
+        _official_packet().model_copy(
+            update={
+                "id": f"official-event-companion-page-{page}",
+                "name": f"Official Page {page}",
+                "layout_metadata": official_layout_metadata_for_page(page),
+            }
+        )
+        for page in range(9, 54)
+    ]
+    monkeypatch.setattr(
+        server,
+        "service",
+        WarhammerCompanionService(
+            paths=server.ingestion_paths,
+            repository=StaticMapRepository(list(reversed(packets))),
+            codex_backend=server.codex_backend,
+        ),
+    )
+    client = TestClient(server.app)
+
+    response = client.get(
+        "/viewer?player_a=Take%20and%20Hold&player_b=Reconnaissance&layout_variant=C"
+    )
+
+    assert response.status_code == 200
+    assert "Layout C - Event Companion page 20" in " ".join(response.text.split())
+    assert "Take and Hold vs Reconnaissance" in " ".join(response.text.split())
 
 
 def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch) -> None:
@@ -267,10 +308,12 @@ def test_toolbar_packet_select_does_not_force_horizontal_overflow() -> None:
 
     assert ".toolbar" in css
     assert "min-width: 0" in css
-    assert ".toolbar label:first-child" in css
+    assert ".toolbar > label:first-child" in css
     assert "flex: 1 1 280px" in css
-    assert ".toolbar label:first-child select" in css
+    assert ".toolbar > label:first-child select" in css
     assert "width: 100%" in css
+    assert ".selector-grid" in css
+    assert "grid-template-columns: repeat(3, minmax(160px, 1fr))" in css
     assert ".sidebar" in css
     assert ".main" in css
 

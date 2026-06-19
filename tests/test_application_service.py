@@ -38,6 +38,55 @@ def test_service_groups_official_packets_by_dispositions_and_layout_variant() ->
     )
 
 
+def test_service_resolves_packet_from_player_dispositions_and_layout() -> None:
+    packets = [
+        SAMPLE_PACKETS[0].model_copy(
+            update={
+                "id": f"official-event-companion-page-{page}",
+                "name": f"Official Page {page}",
+                "layout_metadata": official_layout_metadata_for_page(page),
+            }
+        )
+        for page in range(9, 54)
+    ]
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(list(reversed(packets))),
+        codex_backend=server.codex_backend,
+    )
+
+    selector = service.packet_selector_state(
+        player_a="Take and Hold",
+        player_b="Reconnaissance",
+        layout_variant="C",
+    )
+
+    assert selector.player_a_options == [
+        "Take and Hold",
+        "Purge the Foe",
+        "Disruption",
+        "Reconnaissance",
+        "Priority Assets",
+    ]
+    assert selector.player_b_options == [
+        "Take and Hold",
+        "Purge the Foe",
+        "Disruption",
+        "Reconnaissance",
+        "Priority Assets",
+    ]
+    assert [option.variant for option in selector.layout_options] == ["A", "B", "C"]
+    assert selector.selected_packet_id == "official-event-companion-page-20"
+    assert (
+        service.resolve_packet_id(
+            player_a="Priority Assets",
+            player_b="Priority Assets",
+            layout_variant="B",
+        )
+        == "official-event-companion-page-52"
+    )
+
+
 def test_heatmap_state_clamps_and_caches_rendered_svg() -> None:
     render_calls: list[tuple[str, str, str, int]] = []
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (  # type: ignore[import-not-found]
-    QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
@@ -11,7 +10,7 @@ from PySide6.QtWidgets import (  # type: ignore[import-not-found]
 )
 
 from warhammer_companion.application.services import WarhammerCompanionService
-from warhammer_companion.desktop.screens.common import populate_packet_combo, selected_packet_id
+from warhammer_companion.desktop.screens.common import PacketSelectorWidget
 from warhammer_companion.desktop.widgets.svg_map import SvgMapWidget
 
 
@@ -19,7 +18,7 @@ class LosCheckerScreen(QWidget):
     def __init__(self, service: WarhammerCompanionService) -> None:
         super().__init__()
         self.service = service
-        self.packet_combo = QComboBox()
+        self.packet_selector = PacketSelectorWidget(service)
         self.x_input = _spin_box(0.0, 44.0, 22.0)
         self.y_input = _spin_box(0.0, 60.0, 10.0)
         self.base_input = _spin_box(0.1, 8.0, 1.57)
@@ -30,7 +29,7 @@ class LosCheckerScreen(QWidget):
         title = QLabel("LOS Checker")
         title.setObjectName("screenTitle")
         layout.addWidget(title)
-        layout.addWidget(self.packet_combo)
+        layout.addWidget(self.packet_selector)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("X"))
         controls.addWidget(self.x_input)
@@ -42,18 +41,18 @@ class LosCheckerScreen(QWidget):
         layout.addLayout(controls)
         layout.addWidget(self.map, stretch=1)
 
-        self.packet_combo.currentIndexChanged.connect(self.refresh)
+        self.packet_selector.selection_changed.connect(self.refresh)
         self.check_button.clicked.connect(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:
         state = self.service.los_checker_state(
-            packet_id=selected_packet_id(self.packet_combo),
+            packet_id=self.packet_selector.selected_packet_id(),
             x=self.x_input.value(),
             y=self.y_input.value(),
             base=self.base_input.value(),
         )
-        populate_packet_combo(self.packet_combo, state.packet_groups, state.packet.id)
+        self.packet_selector.apply_state(state.packet_selector)
         self.x_input.setValue(state.x)
         self.y_input.setValue(state.y)
         self.map.set_svg(state.map_svg)

@@ -149,11 +149,24 @@ button {
   max-width: 100%;
 }
 
-.toolbar label:first-child {
+.toolbar > label:first-child {
   flex: 1 1 280px;
 }
 
-.toolbar label:first-child select {
+.toolbar > label:first-child select {
+  width: 100%;
+}
+
+.selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 12px;
+  flex: 1 1 620px;
+  min-width: 0;
+}
+
+.selector-grid label,
+.selector-grid select {
   width: 100%;
 }
 
@@ -529,6 +542,10 @@ button,
 
   .page-header {
     display: block;
+  }
+
+  .selector-grid {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -1,0 +1,28 @@
+<div class="selector-grid" aria-label="Map packet selector">
+  <label>
+    Player A disposition
+    <select name="player_a">
+      {% for option in packet_selector.player_a_options %}
+      <option value="{{ option }}" {{ "selected" if option == packet_selector.selected_player_a else "" }}>{{ option }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Player B disposition
+    <select name="player_b">
+      {% for option in packet_selector.player_b_options %}
+      <option value="{{ option }}" {{ "selected" if option == packet_selector.selected_player_b else "" }}>{{ option }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Terrain layout
+    <select name="layout_variant">
+      {% for option in packet_selector.layout_options %}
+      <option value="{{ option.variant }}" {{ "selected" if option.variant == packet_selector.selected_layout_variant else "" }}>
+        {{ option.label }} - {{ option.detail }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+</div>

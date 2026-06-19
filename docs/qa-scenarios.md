@@ -148,15 +148,18 @@ Manual check:
 
 Steps:
 
-1. Open page 9 in Map Viewer.
-2. Confirm the packet summary above the map.
-3. Inspect terrain, dense, light/review, and deployment counts.
-4. Open page 20.
-5. Open page 52.
+1. Open Map Viewer.
+2. Select Player A disposition, Player B disposition, and terrain layout A/B/C.
+3. Load page 9 by choosing Take and Hold / Take and Hold / Layout A.
+4. Confirm the packet summary above the map.
+5. Inspect terrain, dense, light/review, and deployment counts.
+6. Load page 20 by choosing Take and Hold / Reconnaissance / Layout C.
+7. Load page 52 by choosing Priority Assets / Priority Assets / Layout B.
 
 Expected result:
 
 - The selected packet persists after load.
+- Viewer, Heatmap, and LOS Checker expose the same Player A / Player B / terrain layout selector model.
 - Force-disposition matchup, primary-mission matchup, layout variant, and Event Companion source page are visible.
 - The map renders board, terrain footprints, dense features, light/review features, labels, and deployment zones.
 - Counts match the loaded packet.

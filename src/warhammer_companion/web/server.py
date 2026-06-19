@@ -125,8 +125,19 @@ def delete_packet(packet_id: str = Form(...)) -> RedirectResponse:
 
 
 @app.get("/viewer", response_class=HTMLResponse)
-def viewer(request: Request, packet_id: str | None = None) -> HTMLResponse:
-    state = service.viewer_state(packet_id)
+def viewer(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+) -> HTMLResponse:
+    state = service.viewer_state(
+        packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
     return templates.TemplateResponse(
         request,
         "viewer.html",
@@ -134,6 +145,7 @@ def viewer(request: Request, packet_id: str | None = None) -> HTMLResponse:
             "active_page": "viewer",
             "packet": state.packet,
             "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
             "map_svg": state.map_svg,
         },
     )
@@ -143,12 +155,18 @@ def viewer(request: Request, packet_id: str | None = None) -> HTMLResponse:
 def heatmap(
     request: Request,
     packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
     zone_id: str = "attacker",
     source: str = "edge",
     offset_inches: int = 0,
 ) -> HTMLResponse:
     state = service.heatmap_state(
         packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
         zone_id=zone_id,
         source=source,
         offset_inches=offset_inches,
@@ -160,6 +178,7 @@ def heatmap(
             "active_page": "heatmap",
             "packet": state.packet,
             "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
             "selected_zone_id": state.selected_zone_id,
             "selected_source": state.selected_source,
             "selected_offset_inches": state.selected_offset_inches,
@@ -173,11 +192,22 @@ def heatmap(
 def los_checker(
     request: Request,
     packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
     x: float = 22.0,
     y: float = 10.0,
     base: float = 1.57,
 ) -> HTMLResponse:
-    state = service.los_checker_state(packet_id=packet_id, x=x, y=y, base=base)
+    state = service.los_checker_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        x=x,
+        y=y,
+        base=base,
+    )
     return templates.TemplateResponse(
         request,
         "los_checker.html",
@@ -185,6 +215,7 @@ def los_checker(
             "active_page": "los-checker",
             "packet": state.packet,
             "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
             "x": state.x,
             "y": state.y,
             "base": state.base,
@@ -195,13 +226,23 @@ def los_checker(
 
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
-    packet_id: str = Form(...),
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
     x: float = Form(...),
     y: float = Form(...),
     base: float = Form(...),
 ) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
     return RedirectResponse(
-        f"/los-checker?packet_id={packet_id}&x={x}&y={y}&base={base}", status_code=303
+        f"/los-checker?packet_id={resolved_packet_id}&x={x}&y={y}&base={base}",
+        status_code=303,
     )
 
 

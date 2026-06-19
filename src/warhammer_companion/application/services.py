@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
@@ -9,8 +9,10 @@ from warhammer_companion.application.view_models import (
     HeatmapState,
     LosCheckerState,
     MapDataState,
+    PacketLayoutOption,
     PacketSelectGroup,
     PacketSelectOption,
+    PacketSelectorState,
     SettingsState,
     ViewerState,
 )
@@ -87,11 +89,24 @@ class WarhammerCompanionService:
             report=self.latest_ingestion_report(),
         )
 
-    def viewer_state(self, packet_id: str | None = None) -> ViewerState:
-        packet = self._selected_packet(packet_id)
+    def viewer_state(
+        self,
+        packet_id: str | None = None,
+        *,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+    ) -> ViewerState:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
         return ViewerState(
             packet=packet,
             packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=packet.id),
             map_svg=render_map_svg(packet),
         )
 
@@ -99,16 +114,25 @@ class WarhammerCompanionService:
         self,
         *,
         packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
         zone_id: str = "attacker",
         source: str = "edge",
         offset_inches: int = 0,
     ) -> HeatmapState:
-        packet = self._selected_packet(packet_id)
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
         heatmap_source = source if source in {"edge", "interior"} else "edge"
         clamped_offset = min(max(offset_inches, 0), 12)
         return HeatmapState(
             packet=packet,
             packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=packet.id),
             selected_zone_id=zone_id,
             selected_source=heatmap_source,
             selected_offset_inches=clamped_offset,
@@ -125,11 +149,19 @@ class WarhammerCompanionService:
         self,
         *,
         packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
         x: float = 22.0,
         y: float = 10.0,
         base: float = 1.57,
     ) -> LosCheckerState:
-        packet = self._selected_packet(packet_id)
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
         center = clamp_base_center(packet, (x, y), base)
         coverage_polygon = visibility_polygon_from_base(
             packet,
@@ -140,6 +172,7 @@ class WarhammerCompanionService:
         return LosCheckerState(
             packet=packet,
             packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=packet.id),
             x=center[0],
             y=center[1],
             base=base,
@@ -161,6 +194,89 @@ class WarhammerCompanionService:
         return [
             PacketSelectGroup(label=label, options=options) for label, options in grouped.items()
         ]
+
+    def packet_selector_state(
+        self,
+        packet_id: str | None = None,
+        *,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+    ) -> PacketSelectorState:
+        packets = sorted(self.repository.list_packets(), key=_packet_sort_key)
+        official_packets = [packet for packet in packets if packet.layout_metadata is not None]
+        if not official_packets:
+            return self._fixture_packet_selector_state(packet_id)
+
+        fallback_packet = self._selected_packet(packet_id)
+        fallback_metadata = fallback_packet.layout_metadata
+        selected_player_a = _clean_selector_value(player_a)
+        selected_player_b = _clean_selector_value(player_b)
+        selected_layout = _clean_selector_value(layout_variant)
+        if fallback_metadata is not None:
+            selected_player_a = (
+                selected_player_a or fallback_metadata.first_player.force_disposition
+            )
+            selected_player_b = (
+                selected_player_b or fallback_metadata.second_player.force_disposition
+            )
+            selected_layout = selected_layout or fallback_metadata.layout_variant
+
+        player_a_options = _unique(
+            packet.layout_metadata.first_player.force_disposition
+            for packet in official_packets
+            if packet.layout_metadata is not None
+        )
+        if selected_player_a not in player_a_options:
+            selected_player_a = player_a_options[0]
+
+        player_b_options = _unique(
+            packet.layout_metadata.second_player.force_disposition
+            for packet in official_packets
+            if packet.layout_metadata is not None
+            and packet.layout_metadata.first_player.force_disposition == selected_player_a
+        )
+        if selected_player_b not in player_b_options:
+            selected_player_b = player_b_options[0]
+
+        layout_packets = [
+            packet
+            for packet in official_packets
+            if packet.layout_metadata is not None
+            and packet.layout_metadata.first_player.force_disposition == selected_player_a
+            and packet.layout_metadata.second_player.force_disposition == selected_player_b
+        ]
+        layout_options = [_packet_layout_option(packet) for packet in layout_packets]
+        layout_variants = [option.variant for option in layout_options]
+        if selected_layout not in layout_variants:
+            selected_layout = layout_variants[0]
+        selected_packet_id = next(
+            option.packet_id for option in layout_options if option.variant == selected_layout
+        )
+        return PacketSelectorState(
+            player_a_options=player_a_options,
+            player_b_options=player_b_options,
+            layout_options=layout_options,
+            selected_player_a=selected_player_a,
+            selected_player_b=selected_player_b,
+            selected_layout_variant=selected_layout,
+            selected_packet_id=selected_packet_id,
+        )
+
+    def resolve_packet_id(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+    ) -> str:
+        return self.packet_selector_state(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        ).selected_packet_id
 
     def latest_ingestion_report(self) -> IngestionReport | None:
         path = self.paths.ingestion_report_path
@@ -225,6 +341,47 @@ class WarhammerCompanionService:
         if packet_id:
             return self.repository.get_packet(packet_id)
         return self.repository.default_packet()
+
+    def _selected_packet_by_selector(
+        self,
+        *,
+        packet_id: str | None,
+        player_a: str | None,
+        player_b: str | None,
+        layout_variant: str | None,
+    ) -> MapPacket:
+        if any(_clean_selector_value(value) for value in (player_a, player_b, layout_variant)):
+            return self.repository.get_packet(
+                self.resolve_packet_id(
+                    packet_id=packet_id,
+                    player_a=player_a,
+                    player_b=player_b,
+                    layout_variant=layout_variant,
+                )
+            )
+        return self._selected_packet(packet_id)
+
+    def _fixture_packet_selector_state(self, packet_id: str | None) -> PacketSelectorState:
+        packets = sorted(self.repository.list_packets(), key=_packet_sort_key)
+        selected_packet = self._selected_packet(packet_id)
+        options = [
+            PacketLayoutOption(
+                packet_id=packet.id,
+                variant=packet.id,
+                label=packet.name,
+                detail="Development fixture",
+            )
+            for packet in packets
+        ]
+        return PacketSelectorState(
+            player_a_options=["Development fixture"],
+            player_b_options=["Development fixture"],
+            layout_options=options,
+            selected_player_a="Development fixture",
+            selected_player_b="Development fixture",
+            selected_layout_variant=selected_packet.id,
+            selected_packet_id=selected_packet.id,
+        )
 
     def _cached_heatmap_svg(
         self,
@@ -302,3 +459,35 @@ def _packet_option_label(packet: MapPacket) -> str:
         f"{metadata.first_player.primary_mission} vs {metadata.second_player.primary_mission}"
     )
     return f"Layout {metadata.layout_variant} - {dispositions} ({primary_missions})"
+
+
+def _packet_layout_option(packet: MapPacket) -> PacketLayoutOption:
+    metadata = packet.layout_metadata
+    if metadata is None:
+        return PacketLayoutOption(
+            packet_id=packet.id,
+            variant=packet.id,
+            label=packet.name,
+            detail="Development fixture",
+        )
+    primary_missions = (
+        f"{metadata.first_player.primary_mission} vs {metadata.second_player.primary_mission}"
+    )
+    return PacketLayoutOption(
+        packet_id=packet.id,
+        variant=metadata.layout_variant,
+        label=f"Layout {metadata.layout_variant}",
+        detail=f"{primary_missions} - Event Companion page {metadata.source_page}",
+    )
+
+
+def _clean_selector_value(value: str | None) -> str:
+    return value.strip() if value else ""
+
+
+def _unique(values: Iterable[str]) -> list[str]:
+    unique_values: list[str] = []
+    for value in values:
+        if value not in unique_values:
+            unique_values.append(value)
+    return unique_values

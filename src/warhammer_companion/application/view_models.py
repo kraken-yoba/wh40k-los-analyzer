@@ -23,6 +23,25 @@ class PacketSelectGroup:
 
 
 @dataclass(frozen=True)
+class PacketLayoutOption:
+    packet_id: str
+    variant: str
+    label: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class PacketSelectorState:
+    player_a_options: list[str]
+    player_b_options: list[str]
+    layout_options: list[PacketLayoutOption]
+    selected_player_a: str
+    selected_player_b: str
+    selected_layout_variant: str
+    selected_packet_id: str
+
+
+@dataclass(frozen=True)
 class SettingsState:
     app_backend_status: str
     app_backend_detail: str
@@ -42,6 +61,7 @@ class MapDataState:
 class ViewerState:
     packet: MapPacket
     packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
     map_svg: str
 
 
@@ -49,6 +69,7 @@ class ViewerState:
 class HeatmapState:
     packet: MapPacket
     packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
     selected_zone_id: str
     selected_source: str
     selected_offset_inches: int
@@ -60,6 +81,7 @@ class HeatmapState:
 class LosCheckerState:
     packet: MapPacket
     packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
     x: float
     y: float
     base: float

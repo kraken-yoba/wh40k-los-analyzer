@@ -124,3 +124,35 @@ Verification:
   - Settings renders Codex account status rows without row or page overflow.
   - Map Data reports 45 packets and the pipeline/status content without horizontal overflow.
 - Local Inno Setup is not installed; installer compilation is covered by the CI workflow after `choco install innosetup`.
+
+## 2026-06-19 - Player Disposition Layout Selector
+
+Branch: `codex/standalone-windows-desktop-app`
+
+Purpose:
+
+- Replace the long single packet selector with the user-facing tournament workflow: Player A disposition, Player B disposition, then terrain layout A/B/C.
+- Keep the implementation Python-first and avoid custom browser JavaScript.
+
+Changes:
+
+- Added shared selector state and packet resolution to `WarhammerCompanionService`.
+- Updated the web Viewer, LOS Heatmap, and LOS Checker forms to submit `player_a`, `player_b`, and `layout_variant`.
+- Added a reusable PySide6 `PacketSelectorWidget` with live cascading combos for the desktop Viewer, LOS Heatmap, and LOS Checker screens.
+- Updated QA docs to make the three-part selector part of the regression contract.
+
+Verification:
+
+- `python -m pytest` - passed, 179 tests; one existing Starlette/httpx deprecation warning.
+- `ruff check .` - passed.
+- `mypy` - passed for 56 source files.
+- `python -m warhammer_companion.cli validate-packets` - passed for all 45 current packets.
+- Source desktop smoke test with `--smoke-test --require-official-data` returned exit code 0 and reported 45 official packets.
+- `pyinstaller --clean --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec` rebuilt `dist/WarhammerTournamentCompanion/WarhammerTournamentCompanion.exe`.
+- Packaged smoke test with `--smoke-test --require-official-data --smoke-output` returned exit code 0 and reported 45 bundled seed packets, 45 official packets, and rendered viewer/heatmap/LOS SVG.
+- Refreshed `dist/WarhammerTournamentCompanion-portable.zip`; archive sanity check found `WarhammerTournamentCompanion.exe` and 45 official seed packet JSON entries.
+- Browser verification on `http://127.0.0.1:8055`:
+  - Viewer resolved Take and Hold / Reconnaissance / Layout C to Event Companion page 20 with no horizontal overflow.
+  - Heatmap resolved Priority Assets / Priority Assets / Layout B to Event Companion page 52, rendered one heatmap raster, 23 safe-zone outlines, and retained the 12-inch offset state.
+  - LOS Checker resolved the same page-52 selector, rendered one coverage raster and one model base, and had no horizontal overflow.
+  - Browser console warning/error log was empty.

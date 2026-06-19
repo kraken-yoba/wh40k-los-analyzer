@@ -10,18 +10,7 @@
 
 <section class="panel">
   <form class="toolbar los-checker-form" method="post" action="/los-checker" data-board-width="{{ packet.board.width }}" data-board-height="{{ packet.board.height }}">
-    <label>
-      Map packet
-      <select name="packet_id">
-        {% for group in packet_groups %}
-        <optgroup label="{{ group.label }}">
-          {% for option in group.options %}
-          <option value="{{ option.id }}" {{ "selected" if option.id == packet.id else "" }}>{{ option.label }}</option>
-          {% endfor %}
-        </optgroup>
-        {% endfor %}
-      </select>
-    </label>
+    {% include "_packet_selector.html" %}
     <label>
       X inches
       <input name="x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ x }}">

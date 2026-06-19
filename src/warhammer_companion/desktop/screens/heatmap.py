@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (  # type: ignore[import-not-found]
 )
 
 from warhammer_companion.application.services import WarhammerCompanionService
-from warhammer_companion.desktop.screens.common import populate_packet_combo, selected_packet_id
+from warhammer_companion.desktop.screens.common import PacketSelectorWidget
 from warhammer_companion.desktop.widgets.svg_map import SvgMapWidget
 
 
@@ -20,7 +20,7 @@ class HeatmapScreen(QWidget):
     def __init__(self, service: WarhammerCompanionService) -> None:
         super().__init__()
         self.service = service
-        self.packet_combo = QComboBox()
+        self.packet_selector = PacketSelectorWidget(service)
         self.zone_combo = QComboBox()
         self.source_combo = QComboBox()
         self.source_combo.addItem("Deployment edge", "edge")
@@ -38,7 +38,7 @@ class HeatmapScreen(QWidget):
         title = QLabel("LOS Heatmap")
         title.setObjectName("screenTitle")
         layout.addWidget(title)
-        layout.addWidget(self.packet_combo)
+        layout.addWidget(self.packet_selector)
         controls = QHBoxLayout()
         controls.addWidget(self.zone_combo)
         controls.addWidget(self.source_combo)
@@ -48,26 +48,26 @@ class HeatmapScreen(QWidget):
         layout.addLayout(controls)
         layout.addWidget(self.map, stretch=1)
 
-        self.packet_combo.currentIndexChanged.connect(self.refresh)
+        self.packet_selector.selection_changed.connect(self.refresh)
         self.generate_button.clicked.connect(self.refresh)
         self.offset_slider.valueChanged.connect(self._offset_changed)
         self.refresh()
 
     def refresh(self) -> None:
         state = self.service.heatmap_state(
-            packet_id=selected_packet_id(self.packet_combo),
+            packet_id=self.packet_selector.selected_packet_id(),
             zone_id=self.zone_combo.currentData() or "attacker",
             source=self.source_combo.currentData() or "edge",
             offset_inches=self.offset_slider.value(),
         )
-        populate_packet_combo(self.packet_combo, state.packet_groups, state.packet.id)
+        self.packet_selector.apply_state(state.packet_selector)
         self._populate_zones(state.selected_zone_id)
         self.offset_slider.setValue(state.selected_offset_inches)
         self._offset_changed(state.selected_offset_inches)
         self.map.set_svg(state.map_svg)
 
     def _populate_zones(self, selected_zone_id: str) -> None:
-        packet_id = selected_packet_id(self.packet_combo)
+        packet_id = self.packet_selector.selected_packet_id()
         state = self.service.viewer_state(packet_id)
         self.zone_combo.blockSignals(True)
         self.zone_combo.clear()
