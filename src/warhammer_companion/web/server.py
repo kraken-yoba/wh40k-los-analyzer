@@ -322,10 +322,13 @@ def _packet_option_label(packet: MapPacket) -> str:
     metadata = packet.layout_metadata
     if metadata is None:
         return packet.name
-    return (
-        f"Layout {metadata.layout_variant} - "
+    dispositions = (
+        f"{metadata.first_player.force_disposition} vs {metadata.second_player.force_disposition}"
+    )
+    primary_missions = (
         f"{metadata.first_player.primary_mission} vs {metadata.second_player.primary_mission}"
     )
+    return f"Layout {metadata.layout_variant} - {dispositions} ({primary_missions})"
 
 
 def _deletable_packet_ids() -> set[str]:

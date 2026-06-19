@@ -145,11 +145,17 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
     assert response.text.count("<optgroup") == 15
     assert response.text.count('value="official-event-companion-page-') == 45
     assert '<optgroup label="Take and Hold vs Take and Hold">' in response.text
-    assert "Layout A - Battlefield Dominance vs Battlefield Dominance" in response.text
-    assert "Layout B - Battlefield Dominance vs Battlefield Dominance" in response.text
-    assert "Layout C - Battlefield Dominance vs Battlefield Dominance" in response.text
+    assert (
+        "Layout A - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
+    ) in response.text
+    assert (
+        "Layout B - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
+    ) in response.text
+    assert (
+        "Layout C - Take and Hold vs Take and Hold (Battlefield Dominance vs Battlefield Dominance)"
+    ) in response.text
     assert '<optgroup label="Priority Assets vs Priority Assets">' in response.text
-    assert "Layout C - Sabotage vs Sabotage" in response.text
+    assert ("Layout C - Priority Assets vs Priority Assets (Sabotage vs Sabotage)") in response.text
     assert 'class="packet-summary"' in response.text
     assert "Force dispositions" in response.text
     assert "Primary missions" in response.text
@@ -207,6 +213,19 @@ def test_settings_status_values_use_wrapping_layout() -> None:
     assert "tag-wrap" in css
     assert "white-space: normal" in css
     assert "overflow-wrap: anywhere" in css
+
+
+def test_toolbar_packet_select_does_not_force_horizontal_overflow() -> None:
+    css = (server.PACKAGE_DIR / "static" / "style.css").read_text()
+
+    assert ".toolbar" in css
+    assert "min-width: 0" in css
+    assert ".toolbar label:first-child" in css
+    assert "flex: 1 1 280px" in css
+    assert ".toolbar label:first-child select" in css
+    assert "width: 100%" in css
+    assert ".sidebar" in css
+    assert ".main" in css
 
 
 def test_codex_browser_login_route_redirects_to_sdk_auth_url(monkeypatch) -> None:
