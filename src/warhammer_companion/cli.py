@@ -11,6 +11,7 @@ from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.manifest import write_source_manifest
 from warhammer_companion.ingestion.packet_builder import run_official_ingestion, validate_packet
 from warhammer_companion.ingestion.sources import OFFICIAL_SOURCES
+from warhammer_companion.rules.core_rules import build_core_rules_pack
 
 cli = typer.Typer(help="Warhammer Tournament Companion utilities.")
 DEFAULT_DATA_DIR = IngestionPaths().data_dir
@@ -84,6 +85,19 @@ def list_sources() -> None:
     for source in OFFICIAL_SOURCES:
         typer.echo(f"{source.key}: {source.label}")
         typer.echo(f"  {source.url}")
+
+
+@cli.command("rules-pack")
+def rules_pack() -> None:
+    pack = build_core_rules_pack()
+    typer.echo(f"{pack.rules_pack_id}: {pack.readiness.value}")
+    for source in pack.source_documents:
+        typer.echo(
+            f"  source {source.source_ref.source_document_id}: {source.source_ref.local_filename}"
+        )
+    typer.echo("  concepts:")
+    for concept in pack.concept_mappings:
+        typer.echo(f"  - {concept.display_label} ({concept.concept_id})")
 
 
 @cli.command()

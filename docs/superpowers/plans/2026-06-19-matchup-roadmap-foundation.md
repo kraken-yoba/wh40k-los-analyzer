@@ -1,6 +1,6 @@
 # Matchup Roadmap Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Use consultants before execution and adversarial reviewers after each meaningful checkpoint. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the Phase 0/1 source trust contract and offline 11e RulesPack skeleton for the matchup-analysis roadmap.
 
@@ -9,6 +9,29 @@
 **Tech Stack:** Python 3.12, Pydantic v2, Typer, pytest, ruff, mypy.
 
 ---
+
+## Review Gates
+
+- Before implementation: dispatch at least one codebase explorer, one source/librarian consultant, and one planning reviewer.
+- During implementation: use TDD for every behavior change.
+- After each committed implementation checkpoint: run spec compliance review first, then adversarial code-quality review.
+- Before final handoff: run a LazyCodex gate/adversarial review over the full branch diff and QA evidence.
+- Preserve shared-worktree safety: run `git status --short` before each task and do not revert unrelated user changes.
+
+## Edition And Source Policy
+
+- `wh40k-11e` is a project edition tag from the roadmap brief, not a claim proven by the PDF filename alone.
+- Official Core Rules PDF anchors and hash control the first RulesPack.
+- The RulesPack stores source ids, labels, anchors, hashes, short terms, and concept mappings only.
+- It must not store long copied rules text, page images, full tables, near-verbatim rule blocks, or large extracted excerpts.
+- Public Google Sheet records are untrusted mission/card inputs.
+- Wahapedia records are provisional 10e profile-bootstrap inputs.
+
+## Execution Status
+
+- Task 1 and Task 2 were completed and committed before the explicit subagent requirement was restated.
+- Task 3 and onward must use the review gates above.
+- The CLI command is a developer/QA observable surface, not a committed product UI promise.
 
 ## File Structure
 
@@ -38,7 +61,7 @@
 - Create: `src/warhammer_companion/rules/__init__.py`
 - Create: `src/warhammer_companion/rules/sources.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_rules_sources.py`:
 
@@ -104,7 +127,7 @@ def test_wahapedia_source_ref_is_provisional_profile_bootstrap() -> None:
     assert ref.edition_id == "wh40k-10e"
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -114,7 +137,7 @@ Run:
 
 Expected: FAIL because `warhammer_companion.rules` does not exist.
 
-- [ ] **Step 3: Implement the source models**
+- [x] **Step 3: Implement the source models**
 
 Create `src/warhammer_companion/rules/__init__.py`:
 
@@ -124,7 +147,7 @@ Create `src/warhammer_companion/rules/__init__.py`:
 
 Create `src/warhammer_companion/rules/sources.py` with `StrEnum` classes for `SourceKind`, `SourceAuthority`, `SourceTrustState`, and a Pydantic `SourceRef` model with the fields used by the tests. Add `public_sheet()` and `wahapedia_10e()` class methods returning the explicit untrusted/provisional defaults.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -134,7 +157,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit checkpoint**
+- [x] **Step 5: Commit checkpoint**
 
 Run:
 
@@ -152,7 +175,7 @@ git commit -m "Add rules source trust contract"
 - Create: `src/warhammer_companion/rules/models.py`
 - Create: `src/warhammer_companion/rules/core_rules.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/test_rules_pack.py`:
 
@@ -212,7 +235,7 @@ def test_core_rules_pack_maps_current_rules_concepts() -> None:
     }
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -222,7 +245,7 @@ Run:
 
 Expected: FAIL because `rules.models` and `rules.core_rules` do not exist.
 
-- [ ] **Step 3: Implement the RulesPack models and builder**
+- [x] **Step 3: Implement the RulesPack models and builder**
 
 Create Pydantic models in `src/warhammer_companion/rules/models.py`:
 
@@ -237,7 +260,7 @@ Create Pydantic models in `src/warhammer_companion/rules/models.py`:
 
 Create `src/warhammer_companion/rules/core_rules.py` with constants for the official core-rules URL/hash and a `build_core_rules_pack()` function that returns a deterministic `CanonicalRulesPack` with source anchors and concept mappings required by the tests.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -247,7 +270,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit checkpoint**
+- [x] **Step 5: Commit checkpoint**
 
 Run:
 
@@ -266,22 +289,19 @@ git commit -m "Add core rules pack skeleton"
 
 - [ ] **Step 1: Write the failing CLI test**
 
-Add to `tests/test_cli.py`:
+Add to `tests/test_cli.py` using the existing `CliRunner` pattern:
 
 ```python
 def test_cli_rules_pack_outputs_core_rules_summary() -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "warhammer_companion.cli", "rules-pack"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    runner = CliRunner()
 
-    assert result.returncode == 0
-    assert "wh40k-11e-core-2026-06-01" in result.stdout
-    assert "core-rules-2026-06-01" in result.stdout
-    assert "Benefit of Cover" in result.stdout
-    assert "trusted" in result.stdout
+    result = runner.invoke(cli, ["rules-pack"])
+
+    assert result.exit_code == 0
+    assert "wh40k-11e-core-2026-06-01" in result.output
+    assert "core-rules-2026-06-01" in result.output
+    assert "Benefit of Cover" in result.output
+    assert "trusted" in result.output
 ```
 
 - [ ] **Step 2: Run RED**

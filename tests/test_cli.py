@@ -40,3 +40,15 @@ def test_validate_packets_fails_when_no_packets_exist(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "No packet JSON files found" in result.output
+
+
+def test_rules_pack_outputs_core_rules_summary() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["rules-pack"])
+
+    assert result.exit_code == 0
+    assert "wh40k-11e-core-2026-06-01" in result.output
+    assert "core-rules-2026-06-01" in result.output
+    assert "Benefit of Cover" in result.output
+    assert "trusted" in result.output
