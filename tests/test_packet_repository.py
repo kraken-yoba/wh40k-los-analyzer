@@ -100,6 +100,26 @@ def test_file_backed_repository_auto_refreshes_when_packet_files_change(tmp_path
     assert repository.list_packets() == [packet]
 
 
+def test_file_backed_repository_can_merge_fallback_with_packet_files(tmp_path: Path) -> None:
+    fallback = SAMPLE_PACKETS[0].model_copy(update={"id": "seed", "name": "Seed"})
+    local = SAMPLE_PACKETS[0].model_copy(update={"id": "local", "name": "Local"})
+    repository = FileBackedMapRepository(tmp_path, fallback=[fallback], merge_fallback=True)
+
+    write_packet(local, tmp_path / "local.json")
+
+    assert {packet.id for packet in repository.list_packets()} == {"seed", "local"}
+
+
+def test_file_backed_repository_file_packets_override_merged_fallback(tmp_path: Path) -> None:
+    fallback = SAMPLE_PACKETS[0].model_copy(update={"id": "shared", "name": "Seed"})
+    local = SAMPLE_PACKETS[0].model_copy(update={"id": "shared", "name": "Local"})
+    repository = FileBackedMapRepository(tmp_path, fallback=[fallback], merge_fallback=True)
+
+    write_packet(local, tmp_path / "shared.json")
+
+    assert repository.get_packet("shared").name == "Local"
+
+
 def test_duplicate_packet_ids_raise_clear_errors() -> None:
     duplicate = SAMPLE_PACKETS[0].model_copy(update={"name": "Duplicate"})
 

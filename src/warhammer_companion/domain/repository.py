@@ -54,9 +54,11 @@ class FileBackedMapRepository:
         self,
         directory: PacketDirectory,
         fallback: Iterable[MapPacket] | None = None,
+        merge_fallback: bool = False,
     ) -> None:
         self._directory = Path(directory)
         self._fallback = list(fallback) if fallback is not None else []
+        self._merge_fallback = merge_fallback
         self._signature = self._directory_signature()
         self._repository = self._load_repository()
 
@@ -84,7 +86,13 @@ class FileBackedMapRepository:
         self._repository = self._load_repository()
 
     def _load_repository(self) -> StaticMapRepository:
-        packets = load_packet_directory(self._directory)
+        disk_packets = load_packet_directory(self._directory)
+        if self._merge_fallback:
+            packets_by_id = {packet.id: packet for packet in self._fallback}
+            packets_by_id.update({packet.id: packet for packet in disk_packets})
+            packets = list(packets_by_id.values())
+            return StaticMapRepository(packets)
+        packets = disk_packets
         if not packets:
             packets = self._fallback
         return StaticMapRepository(packets)

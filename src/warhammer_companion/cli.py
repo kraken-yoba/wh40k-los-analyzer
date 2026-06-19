@@ -22,6 +22,16 @@ DataDirOption = Annotated[
         help="Data directory containing raw official PDFs and processed outputs.",
     ),
 ]
+PacketDirOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--packet-dir",
+        help=(
+            "Validate packet JSON from this directory instead of the processed "
+            "map packet directory under --data-dir."
+        ),
+    ),
+]
 IngestionPageOption = Annotated[
     list[int] | None,
     typer.Option(
@@ -99,12 +109,14 @@ def ingest_official(
 @cli.command()
 def validate_packets(
     data_dir: DataDirOption = DEFAULT_DATA_DIR,
+    packet_dir: PacketDirOption = None,
 ) -> None:
     """Validate generated map packet JSON against LOS ingestion invariants."""
     paths = IngestionPaths(data_dir)
-    packets = load_packet_directory(paths.map_packets_dir)
+    target_dir = packet_dir or paths.map_packets_dir
+    packets = load_packet_directory(target_dir)
     if not packets:
-        typer.echo(f"No packet JSON files found in {paths.map_packets_dir}")
+        typer.echo(f"No packet JSON files found in {target_dir}")
         raise typer.Exit(1)
 
     has_errors = False

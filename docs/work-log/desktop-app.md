@@ -98,10 +98,29 @@ Changes:
 - Added `packaging/windows/WarhammerTournamentCompanion.iss` for a per-user Inno Setup installer.
 - Added `.github/workflows/build-windows-app.yml` with formatting, lint, type, tests, packet validation, PyInstaller build, packaged smoke test, portable zip, Inno Setup build, and artifact uploads.
 - Added packaging artifact tests to lock workflow/spec/installer paths.
+- Added 45 official packet JSON files as package seed data so standalone builds start with the official layouts instead of the synthetic sample fallback.
+- Hardened CI validation to check the packaged seed packet directory directly on clean runners.
+- Added an official-data smoke-test gate so packaged builds fail if they fall back to synthetic sample data.
+- Desktop source and packaged builds merge bundled seed packets with local user packets, allowing user-generated overrides without hiding missing official layouts.
+- Desktop Map Data now keeps bundled seed packets non-deletable and disables ingestion when source PDFs are not available locally.
+- Added seed-data provenance notes and a public-release redistribution check.
 
 Verification:
 
-- `pyinstaller --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec` completed and produced `dist/WarhammerTournamentCompanion/WarhammerTournamentCompanion.exe`.
-- `Start-Process -Wait -PassThru ... WarhammerTournamentCompanion.exe --smoke-test` returned exit code 0.
-- Portable zip creation using `.NET ZipFile.CreateFromDirectory` produced a readable archive.
+- `ruff format --check src tests` - passed, 69 files already formatted.
+- `ruff check .` - passed.
+- `mypy src` - passed for 49 source files.
+- `python -m warhammer_companion.cli validate-packets --packet-dir src/warhammer_companion/seed_data/map-packets` - passed for all 45 bundled official packets.
+- `python -m warhammer_companion.cli validate-packets` - passed for the current processed packet directory.
+- `python -m pytest` - passed, 170 tests; one existing Starlette/httpx deprecation warning.
+- `pyinstaller --clean --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec` completed and produced `dist/WarhammerTournamentCompanion/WarhammerTournamentCompanion.exe`.
+- Packaged smoke test with `--smoke-test --require-official-data --smoke-output` returned exit code 0 and reported 45 bundled seed packets, 45 official packets, and rendered viewer/heatmap/LOS SVG.
+- Source desktop smoke test with `--smoke-test --require-official-data` returned exit code 0 and reported the same 45 official packets.
+- Headless Qt construction with `QT_QPA_PLATFORM=offscreen` created `Warhammer Tournament Companion` with 5 screens.
+- Portable zip creation using `.NET ZipFile.CreateFromDirectory` produced a readable archive with `WarhammerTournamentCompanion.exe` and 45 official seed packet JSON entries.
+- Browser route sweep on `http://127.0.0.1:8052`:
+  - Viewer page 52 renders an SVG, 16 terrain labels, and no horizontal overflow.
+  - Heatmap page 9 with edge offset 12 renders a raster overlay, 23 safe-zone outlines, and no horizontal overflow.
+  - Settings renders Codex account status rows without row or page overflow.
+  - Map Data reports 45 packets and the pipeline/status content without horizontal overflow.
 - Local Inno Setup is not installed; installer compilation is covered by the CI workflow after `choco install innosetup`.

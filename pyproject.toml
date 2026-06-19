@@ -52,6 +52,7 @@ where = ["src"]
 warhammer_companion = [
   "py.typed",
   "catalog_assets/*.svg",
+  "seed_data/map-packets/*.json",
   "web/templates/*.html",
   "web/static/*.css"
 ]

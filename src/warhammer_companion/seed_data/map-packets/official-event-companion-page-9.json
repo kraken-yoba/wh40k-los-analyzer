@@ -1,0 +1,1487 @@
+{
+  "id": "official-event-companion-page-9",
+  "name": "Take and Hold vs Take and Hold - Layout A",
+  "source": "Extracted from Event Companion page 9: Battlefield Dominance vs Battlefield Dominance",
+  "layout_metadata": {
+    "source_page": 9,
+    "layout_variant": "A",
+    "first_player": {
+      "force_disposition": "Take and Hold",
+      "primary_mission": "Battlefield Dominance"
+    },
+    "second_player": {
+      "force_disposition": "Take and Hold",
+      "primary_mission": "Battlefield Dominance"
+    }
+  },
+  "board": {
+    "width": 44.0,
+    "height": 60.0
+  },
+  "terrain_areas": [
+    {
+      "id": "terrain-01",
+      "label": "Terrain 1",
+      "kind": "ruins",
+      "footprint": [
+        [
+          40.048976,
+          47.01889
+        ],
+        [
+          40.048976,
+          35.381684
+        ],
+        [
+          33.003452,
+          35.381684
+        ],
+        [
+          32.415418,
+          38.460976
+        ],
+        [
+          33.003452,
+          39.093065
+        ],
+        [
+          33.003452,
+          47.01889
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-02",
+      "label": "Terrain 2",
+      "kind": "ruins",
+      "footprint": [
+        [
+          10.209483,
+          42.865693
+        ],
+        [
+          9.447198,
+          43.423963
+        ],
+        [
+          2.016852,
+          43.423963
+        ],
+        [
+          2.016852,
+          46.030091
+        ],
+        [
+          6.108334,
+          46.573165
+        ],
+        [
+          6.531354,
+          46.030091
+        ],
+        [
+          12.048849,
+          46.030091
+        ],
+        [
+          12.048849,
+          43.423963
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-03",
+      "label": "Terrain 3",
+      "kind": "ruins",
+      "footprint": [
+        [
+          16.203067,
+          26.886716
+        ],
+        [
+          16.203067,
+          35.016514
+        ],
+        [
+          27.798279,
+          35.016514
+        ],
+        [
+          27.798279,
+          32.964182
+        ],
+        [
+          25.40544,
+          32.492082
+        ],
+        [
+          18.584689,
+          27.372325
+        ]
+      ],
+      "terrain_group_id": "page-9-terrain-merge-1",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-04",
+      "label": "Terrain 4",
+      "kind": "ruins",
+      "footprint": [
+        [
+          27.092833,
+          40.479125
+        ],
+        [
+          21.040729,
+          40.479125
+        ],
+        [
+          21.040729,
+          42.476701
+        ],
+        [
+          27.092833,
+          42.476701
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-05",
+      "label": "Terrain 5",
+      "kind": "ruins",
+      "footprint": [
+        [
+          30.052735,
+          17.462674
+        ],
+        [
+          30.052735,
+          5.825471
+        ],
+        [
+          23.007211,
+          5.825471
+        ],
+        [
+          22.419177,
+          8.904763
+        ],
+        [
+          23.007211,
+          9.536849
+        ],
+        [
+          23.007211,
+          17.462674
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-06",
+      "label": "Terrain 6",
+      "kind": "ruins",
+      "footprint": [
+        [
+          3.944669,
+          12.896556
+        ],
+        [
+          3.944669,
+          24.533758
+        ],
+        [
+          10.990195,
+          24.533758
+        ],
+        [
+          11.57823,
+          21.454467
+        ],
+        [
+          10.990195,
+          20.822381
+        ],
+        [
+          10.990195,
+          12.896556
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-07",
+      "label": "Terrain 7",
+      "kind": "ruins",
+      "footprint": [
+        [
+          33.939467,
+          30.021066
+        ],
+        [
+          39.991571,
+          30.021066
+        ],
+        [
+          39.991571,
+          28.02349
+        ],
+        [
+          33.939467,
+          28.02349
+        ]
+      ],
+      "terrain_group_id": "page-9-terrain-merge-1",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-08",
+      "label": "Terrain 8",
+      "kind": "ruins",
+      "footprint": [
+        [
+          33.751171,
+          17.005616
+        ],
+        [
+          34.513453,
+          16.447347
+        ],
+        [
+          41.943803,
+          16.447347
+        ],
+        [
+          41.943803,
+          13.841216
+        ],
+        [
+          37.85232,
+          13.298144
+        ],
+        [
+          37.429301,
+          13.841216
+        ],
+        [
+          31.911806,
+          13.841216
+        ],
+        [
+          31.911806,
+          16.447347
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-09",
+      "label": "Terrain 9",
+      "kind": "ruins",
+      "footprint": [
+        [
+          10.990854,
+          12.88036
+        ],
+        [
+          17.038174,
+          12.88036
+        ],
+        [
+          17.592534,
+          10.972775
+        ],
+        [
+          17.038174,
+          8.886498
+        ],
+        [
+          10.990854,
+          8.886498
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-10",
+      "label": "Terrain 10",
+      "kind": "ruins",
+      "footprint": [
+        [
+          35.880622,
+          27.985357
+        ],
+        [
+          35.880622,
+          21.919184
+        ],
+        [
+          33.978971,
+          21.363092
+        ],
+        [
+          31.899178,
+          21.919184
+        ],
+        [
+          31.899178,
+          27.985357
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-11",
+      "label": "Terrain 11",
+      "kind": "ruins",
+      "footprint": [
+        [
+          27.801575,
+          33.017694
+        ],
+        [
+          27.801575,
+          24.887892
+        ],
+        [
+          16.206365,
+          24.887892
+        ],
+        [
+          16.206365,
+          26.940229
+        ],
+        [
+          18.599203,
+          27.412328
+        ],
+        [
+          25.419955,
+          32.532085
+        ]
+      ],
+      "terrain_group_id": "page-9-terrain-merge-1",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-12",
+      "label": "Terrain 12",
+      "kind": "ruins",
+      "footprint": [
+        [
+          16.966176,
+          19.482635
+        ],
+        [
+          23.01828,
+          19.482635
+        ],
+        [
+          23.01828,
+          17.485055
+        ],
+        [
+          16.966176,
+          17.485055
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-13",
+      "label": "Terrain 13",
+      "kind": "ruins",
+      "footprint": [
+        [
+          21.016345,
+          54.118901
+        ],
+        [
+          21.016345,
+          46.193076
+        ],
+        [
+          21.604379,
+          45.560988
+        ],
+        [
+          21.016345,
+          42.481695
+        ],
+        [
+          13.970819,
+          42.481695
+        ],
+        [
+          13.970819,
+          54.118901
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-14",
+      "label": "Terrain 14",
+      "kind": "ruins",
+      "footprint": [
+        [
+          10.074604,
+          29.946887
+        ],
+        [
+          4.0225,
+          29.946887
+        ],
+        [
+          4.0225,
+          31.944464
+        ],
+        [
+          10.074604,
+          31.944464
+        ]
+      ],
+      "terrain_group_id": "page-9-terrain-merge-2",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-15",
+      "label": "Terrain 15",
+      "kind": "ruins",
+      "footprint": [
+        [
+          8.133465,
+          31.982624
+        ],
+        [
+          8.133465,
+          38.048801
+        ],
+        [
+          10.035115,
+          38.604889
+        ],
+        [
+          12.114908,
+          38.048801
+        ],
+        [
+          12.114908,
+          31.982624
+        ]
+      ],
+      "terrain_group_id": "page-9-terrain-merge-2",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-16",
+      "label": "Terrain 16",
+      "kind": "ruins",
+      "footprint": [
+        [
+          32.936553,
+          47.129496
+        ],
+        [
+          26.889233,
+          47.129496
+        ],
+        [
+          26.33487,
+          49.037076
+        ],
+        [
+          26.889233,
+          51.123354
+        ],
+        [
+          32.936553,
+          51.123354
+        ]
+      ],
+      "terrain_group_id": null,
+      "blocks_los": true
+    }
+  ],
+  "dense_features": [
+    {
+      "id": "terrain-02-dense-1",
+      "terrain_area_id": "terrain-02",
+      "label": "Dense 1",
+      "footprint": [
+        [
+          8.077907,
+          45.687166
+        ],
+        [
+          8.077907,
+          43.538423
+        ],
+        [
+          6.308377,
+          44.145676
+        ],
+        [
+          5.982411,
+          43.491711
+        ],
+        [
+          5.935844,
+          46.014148
+        ],
+        [
+          6.26181,
+          45.406895
+        ]
+      ],
+      "profile": "solid_los_blocker",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-04-dense-2",
+      "terrain_area_id": "terrain-04",
+      "label": "Dense 2",
+      "footprint": [
+        [
+          21.163121,
+          42.090357
+        ],
+        [
+          27.077078,
+          42.41734
+        ],
+        [
+          27.077078,
+          40.548868
+        ],
+        [
+          21.30282,
+          40.548868
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-08-dense-3",
+      "terrain_area_id": "terrain-08",
+      "label": "Dense 3",
+      "footprint": [
+        [
+          36.110997,
+          16.352158
+        ],
+        [
+          36.204131,
+          15.744905
+        ],
+        [
+          37.973661,
+          16.352158
+        ],
+        [
+          37.927095,
+          13.829721
+        ],
+        [
+          37.647695,
+          14.483686
+        ],
+        [
+          35.924731,
+          13.876433
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-10-dense-4",
+      "terrain_area_id": "terrain-10",
+      "label": "Dense 4",
+      "footprint": [
+        [
+          33.782668,
+          24.806993
+        ],
+        [
+          34.853699,
+          24.433299
+        ],
+        [
+          34.760566,
+          23.031945
+        ],
+        [
+          33.642968,
+          23.125368
+        ],
+        [
+          33.410135,
+          24.806993
+        ],
+        [
+          32.339103,
+          23.966181
+        ],
+        [
+          32.24597,
+          24.900417
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-10-dense-5",
+      "terrain_area_id": "terrain-10",
+      "label": "Dense 5",
+      "footprint": [
+        [
+          34.5743,
+          27.049159
+        ],
+        [
+          35.086532,
+          25.040552
+        ],
+        [
+          32.24597,
+          25.040552
+        ],
+        [
+          32.52537,
+          26.30177
+        ],
+        [
+          33.410135,
+          25.227399
+        ],
+        [
+          33.596401,
+          26.862312
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-12-dense-6",
+      "terrain_area_id": "terrain-12",
+      "label": "Dense 6",
+      "footprint": [
+        [
+          17.018694,
+          19.061442
+        ],
+        [
+          22.839518,
+          19.388425
+        ],
+        [
+          22.979218,
+          17.893647
+        ],
+        [
+          17.018694,
+          17.519953
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-15-dense-7",
+      "terrain_area_id": "terrain-15",
+      "label": "Dense 7",
+      "footprint": [
+        [
+          9.847438,
+          37.092195
+        ],
+        [
+          10.545937,
+          36.391518
+        ],
+        [
+          10.545937,
+          33.588811
+        ],
+        [
+          9.521472,
+          32.888134
+        ],
+        [
+          8.916106,
+          36.391518
+        ]
+      ],
+      "profile": "container_or_solid",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-13-dense-8",
+      "terrain_area_id": "terrain-13",
+      "label": "Dense 8",
+      "footprint": [
+        [
+          13.970819,
+          42.481695
+        ],
+        [
+          13.970819,
+          46.981695
+        ],
+        [
+          14.720819,
+          46.981695
+        ],
+        [
+          14.720819,
+          43.231695
+        ],
+        [
+          19.970819,
+          43.231695
+        ],
+        [
+          19.970819,
+          42.481695
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-11-dense-9",
+      "terrain_area_id": "terrain-11",
+      "label": "Dense 9",
+      "footprint": [
+        [
+          27.801575,
+          24.887892
+        ],
+        [
+          23.198928,
+          24.887892
+        ],
+        [
+          23.198928,
+          25.637892
+        ],
+        [
+          27.287583,
+          25.637892
+        ],
+        [
+          27.287583,
+          29.387892
+        ],
+        [
+          28.037583,
+          29.387892
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-06-dense-10",
+      "terrain_area_id": "terrain-06",
+      "label": "Dense 10",
+      "footprint": [
+        [
+          10.82823,
+          23.783758
+        ],
+        [
+          6.57823,
+          23.783758
+        ],
+        [
+          6.57823,
+          24.533758
+        ],
+        [
+          10.990195,
+          24.533758
+        ],
+        [
+          11.57823,
+          21.454467
+        ],
+        [
+          11.006187,
+          20.033758
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-06-dense-11",
+      "terrain_area_id": "terrain-06",
+      "label": "Dense 11",
+      "footprint": [
+        [
+          3.944669,
+          12.896556
+        ],
+        [
+          3.944669,
+          16.496556
+        ],
+        [
+          4.694669,
+          16.496556
+        ],
+        [
+          4.694669,
+          13.646556
+        ],
+        [
+          7.944669,
+          13.646556
+        ],
+        [
+          7.944669,
+          12.896556
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-03-dense-12",
+      "terrain_area_id": "terrain-03",
+      "label": "Dense 12",
+      "footprint": [
+        [
+          15.968227,
+          30.519298
+        ],
+        [
+          16.203067,
+          35.016514
+        ],
+        [
+          20.805714,
+          35.016514
+        ],
+        [
+          20.805714,
+          34.266514
+        ],
+        [
+          16.717056,
+          34.266514
+        ],
+        [
+          16.717056,
+          30.516514
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-05-dense-13",
+      "terrain_area_id": "terrain-05",
+      "label": "Dense 13",
+      "footprint": [
+        [
+          29.302735,
+          16.712674
+        ],
+        [
+          24.052735,
+          16.712674
+        ],
+        [
+          24.052735,
+          17.462674
+        ],
+        [
+          30.052735,
+          17.462674
+        ],
+        [
+          30.052735,
+          12.962674
+        ],
+        [
+          29.302735,
+          12.962674
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-01-dense-14",
+      "terrain_area_id": "terrain-01",
+      "label": "Dense 14",
+      "footprint": [
+        [
+          39.298976,
+          46.26889
+        ],
+        [
+          36.048976,
+          46.26889
+        ],
+        [
+          36.048976,
+          47.01889
+        ],
+        [
+          40.048976,
+          47.01889
+        ],
+        [
+          40.048976,
+          43.41889
+        ],
+        [
+          39.298976,
+          43.41889
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    },
+    {
+      "id": "terrain-01-dense-15",
+      "terrain_area_id": "terrain-01",
+      "label": "Dense 15",
+      "footprint": [
+        [
+          33.003452,
+          35.381684
+        ],
+        [
+          32.686289,
+          38.819301
+        ],
+        [
+          33.436289,
+          39.881684
+        ],
+        [
+          33.436289,
+          36.131684
+        ],
+        [
+          37.686289,
+          36.131684
+        ],
+        [
+          37.686289,
+          35.381684
+        ]
+      ],
+      "profile": "ruined_wall_l",
+      "blocks_los": true
+    }
+  ],
+  "light_features": [
+    {
+      "id": "terrain-02-light-1",
+      "terrain_area_id": "terrain-02",
+      "label": "Light 1",
+      "footprint": [
+        [
+          12.036068,
+          44.379235
+        ],
+        [
+          8.403874,
+          44.379235
+        ],
+        [
+          8.357307,
+          44.659506
+        ],
+        [
+          11.896368,
+          44.846353
+        ],
+        [
+          12.036068,
+          45.593742
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-02-light-2",
+      "terrain_area_id": "terrain-02",
+      "label": "Light 2",
+      "footprint": [
+        [
+          2.257083,
+          45.54703
+        ],
+        [
+          2.30365,
+          44.846353
+        ],
+        [
+          5.749578,
+          44.566082
+        ],
+        [
+          2.117383,
+          44.379235
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-03-light-3",
+      "terrain_area_id": "terrain-03",
+      "label": "Light 3",
+      "footprint": [
+        [
+          27.216778,
+          34.242776
+        ],
+        [
+          27.216778,
+          33.028269
+        ],
+        [
+          26.937378,
+          33.915793
+        ],
+        [
+          25.866347,
+          34.055928
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-05-light-4",
+      "terrain_area_id": "terrain-05",
+      "label": "Light 4",
+      "footprint": [
+        [
+          26.797678,
+          6.355834
+        ],
+        [
+          27.635877,
+          6.822952
+        ],
+        [
+          27.682444,
+          6.309122
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-05-light-5",
+      "terrain_area_id": "terrain-05",
+      "label": "Light 5",
+      "footprint": [
+        [
+          29.312275,
+          8.08417
+        ],
+        [
+          29.591674,
+          6.636105
+        ],
+        [
+          27.775577,
+          6.355834
+        ],
+        [
+          29.126008,
+          6.869664
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-07-light-6",
+      "terrain_area_id": "terrain-07",
+      "label": "Light 6",
+      "footprint": [
+        [
+          35.412499,
+          29.197902
+        ],
+        [
+          36.995763,
+          29.758443
+        ],
+        [
+          37.088896,
+          29.15119
+        ],
+        [
+          38.67216,
+          29.618308
+        ],
+        [
+          39.230959,
+          28.964343
+        ],
+        [
+          38.53246,
+          28.310378
+        ],
+        [
+          38.253061,
+          28.870919
+        ],
+        [
+          35.179666,
+          28.310378
+        ],
+        [
+          34.527733,
+          29.057766
+        ],
+        [
+          35.086532,
+          29.758443
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-08-light-7",
+      "terrain_area_id": "terrain-08",
+      "label": "Light 7",
+      "footprint": [
+        [
+          38.159928,
+          15.231075
+        ],
+        [
+          41.792122,
+          15.558058
+        ],
+        [
+          41.838689,
+          14.343551
+        ],
+        [
+          41.605856,
+          15.09094
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-08-light-8",
+      "terrain_area_id": "terrain-08",
+      "label": "Light 8",
+      "footprint": [
+        [
+          31.911806,
+          15.558058
+        ],
+        [
+          35.505632,
+          15.558058
+        ],
+        [
+          35.552198,
+          15.231075
+        ],
+        [
+          32.013137,
+          15.09094
+        ],
+        [
+          31.911806,
+          14.343551
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-09-light-9",
+      "terrain_area_id": "terrain-09",
+      "label": "Light 9",
+      "footprint": [
+        [
+          16.459894,
+          12.194808
+        ],
+        [
+          16.646161,
+          9.392101
+        ],
+        [
+          15.062897,
+          9.532236
+        ],
+        [
+          16.273628,
+          9.719083
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-09-light-10",
+      "terrain_area_id": "terrain-09",
+      "label": "Light 10",
+      "footprint": [
+        [
+          11.291002,
+          12.475079
+        ],
+        [
+          13.153666,
+          12.428367
+        ],
+        [
+          11.756668,
+          12.24152
+        ],
+        [
+          11.291002,
+          9.859219
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-11-light-11",
+      "terrain_area_id": "terrain-11",
+      "label": "Light 11",
+      "footprint": [
+        [
+          16.972127,
+          26.628753
+        ],
+        [
+          17.06526,
+          26.0215
+        ],
+        [
+          18.043159,
+          25.787941
+        ],
+        [
+          16.832427,
+          25.601094
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-13-light-12",
+      "terrain_area_id": "terrain-13",
+      "label": "Light 12",
+      "footprint": [
+        [
+          14.73693,
+          53.768306
+        ],
+        [
+          17.34466,
+          53.674883
+        ],
+        [
+          17.391226,
+          53.301188
+        ],
+        [
+          14.969763,
+          53.301188
+        ],
+        [
+          14.73693,
+          52.03997
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-14-light-13",
+      "terrain_area_id": "terrain-14",
+      "label": "Light 13",
+      "footprint": [
+        [
+          4.725113,
+          31.066374
+        ],
+        [
+          8.45044,
+          31.159797
+        ],
+        [
+          8.776406,
+          31.720339
+        ],
+        [
+          9.428339,
+          30.97295
+        ],
+        [
+          8.869539,
+          30.272273
+        ],
+        [
+          8.497007,
+          30.879526
+        ],
+        [
+          5.283912,
+          30.412408
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-16-light-14",
+      "terrain_area_id": "terrain-16",
+      "label": "Light 14",
+      "footprint": [
+        [
+          32.571936,
+          49.937939
+        ],
+        [
+          32.52537,
+          47.415502
+        ],
+        [
+          30.802406,
+          47.36879
+        ],
+        [
+          32.152837,
+          47.789196
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    },
+    {
+      "id": "terrain-16-light-15",
+      "terrain_area_id": "terrain-16",
+      "label": "Light 15",
+      "footprint": [
+        [
+          27.170211,
+          50.49848
+        ],
+        [
+          28.893175,
+          50.264921
+        ],
+        [
+          27.589311,
+          50.311633
+        ],
+        [
+          27.822144,
+          48.116179
+        ],
+        [
+          27.403044,
+          47.695773
+        ]
+      ],
+      "profile": "light_area",
+      "blocks_los": false
+    }
+  ],
+  "deployment_zones": [
+    {
+      "id": "attacker",
+      "label": "Attacker",
+      "footprint": [
+        [
+          0.0,
+          59.951334
+        ],
+        [
+          43.999984,
+          59.951334
+        ],
+        [
+          43.999984,
+          48.01673
+        ],
+        [
+          21.982393,
+          48.01673
+        ],
+        [
+          21.982393,
+          40.016948
+        ],
+        [
+          0.0,
+          40.016948
+        ]
+      ]
+    },
+    {
+      "id": "defender",
+      "label": "Defender",
+      "footprint": [
+        [
+          22.017475,
+          11.908109
+        ],
+        [
+          22.017475,
+          19.907895
+        ],
+        [
+          43.999882,
+          19.907895
+        ],
+        [
+          43.999882,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          11.908109
+        ]
+      ]
+    }
+  ]
+}

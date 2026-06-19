@@ -39,7 +39,7 @@ jobs:
         run: python -m pytest
 
       - name: Validate official packets
-        run: python -m warhammer_companion.cli validate-packets
+        run: python -m warhammer_companion.cli validate-packets --packet-dir src/warhammer_companion/seed_data/map-packets
 
       - name: Build PyInstaller app
         run: pyinstaller --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec
@@ -49,9 +49,19 @@ jobs:
         run: |
           $process = Start-Process `
             -FilePath .\dist\WarhammerTournamentCompanion\WarhammerTournamentCompanion.exe `
-            -ArgumentList "--smoke-test" `
-            -Wait `
-            -PassThru
+            -ArgumentList @(
+              "--smoke-test",
+              "--require-official-data",
+              "--smoke-output",
+              ".\dist\desktop-smoke.json"
+            ) `
+            -PassThru `
+            -WindowStyle Hidden
+          if (-not $process.WaitForExit(120000)) {
+            $process.Kill()
+            throw "Packaged smoke test timed out."
+          }
+          Get-Content .\dist\desktop-smoke.json
           exit $process.ExitCode
 
       - name: Build portable zip

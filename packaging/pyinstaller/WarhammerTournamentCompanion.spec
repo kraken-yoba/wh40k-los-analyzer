@@ -12,6 +12,7 @@ datas = collect_data_files(
     includes=[
         "catalog_assets/*.svg",
         "py.typed",
+        "seed_data/map-packets/*.json",
         "web/static/*.css",
         "web/templates/*.html",
     ],

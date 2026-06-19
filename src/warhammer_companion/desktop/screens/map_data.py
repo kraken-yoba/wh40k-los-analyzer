@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QThreadPool  # type: ignore[import-not-found]
+from PySide6.QtCore import Qt, QThreadPool  # type: ignore[import-not-found]
 from PySide6.QtWidgets import (  # type: ignore[import-not-found]
     QHBoxLayout,
     QLabel,
@@ -27,6 +27,7 @@ class MapDataScreen(QWidget):
         self.refresh_button = QPushButton("Refresh")
         self.ingest_button = QPushButton("Run ingestion")
         self.delete_button = QPushButton("Delete selected")
+        self.deletable_packet_ids: set[str] = set()
 
         layout = QVBoxLayout(self)
         title = QLabel("Map Data")
@@ -45,10 +46,12 @@ class MapDataScreen(QWidget):
         self.refresh_button.clicked.connect(self.refresh)
         self.ingest_button.clicked.connect(self.run_ingestion)
         self.delete_button.clicked.connect(self.delete_selected)
+        self.table.itemSelectionChanged.connect(self._update_delete_button)
         self.refresh()
 
     def refresh(self) -> None:
         state = self.service.map_data_state()
+        self.deletable_packet_ids = state.deletable_packet_ids
         report = state.report
         report_text = (
             f"{report.packet_count} packets from {report.layout_count} layouts"
@@ -63,8 +66,10 @@ class MapDataScreen(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(str(len(packet.terrain_areas))))
             feature_count = len(packet.dense_features) + len(packet.light_features)
             self.table.setItem(row, 3, QTableWidgetItem(str(feature_count)))
-            self.table.item(row, 0).setData(256, packet.id)
+            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, packet.id)
         self.table.resizeColumnsToContents()
+        self._update_delete_button()
+        self._update_ingestion_button()
 
     def run_ingestion(self) -> None:
         self.ingest_button.setEnabled(False)
@@ -75,11 +80,7 @@ class MapDataScreen(QWidget):
         self.pool.start(worker)
 
     def delete_selected(self) -> None:
-        selected = self.table.currentRow()
-        if selected < 0:
-            return
-        item = self.table.item(selected, 0)
-        packet_id = item.data(256)
+        packet_id = self._selected_packet_id()
         if not packet_id:
             return
         deleted = self.service.delete_packet(str(packet_id))
@@ -96,3 +97,34 @@ class MapDataScreen(QWidget):
         self.ingest_button.setEnabled(True)
         self.status_label.setText("Ingestion failed.")
         QMessageBox.warning(self, "Ingestion failed", message)
+
+    def _selected_packet_id(self) -> str | None:
+        selected = self.table.currentRow()
+        if selected < 0:
+            return None
+        item = self.table.item(selected, 0)
+        if item is None:
+            return None
+        packet_id = item.data(Qt.ItemDataRole.UserRole)
+        return str(packet_id) if packet_id else None
+
+    def _update_delete_button(self) -> None:
+        packet_id = self._selected_packet_id()
+        self.delete_button.setEnabled(packet_id in self.deletable_packet_ids)
+        self.delete_button.setToolTip(
+            "Deletes local generated packet JSON."
+            if packet_id in self.deletable_packet_ids
+            else "Bundled official seed packets are retained."
+        )
+
+    def _update_ingestion_button(self) -> None:
+        can_ingest = self.service.paths.raw_dir.exists()
+        self.ingest_button.setEnabled(can_ingest)
+        self.ingest_button.setToolTip(
+            "Extract official PDFs from the configured raw data folder."
+            if can_ingest
+            else (
+                "Official source PDFs are not bundled. Download or import them before "
+                "running ingestion."
+            )
+        )

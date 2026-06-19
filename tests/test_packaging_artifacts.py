@@ -13,9 +13,17 @@ def test_windows_packaging_artifacts_are_defined() -> None:
         "pyinstaller --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec"
         in workflow
     )
+    assert (
+        "python -m warhammer_companion.cli validate-packets --packet-dir "
+        "src/warhammer_companion/seed_data/map-packets"
+    ) in workflow
     assert "Start-Process" in workflow
-    assert '-ArgumentList "--smoke-test"' in workflow
+    assert '"--require-official-data"' in workflow
+    assert '"--smoke-output"' in workflow
+    assert "desktop-smoke.json" in workflow
+    assert "WaitForExit(120000)" in workflow
     assert "WarhammerTournamentCompanionSetup.exe" in workflow
     assert 'name="WarhammerTournamentCompanion"' in spec
+    assert "seed_data/map-packets/*.json" in spec
     assert "WarhammerTournamentCompanion.exe" in installer
     assert r"{localappdata}\Programs\WarhammerTournamentCompanion" in installer
