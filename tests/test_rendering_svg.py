@@ -62,3 +62,18 @@ def test_light_and_dense_feature_profiles_render_with_distinct_classes() -> None
 
     assert "light-feature" in svg
     assert "dense-feature--container-or-solid" in svg
+
+
+def test_map_svg_includes_presentation_attributes_for_desktop_rasterizer() -> None:
+    svg = render_map_svg(
+        SAMPLE_PACKETS[0],
+        base_center=(22.0, 10.0),
+        base_diameter=1.57,
+    )
+
+    assert 'class="board" fill="#eee8d9" stroke="#2b322c"' in svg
+    assert 'class="terrain-area" fill="#807863"' in svg
+    assert 'class="dense-feature dense-feature--container-or-solid" fill="#30464e"' in svg
+    assert 'class="light-feature light-feature--light-area" fill="#c69930"' in svg
+    assert 'class="terrain-label" fill="#1c2520"' in svg
+    assert 'class="model-base" fill="#e6f4ee"' in svg

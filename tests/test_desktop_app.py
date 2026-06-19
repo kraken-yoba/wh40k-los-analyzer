@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -94,3 +95,24 @@ def test_desktop_seed_packet_dir_uses_pyinstaller_bundle_root(tmp_path: Path, mo
     assert packaged_seed_packet_dir() == (
         tmp_path / "warhammer_companion" / "seed_data" / "map-packets"
     )
+
+
+def test_desktop_viewer_screen_renders_map_pixmap() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+
+    viewer = window.stack.widget(2)
+    pixmap = viewer.map.image_label.pixmap()
+
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.width() == 528
+    assert pixmap.height() == 720
+    window.close()
+    app.processEvents()

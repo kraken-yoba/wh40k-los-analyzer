@@ -18,6 +18,94 @@ from warhammer_companion.los.geometry import (
     VisibilityRay,
 )
 
+SVG_ATTRS = dict[str, str | int | float]
+
+BOARD_ATTRS: SVG_ATTRS = {
+    "fill": "#eee8d9",
+    "stroke": "#2b322c",
+    "stroke-width": 2,
+}
+DEPLOYMENT_ATTRS: SVG_ATTRS = {
+    "fill": "#2d6f5b",
+    "fill-opacity": 0.12,
+    "stroke": "#2d6f5b",
+    "stroke-opacity": 0.6,
+    "stroke-width": 1.5,
+    "stroke-dasharray": "6 4",
+}
+TERRAIN_AREA_ATTRS: SVG_ATTRS = {
+    "fill": "#807863",
+    "fill-opacity": 0.34,
+    "stroke": "#2d2b24",
+    "stroke-opacity": 0.78,
+    "stroke-width": 1.6,
+}
+DENSE_FEATURE_ATTRS: SVG_ATTRS = {
+    "fill": "#31362d",
+    "fill-opacity": 0.72,
+    "stroke": "#121612",
+    "stroke-opacity": 0.82,
+    "stroke-width": 1.3,
+}
+DENSE_RUIN_ATTRS: SVG_ATTRS = DENSE_FEATURE_ATTRS | {
+    "fill": "#232b25",
+    "fill-opacity": 0.82,
+}
+DENSE_CONTAINER_ATTRS: SVG_ATTRS = DENSE_FEATURE_ATTRS | {
+    "fill": "#30464e",
+    "fill-opacity": 0.74,
+}
+DENSE_SOLID_ATTRS: SVG_ATTRS = DENSE_FEATURE_ATTRS | {
+    "fill-opacity": 0.78,
+}
+LIGHT_FEATURE_ATTRS: SVG_ATTRS = {
+    "fill": "#c69930",
+    "fill-opacity": 0.36,
+    "stroke": "#976d1a",
+    "stroke-opacity": 0.54,
+    "stroke-width": 1.1,
+}
+TERRAIN_LABEL_ATTRS: SVG_ATTRS = {
+    "fill": "#1c2520",
+    "font-family": "Arial",
+    "font-size": 13,
+    "font-weight": "bold",
+    "text-anchor": "middle",
+    "dominant-baseline": "middle",
+}
+ZONE_LABEL_ATTRS: SVG_ATTRS = TERRAIN_LABEL_ATTRS | {
+    "fill": "#2d6f5b",
+    "font-size": 11,
+}
+SAFE_ZONE_ATTRS: SVG_ATTRS = {
+    "fill": "none",
+    "stroke": "#f7efe0",
+    "stroke-width": 2.2,
+    "stroke-linejoin": "round",
+    "stroke-linecap": "round",
+}
+COVERAGE_CELL_ATTRS: SVG_ATTRS = {
+    "fill": "#2a8c9e",
+    "fill-opacity": 0.34,
+    "stroke": "none",
+}
+MODEL_BASE_ATTRS: SVG_ATTRS = {
+    "fill": "#e6f4ee",
+    "fill-opacity": 0.88,
+    "stroke": "#1f5948",
+    "stroke-width": 2,
+}
+RAY_VISIBLE_ATTRS: SVG_ATTRS = {
+    "stroke": "#2d6f5b",
+    "stroke-opacity": 0.44,
+    "stroke-width": 1.1,
+}
+RAY_BLOCKED_ATTRS: SVG_ATTRS = {
+    "stroke": "#8b2f2d",
+    "stroke-opacity": 0.26,
+    "stroke-width": 1,
+}
+
 
 def render_map_svg(
     packet: MapPacket,
@@ -37,7 +125,8 @@ def render_map_svg(
     parts = [
         f'<svg class="map-svg" viewBox="0 0 {width:.0f} {height:.0f}" role="img" '
         f'aria-label="{escape(packet.name)} map">',
-        f'<rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" class="board"/>',
+        f'<rect x="0" y="0" width="{width:.0f}" height="{height:.0f}" '
+        f'class="board"{_attrs(BOARD_ATTRS)}/>',
     ]
 
     if heatmap_polygons:
@@ -68,7 +157,15 @@ def render_map_svg(
         parts.extend(_render_coverage_cells(coverage, scale, packet.board.height))
 
     for zone in packet.deployment_zones:
-        parts.append(_polygon(zone.footprint, scale, packet.board.height, "deployment"))
+        parts.append(
+            _polygon(
+                zone.footprint,
+                scale,
+                packet.board.height,
+                "deployment",
+                DEPLOYMENT_ATTRS,
+            )
+        )
         parts.append(
             _label(
                 zone.label,
@@ -76,11 +173,20 @@ def render_map_svg(
                 scale,
                 packet.board.height,
                 "zone-label",
+                ZONE_LABEL_ATTRS,
             )
         )
 
     for area in packet.terrain_areas:
-        parts.append(_polygon(area.footprint, scale, packet.board.height, "terrain-area"))
+        parts.append(
+            _polygon(
+                area.footprint,
+                scale,
+                packet.board.height,
+                "terrain-area",
+                TERRAIN_AREA_ATTRS,
+            )
+        )
         parts.append(
             _label(
                 area.label,
@@ -88,6 +194,7 @@ def render_map_svg(
                 scale,
                 packet.board.height,
                 "terrain-label",
+                TERRAIN_LABEL_ATTRS,
             )
         )
 
@@ -98,6 +205,7 @@ def render_map_svg(
                 scale,
                 packet.board.height,
                 _feature_css_class("light-feature", light_feature.profile),
+                LIGHT_FEATURE_ATTRS,
             )
         )
 
@@ -108,6 +216,7 @@ def render_map_svg(
                 scale,
                 packet.board.height,
                 _feature_css_class("dense-feature", dense_feature.profile),
+                _dense_feature_attrs(dense_feature.profile),
             )
         )
 
@@ -117,16 +226,18 @@ def render_map_svg(
             x1, y1 = _to_svg_point((ox, oy), scale, packet.board.height)
             x2, y2 = _to_svg_point(ray.target, scale, packet.board.height)
             css_class = "ray-visible" if ray.visible else "ray-blocked"
+            attrs = RAY_VISIBLE_ATTRS if ray.visible else RAY_BLOCKED_ATTRS
             parts.append(
                 f'<line x1="{x1:.1f}" y1="{y1:.1f}" '
-                f'x2="{x2:.1f}" y2="{y2:.1f}" class="{css_class}"/>'
+                f'x2="{x2:.1f}" y2="{y2:.1f}" class="{css_class}"{_attrs(attrs)}/>'
             )
 
     if base_center and base_diameter:
         cx, cy = _to_svg_point(base_center, scale, packet.board.height)
         parts.append(
             f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
-            f'r="{base_diameter * scale / 2:.1f}" class="model-base"/>'
+            f'r="{base_diameter * scale / 2:.1f}" '
+            f'class="model-base"{_attrs(MODEL_BASE_ATTRS)}/>'
         )
 
     parts.append("</svg>")
@@ -272,7 +383,8 @@ def _render_coverage_cells(cells: list[CoverageCell], scale: int, board_height: 
         x, y = _to_svg_point((cell.x - step / 2.0, cell.y + step / 2.0), scale, board_height)
         rendered.append(
             f'<rect x="{x:.1f}" y="{y:.1f}" width="{step * scale:.1f}" '
-            f'height="{step * scale:.1f}" class="coverage-cell"/>'
+            f'height="{step * scale:.1f}" '
+            f'class="coverage-cell"{_attrs(COVERAGE_CELL_ATTRS)}/>'
         )
     return rendered
 
@@ -308,6 +420,7 @@ def _render_polygon_outlines(
             scale,
             board_height,
             css_class,
+            SAFE_ZONE_ATTRS if css_class == "safe-zone-outline" else None,
         )
         for ring in rings
         if len(ring.coords) >= 3
@@ -333,6 +446,18 @@ def _feature_css_class(base_class: str, profile: str | None) -> str:
     return f"{base_class} {base_class}--{escape(modifier)}"
 
 
+def _dense_feature_attrs(profile: str | None) -> SVG_ATTRS:
+    if profile is None:
+        return DENSE_FEATURE_ATTRS
+    if "container" in profile:
+        return DENSE_CONTAINER_ATTRS
+    if "solid" in profile or "unknown_dense" in profile:
+        return DENSE_SOLID_ATTRS
+    if "ruined_wall" in profile:
+        return DENSE_RUIN_ATTRS
+    return DENSE_FEATURE_ATTRS
+
+
 def _infer_grid_step(values: list[float]) -> float:
     xs = sorted(set(values))
     if len(xs) > 1:
@@ -341,26 +466,45 @@ def _infer_grid_step(values: list[float]) -> float:
 
 
 def _polygon(
-    points: list[tuple[float, float]], scale: int, board_height: float, css_class: str
+    points: list[tuple[float, float]],
+    scale: int,
+    board_height: float,
+    css_class: str,
+    attrs: SVG_ATTRS | None = None,
 ) -> str:
     svg_points = [_to_svg_point(point, scale, board_height) for point in points]
     joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in svg_points)
-    return f'<polygon points="{joined}" class="{css_class}"/>'
+    return f'<polygon points="{joined}" class="{css_class}"{_attrs(attrs)}/>'
 
 
 def _polyline(
-    points: list[tuple[float, float]], scale: int, board_height: float, css_class: str
+    points: list[tuple[float, float]],
+    scale: int,
+    board_height: float,
+    css_class: str,
+    attrs: SVG_ATTRS | None = None,
 ) -> str:
     svg_points = [_to_svg_point(point, scale, board_height) for point in points]
     joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in svg_points)
-    return f'<polyline points="{joined}" class="{css_class}"/>'
+    return f'<polyline points="{joined}" class="{css_class}"{_attrs(attrs)}/>'
 
 
 def _label(
-    text: str, point: tuple[float, float], scale: int, board_height: float, css_class: str
+    text: str,
+    point: tuple[float, float],
+    scale: int,
+    board_height: float,
+    css_class: str,
+    attrs: SVG_ATTRS | None = None,
 ) -> str:
     x, y = _to_svg_point(point, scale, board_height)
-    return f'<text x="{x:.1f}" y="{y:.1f}" class="{css_class}">{escape(text)}</text>'
+    return f'<text x="{x:.1f}" y="{y:.1f}" class="{css_class}"{_attrs(attrs)}>{escape(text)}</text>'
+
+
+def _attrs(attrs: SVG_ATTRS | None) -> str:
+    if not attrs:
+        return ""
+    return "".join(f' {key}="{escape(str(value))}"' for key, value in attrs.items())
 
 
 def _polygon_centroid(polygon: Polygon) -> tuple[float, float]:
