@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from warhammer_companion.application.services import WarhammerCompanionService
+from warhammer_companion.application.view_models import HeatmapState
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.domain.repository import FileBackedMapRepository, StaticMapRepository
@@ -43,10 +45,16 @@ def test_map_data_ingestion_runs_and_reloads_repository(
             validation=[PacketValidationResult(packet_id=official_packet.id, valid=True)],
         )
 
-    monkeypatch.setattr(server, "ingestion_paths", paths)
-    monkeypatch.setattr(server, "repository", repository)
-    monkeypatch.setattr(server, "run_official_ingestion", fake_ingestion)
-    server._cached_heatmap_svg.cache_clear()
+    monkeypatch.setattr(
+        server,
+        "service",
+        WarhammerCompanionService(
+            paths=paths,
+            repository=repository,
+            codex_backend=server.codex_backend,
+            ingestion_runner=fake_ingestion,
+        ),
+    )
     client = TestClient(server.app)
 
     response = client.post("/map-data/ingest", follow_redirects=False)
@@ -64,9 +72,15 @@ def test_map_data_delete_removes_generated_packet_and_reloads(
     official_packet = _official_packet()
     write_packet(official_packet, paths.map_packets_dir / f"{official_packet.id}.json")
     repository = FileBackedMapRepository(paths.map_packets_dir, fallback=SAMPLE_PACKETS)
-    monkeypatch.setattr(server, "ingestion_paths", paths)
-    monkeypatch.setattr(server, "repository", repository)
-    server._cached_heatmap_svg.cache_clear()
+    monkeypatch.setattr(
+        server,
+        "service",
+        WarhammerCompanionService(
+            paths=paths,
+            repository=repository,
+            codex_backend=server.codex_backend,
+        ),
+    )
     client = TestClient(server.app)
 
     response = client.post(
@@ -83,14 +97,31 @@ def test_map_data_delete_removes_generated_packet_and_reloads(
 
 def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
     calls: list[tuple[str, str, str, int]] = []
-
-    def fake_heatmap_svg(packet_id: str, zone_id: str, source: str, offset_inches: int) -> str:
-        calls.append((packet_id, zone_id, source, offset_inches))
-        return '<svg class="map-svg" role="img" aria-label="fake map"></svg>'
-
-    monkeypatch.setattr(server, "_cached_heatmap_svg", fake_heatmap_svg)
-    client = TestClient(server.app)
     packet = server.repository.default_packet()
+
+    class FakeService:
+        def heatmap_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            zone_id: str = "attacker",
+            source: str = "edge",
+            offset_inches: int = 0,
+        ) -> HeatmapState:
+            resolved_packet_id = packet_id or packet.id
+            calls.append((resolved_packet_id, zone_id, source, offset_inches))
+            return HeatmapState(
+                packet=packet,
+                packet_groups=[],
+                selected_zone_id=zone_id,
+                selected_source=source,
+                selected_offset_inches=offset_inches,
+                offset_options=list(range(0, 13)),
+                map_svg='<svg class="map-svg" role="img" aria-label="fake map"></svg>',
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
 
     response = client.get(
         f"/heatmap?packet_id={packet.id}&zone_id=attacker&source=edge&offset_inches=6"
@@ -135,7 +166,15 @@ def test_viewer_groups_official_packets_by_dispositions_and_layout_variant(monke
         )
         for page in range(9, 54)
     ]
-    monkeypatch.setattr(server, "repository", StaticMapRepository(list(reversed(packets))))
+    monkeypatch.setattr(
+        server,
+        "service",
+        WarhammerCompanionService(
+            paths=server.ingestion_paths,
+            repository=StaticMapRepository(list(reversed(packets))),
+            codex_backend=server.codex_backend,
+        ),
+    )
     client = TestClient(server.app)
 
     response = client.get("/viewer?packet_id=official-event-companion-page-9")
@@ -189,7 +228,15 @@ def test_settings_exposes_codex_account_controls_without_javascript(monkeypatch)
                 active_login_label=None,
             )
 
-    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
+    monkeypatch.setattr(
+        server,
+        "service",
+        WarhammerCompanionService(
+            paths=server.ingestion_paths,
+            repository=server.repository,
+            codex_backend=FakeCodexBackend(),
+        ),
+    )
     client = TestClient(server.app)
 
     response = client.get("/settings")
@@ -232,11 +279,11 @@ def test_codex_browser_login_route_redirects_to_sdk_auth_url(monkeypatch) -> Non
     class FakeStart:
         auth_url = "https://auth.example/login"
 
-    class FakeCodexBackend:
-        def start_chatgpt_login(self):
+    class FakeService:
+        def start_codex_login(self):
             return FakeStart()
 
-    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
+    monkeypatch.setattr(server, "service", FakeService())
     client = TestClient(server.app)
 
     response = client.post("/settings/codex/login", follow_redirects=False)
@@ -248,11 +295,11 @@ def test_codex_browser_login_route_redirects_to_sdk_auth_url(monkeypatch) -> Non
 def test_codex_logout_route_redirects_to_settings(monkeypatch) -> None:
     calls: list[str] = []
 
-    class FakeCodexBackend:
-        def logout(self) -> None:
+    class FakeService:
+        def logout_codex(self) -> None:
             calls.append("logout")
 
-    monkeypatch.setattr(server, "codex_backend", FakeCodexBackend())
+    monkeypatch.setattr(server, "service", FakeService())
     client = TestClient(server.app)
 
     response = client.post("/settings/codex/logout", follow_redirects=False)

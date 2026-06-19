@@ -41,3 +41,21 @@ Polish fixes made during baseline verification:
 Launch note:
 
 - On this Windows environment, `Start-Process` may fail if both `Path` and `PATH` are present in the process environment. The successful launch normalized the shell-local environment first and then started uvicorn on port `8047`.
+
+## 2026-06-19 - Shared Application Service Layer
+
+Branch: `codex/standalone-windows-desktop-app`
+
+Purpose:
+
+- Move workflow assembly out of the FastAPI route module and into a Python service layer usable by both web and desktop adapters.
+- Keep the web UI behavior-preserving while exposing desktop-ready state objects.
+
+Changes:
+
+- Added `warhammer_companion.application.view_models` for screen-neutral state objects.
+- Added `WarhammerCompanionService` for settings, map data, viewer, heatmap, LOS checker, ingestion, deletion, packet grouping, and Codex account actions.
+- Replaced the web module-owned heatmap LRU with an explicit bounded service-owned cache to avoid instance-method cache retention.
+- Refactored `web.server` routes to call the service and keep redirects/templates as web-only concerns.
+- Updated web tests to inject services rather than monkeypatching route globals.
+- Added direct service tests for packet grouping and heatmap cache behavior.
