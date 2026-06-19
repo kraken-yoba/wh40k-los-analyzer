@@ -18,3 +18,6 @@ data/codex-home*/
 coverage.xml
 htmlcov/
 *.egg-info/
+build/
+dist/
+logs/

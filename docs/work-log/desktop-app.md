@@ -82,3 +82,26 @@ Verification:
 
 - `python -m warhammer_companion.desktop.app --smoke-test` returned JSON with `status: ok`, 45 packets, and rendered viewer/heatmap/LOS SVG.
 - Headless Qt construction with `QT_QPA_PLATFORM=offscreen` created `Warhammer Tournament Companion` with 5 screens.
+
+## 2026-06-19 - Windows Packaging Path
+
+Branch: `codex/standalone-windows-desktop-app`
+
+Purpose:
+
+- Add the Windows standalone build path for a one-folder app, portable zip, and user-friendly installer.
+- Make the packaged executable smoke-testable in GitHub Actions.
+
+Changes:
+
+- Added `packaging/pyinstaller/WarhammerTournamentCompanion.spec`.
+- Added `packaging/windows/WarhammerTournamentCompanion.iss` for a per-user Inno Setup installer.
+- Added `.github/workflows/build-windows-app.yml` with formatting, lint, type, tests, packet validation, PyInstaller build, packaged smoke test, portable zip, Inno Setup build, and artifact uploads.
+- Added packaging artifact tests to lock workflow/spec/installer paths.
+
+Verification:
+
+- `pyinstaller --noconfirm packaging/pyinstaller/WarhammerTournamentCompanion.spec` completed and produced `dist/WarhammerTournamentCompanion/WarhammerTournamentCompanion.exe`.
+- `Start-Process -Wait -PassThru ... WarhammerTournamentCompanion.exe --smoke-test` returned exit code 0.
+- Portable zip creation using `.NET ZipFile.CreateFromDirectory` produced a readable archive.
+- Local Inno Setup is not installed; installer compilation is covered by the CI workflow after `choco install innosetup`.
