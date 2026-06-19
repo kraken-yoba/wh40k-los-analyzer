@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from math import hypot
+
 from shapely.geometry import Point, Polygon
 
+from warhammer_companion.domain.deployment_geometry import smooth_deployment_footprint
 from warhammer_companion.domain.models import (
     DenseTerrainFeature,
     DeploymentZone,
@@ -138,6 +141,36 @@ def test_deployment_edge_offset_samples_follow_rounded_corner_distance() -> None
     assert any(sample[0] > 22.0 and sample[1] < 40.0 for sample in offset_samples)
     zone = packet.deployment_zone("attacker").polygon()
     assert all(abs(zone.distance(Point(sample)) - 5.0) <= 0.15 for sample in offset_samples)
+
+
+def test_deployment_edge_offset_samples_densify_curved_deployment_edges() -> None:
+    packet = _curved_deployment_packet()
+    smoothed_zone = Polygon(
+        smooth_deployment_footprint(packet.deployment_zone("attacker").footprint)
+    )
+    center = Point(21.918719, 31.023153)
+    expected_offset_radius = center.distance(smoothed_zone.boundary) - 6.0
+
+    offset_samples = deployment_edge_sample_points(
+        packet,
+        "attacker",
+        sample_step=0.75,
+        offset_inches=6,
+    )
+
+    curved_samples = [
+        sample
+        for sample in offset_samples
+        if 18.5 <= sample[0] <= 22.2 and 29.8 <= sample[1] <= 33.5
+    ]
+    assert len(curved_samples) >= 5
+    assert (
+        max(
+            abs(hypot(sample[0] - center.x, sample[1] - center.y) - expected_offset_radius)
+            for sample in curved_samples
+        )
+        <= 0.35
+    )
 
 
 def test_heatmap_visibility_polygons_can_use_offset_deployment_edge() -> None:
@@ -434,6 +467,32 @@ def _l_shaped_deployment_packet() -> MapPacket:
                 id="attacker",
                 label="Attacker",
                 footprint=[(0, 60), (44, 60), (44, 50), (22, 50), (22, 40), (0, 40)],
+            )
+        ],
+    )
+
+
+def _curved_deployment_packet() -> MapPacket:
+    return MapPacket(
+        id="curved-deployment",
+        name="Curved Deployment",
+        source="LOS geometry unit test fixture.",
+        terrain_areas=[],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[
+                    (22.0, 60.0),
+                    (22.0, 40.0),
+                    (18.5, 39.3),
+                    (15.6, 37.4),
+                    (13.7, 34.5),
+                    (13.0, 30.0),
+                    (0.0, 30.0),
+                    (0.0, 60.0),
+                ],
             )
         ],
     )

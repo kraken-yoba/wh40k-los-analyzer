@@ -15,6 +15,7 @@ from shapely.geometry import (
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import nearest_points, unary_union
 
+from warhammer_companion.domain.deployment_geometry import smooth_deployment_footprint
 from warhammer_companion.domain.models import MapPacket, TerrainArea
 
 BOARD_BOUNDARY_EDGE_TOLERANCE = 0.25
@@ -147,7 +148,7 @@ def heatmap_visibility_polygons_from_deployment_zone(
     deployment_zone_id: str,
     sample_step: float = 2.0,
 ) -> list[VisibilityPolygon]:
-    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    zone = _deployment_zone_polygon(packet, deployment_zone_id)
     sample_points = _points_in_polygon(zone, sample_step)
     return [
         VisibilityPolygon(origin=sample, polygon=visibility_polygon_from_point(packet, sample))
@@ -180,7 +181,7 @@ def heatmap_exclusion_zone(
     source: str,
     offset_inches: float = 0.0,
 ) -> BaseGeometry:
-    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    zone = _deployment_zone_polygon(packet, deployment_zone_id)
     board = _board_polygon(packet)
     if source == "interior" or offset_inches <= 0:
         return zone.intersection(board)
@@ -214,7 +215,7 @@ def deployment_edge_sample_points(
 ) -> list[tuple[float, float]]:
     if sample_step <= 0:
         raise ValueError("sample_step must be positive")
-    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    zone = _deployment_zone_polygon(packet, deployment_zone_id)
     board = _board_polygon(packet)
     if offset_inches > 0:
         offset_samples = _offset_frontier_sample_points(
@@ -302,7 +303,7 @@ def heatmap_from_deployment_zone(
     grid_step: float = 1.0,
     sample_step: float = 2.0,
 ) -> list[HeatmapCell]:
-    zone = packet.deployment_zone(deployment_zone_id).polygon()
+    zone = _deployment_zone_polygon(packet, deployment_zone_id)
     sample_points = _points_in_polygon(zone, sample_step)
     sample_blockers = [
         (sample, _los_blockers_for_point(packet, sample)) for sample in sample_points
@@ -496,6 +497,11 @@ def _board_polygon(packet: MapPacket) -> Polygon:
             (0, packet.board.height),
         ]
     )
+
+
+def _deployment_zone_polygon(packet: MapPacket, deployment_zone_id: str) -> Polygon:
+    zone = packet.deployment_zone(deployment_zone_id)
+    return Polygon(smooth_deployment_footprint(zone.footprint))
 
 
 def _polygon_vertices(polygon: Polygon) -> list[tuple[float, float]]:

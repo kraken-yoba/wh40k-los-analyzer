@@ -108,11 +108,13 @@ def test_desktop_viewer_screen_renders_map_pixmap() -> None:
     window = MainWindow(build_desktop_service())
 
     viewer = window.stack.widget(2)
-    pixmap = viewer.map.image_label.pixmap()
+    pixmap = viewer.map.rendered_pixmap()
 
     assert pixmap is not None
     assert not pixmap.isNull()
-    assert pixmap.width() == 528
-    assert pixmap.height() == 720
+    assert pixmap.width() > 528
+    assert pixmap.height() > 720
+    assert viewer.map.image_label.width() == 528
+    assert viewer.map.image_label.height() == 720
     window.close()
     app.processEvents()

@@ -26,6 +26,18 @@ def test_rasterize_svg_draws_shapes_and_text() -> None:
     assert len(image.getcolors(maxcolors=100_000) or []) > 3
 
 
+def test_rasterize_svg_can_supersample_output() -> None:
+    svg = (
+        '<svg viewBox="0 0 240 120">'
+        '<circle cx="60" cy="60" r="42" fill="#30464e" stroke="#121612" stroke-width="2"/>'
+        "</svg>"
+    )
+
+    image = Image.open(BytesIO(rasterize_svg(svg, pixel_ratio=3))).convert("RGBA")
+
+    assert image.size == (720, 360)
+
+
 def test_rasterize_svg_draws_all_bundled_official_maps() -> None:
     packets = packaged_seed_packets()
 

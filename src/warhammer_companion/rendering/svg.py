@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry.base import BaseGeometry
 
+from warhammer_companion.domain.deployment_geometry import smooth_deployment_footprint
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.los.geometry import (
     CoverageCell,
@@ -164,6 +165,7 @@ def render_map_svg(
                 packet.board.height,
                 "deployment",
                 DEPLOYMENT_ATTRS,
+                smooth_deployment=True,
             )
         )
         parts.append(
@@ -471,7 +473,11 @@ def _polygon(
     board_height: float,
     css_class: str,
     attrs: SVG_ATTRS | None = None,
+    *,
+    smooth_deployment: bool = False,
 ) -> str:
+    if smooth_deployment:
+        points = smooth_deployment_footprint(points)
     svg_points = [_to_svg_point(point, scale, board_height) for point in points]
     joined = " ".join(f"{x:.1f},{y:.1f}" for x, y in svg_points)
     return f'<polygon points="{joined}" class="{css_class}"{_attrs(attrs)}/>'

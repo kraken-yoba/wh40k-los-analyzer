@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+
+from warhammer_companion.domain.models import DeploymentZone
 from warhammer_companion.los.geometry import (
     heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_zone,
@@ -77,3 +80,34 @@ def test_map_svg_includes_presentation_attributes_for_desktop_rasterizer() -> No
     assert 'class="light-feature light-feature--light-area" fill="#c69930"' in svg
     assert 'class="terrain-label" fill="#1c2520"' in svg
     assert 'class="model-base" fill="#e6f4ee"' in svg
+
+
+def test_curved_deployment_zone_visual_boundary_is_densified() -> None:
+    curved_attacker = DeploymentZone(
+        id="attacker",
+        label="Attacker",
+        footprint=[
+            (22.0, 60.0),
+            (22.0, 40.0),
+            (18.5, 39.3),
+            (15.6, 37.4),
+            (13.7, 34.5),
+            (13.0, 30.0),
+            (0.0, 30.0),
+            (0.0, 60.0),
+        ],
+    )
+    packet = SAMPLE_PACKETS[0].model_copy(
+        update={
+            "deployment_zones": [
+                curved_attacker,
+                SAMPLE_PACKETS[0].deployment_zones[1],
+            ]
+        }
+    )
+
+    svg = render_map_svg(packet)
+    match = re.search(r'<polygon points="([^"]+)" class="deployment"', svg)
+
+    assert match is not None
+    assert len(match.group(1).split()) > len(curved_attacker.footprint) * 2
