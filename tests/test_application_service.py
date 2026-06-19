@@ -134,3 +134,27 @@ def test_heatmap_state_clamps_and_caches_rendered_svg() -> None:
         (SAMPLE_PACKETS[0].id, "attacker", "edge", 12),
         (SAMPLE_PACKETS[0].id, "attacker", "edge", 12),
     ]
+
+
+def test_hidden_coverage_state_selects_terrain_and_detection_range() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+    terrain_area = SAMPLE_PACKETS[0].terrain_areas[0]
+
+    state = service.hidden_coverage_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        terrain_area_id=terrain_area.id,
+        detection_range=18,
+    )
+
+    assert state.packet.id == SAMPLE_PACKETS[0].id
+    assert state.selected_terrain_area_id == terrain_area.id
+    assert state.selected_detection_range == 18
+    assert state.detection_range_options == [12, 15, 18]
+    assert state.terrain_options[0].id == terrain_area.id
+    assert state.terrain_options[0].label == terrain_area.label
+    assert 'class="hidden-coverage-image"' in state.map_svg
+    assert 'class="selected-terrain-area"' in state.map_svg

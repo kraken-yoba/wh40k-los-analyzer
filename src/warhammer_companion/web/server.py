@@ -224,6 +224,41 @@ def los_checker(
     )
 
 
+@app.get("/hidden-coverage", response_class=HTMLResponse)
+def hidden_coverage(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    terrain_area_id: str | None = None,
+    detection_range: int = 15,
+) -> HTMLResponse:
+    state = service.hidden_coverage_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        terrain_area_id=terrain_area_id,
+        detection_range=detection_range,
+    )
+    return templates.TemplateResponse(
+        request,
+        "hidden_coverage.html",
+        {
+            "active_page": "hidden-coverage",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "terrain_options": state.terrain_options,
+            "selected_terrain_area_id": state.selected_terrain_area_id,
+            "selected_detection_range": state.selected_detection_range,
+            "detection_range_options": state.detection_range_options,
+            "map_svg": state.map_svg,
+        },
+    )
+
+
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
     packet_id: str | None = Form(None),

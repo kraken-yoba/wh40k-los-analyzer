@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Hidden Coverage</h1>
+    <p class="lede">
+      Threat density against hidden models in the selected terrain footprint.
+      Green is low exposure; red is high exposure.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar" method="get" action="/hidden-coverage">
+    {% include "_packet_selector.html" %}
+    <label>
+      Terrain footprint
+      <select name="terrain_area_id">
+        {% for terrain in terrain_options %}
+        <option value="{{ terrain.id }}" {{ "selected" if terrain.id == selected_terrain_area_id else "" }}>
+          {{ terrain.label }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="range-label">
+      Detection range
+      <span class="range-value">{{ selected_detection_range }} in</span>
+      <input
+        name="detection_range"
+        type="range"
+        min="12"
+        max="18"
+        step="3"
+        value="{{ selected_detection_range }}"
+        list="hidden-range-markers"
+      >
+      <datalist id="hidden-range-markers">
+        {% for value in detection_range_options %}
+        <option value="{{ value }}"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+  <div class="heatmap-legend" aria-label="Hidden coverage legend">
+    <span><i class="legend-swatch hidden-low"></i>Low exposure</span>
+    <span><i class="legend-swatch hidden-mid"></i>Partial exposure</span>
+    <span><i class="legend-swatch hidden-high"></i>High exposure</span>
+    <span><i class="legend-line hidden-selected-line"></i>Selected footprint</span>
+  </div>
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+{% endblock %}

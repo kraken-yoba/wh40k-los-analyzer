@@ -369,6 +369,18 @@ button,
   background: #1f7a5f;
 }
 
+.hidden-low {
+  background: #1f7a5f;
+}
+
+.hidden-mid {
+  background: #d5b64c;
+}
+
+.hidden-high {
+  background: #9b3b35;
+}
+
 .coverage-swatch {
   background: rgba(42, 140, 158, 0.54);
 }
@@ -384,6 +396,11 @@ button,
 .safe-line {
   color: #f7efe0;
   filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.6));
+}
+
+.hidden-selected-line {
+  color: #f7efe0;
+  filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.7));
 }
 
 .map-wrap {
@@ -517,6 +534,21 @@ button,
   stroke: none;
 }
 
+.selected-terrain-area {
+  fill: none;
+  stroke: #f7efe0;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.7));
+}
+
+.hidden-sample-point {
+  fill: rgba(255, 253, 248, 0.8);
+  stroke: #8b2f2d;
+  stroke-width: 0.9;
+}
+
 .model-base {
   fill: rgba(230, 244, 238, 0.88);
   stroke: #1f5948;
@@ -552,8 +584,11 @@ button,
 
 .coverage-image,
 .heatmap-image,
+.hidden-coverage-image,
 .coverage-cell,
 .safe-zone-outline,
+.selected-terrain-area,
+.hidden-sample-point,
 .ray-visible,
 .ray-blocked {
   pointer-events: none;

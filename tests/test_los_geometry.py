@@ -320,6 +320,75 @@ def test_grid_heatmap_can_see_into_but_not_through_footprint() -> None:
     assert by_position[(35.5, 54.5)] == 0.0
 
 
+def test_hidden_coverage_scores_more_exposure_near_footprint_edge() -> None:
+    from warhammer_companion.los import geometry
+
+    packet = _single_ruin_packet().model_copy(update={"dense_features": []})
+
+    coverage = geometry.hidden_coverage_from_terrain_area(
+        packet,
+        "c",
+        detection_range=15.0,
+        observer_grid_step=1.0,
+        hidden_sample_step=2.0,
+    )
+    by_position = {(cell.x, cell.y): cell.exposure for cell in coverage.cells}
+
+    assert by_position[(14.5, 30.5)] > by_position[(2.5, 30.5)]
+    assert 0.0 < by_position[(2.5, 30.5)] < by_position[(14.5, 30.5)]
+
+
+def test_hidden_coverage_dense_features_reduce_exposed_footprint_points() -> None:
+    from warhammer_companion.los import geometry
+
+    dense_packet = _single_ruin_packet()
+    open_packet = dense_packet.model_copy(update={"dense_features": []})
+
+    dense_coverage = geometry.hidden_coverage_from_terrain_area(
+        dense_packet,
+        "c",
+        detection_range=15.0,
+        observer_grid_step=1.0,
+        hidden_sample_step=2.0,
+    )
+    open_coverage = geometry.hidden_coverage_from_terrain_area(
+        open_packet,
+        "c",
+        detection_range=15.0,
+        observer_grid_step=1.0,
+        hidden_sample_step=2.0,
+    )
+    dense_by_position = {(cell.x, cell.y): cell.exposure for cell in dense_coverage.cells}
+    open_by_position = {(cell.x, cell.y): cell.exposure for cell in open_coverage.cells}
+
+    assert 0.0 < dense_by_position[(14.5, 30.5)] < open_by_position[(14.5, 30.5)]
+
+
+def test_hidden_coverage_range_increases_threatened_board_area() -> None:
+    from warhammer_companion.los import geometry
+
+    packet = _single_ruin_packet().model_copy(update={"dense_features": []})
+
+    short_range = geometry.hidden_coverage_from_terrain_area(
+        packet,
+        "c",
+        detection_range=12.0,
+        observer_grid_step=2.0,
+        hidden_sample_step=2.0,
+    )
+    long_range = geometry.hidden_coverage_from_terrain_area(
+        packet,
+        "c",
+        detection_range=18.0,
+        observer_grid_step=2.0,
+        hidden_sample_step=2.0,
+    )
+
+    assert sum(cell.exposure > 0.0 for cell in long_range.cells) > sum(
+        cell.exposure > 0.0 for cell in short_range.cells
+    )
+
+
 def test_visibility_rays_apply_footprint_shadow_touching_and_dense_blockers() -> None:
     packet = _single_ruin_packet()
 

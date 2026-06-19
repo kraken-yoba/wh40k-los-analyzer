@@ -15,6 +15,7 @@ from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.los.geometry import (
     CoverageCell,
     HeatmapCell,
+    HiddenCoverageResult,
     VisibilityPolygon,
     VisibilityRay,
 )
@@ -90,6 +91,19 @@ COVERAGE_CELL_ATTRS: SVG_ATTRS = {
     "fill-opacity": 0.34,
     "stroke": "none",
 }
+SELECTED_TERRAIN_ATTRS: SVG_ATTRS = {
+    "fill": "none",
+    "stroke": "#f7efe0",
+    "stroke-width": 2.4,
+    "stroke-linejoin": "round",
+    "stroke-linecap": "round",
+}
+HIDDEN_SAMPLE_POINT_ATTRS: SVG_ATTRS = {
+    "fill": "#fffdf8",
+    "fill-opacity": 0.8,
+    "stroke": "#8b2f2d",
+    "stroke-width": 0.9,
+}
 MODEL_BASE_ATTRS: SVG_ATTRS = {
     "fill": "#e6f4ee",
     "fill-opacity": 0.88,
@@ -116,6 +130,7 @@ def render_map_svg(
     safe_regions: BaseGeometry | None = None,
     coverage: list[CoverageCell] | None = None,
     coverage_polygon: BaseGeometry | None = None,
+    hidden_coverage: HiddenCoverageResult | None = None,
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
     base_diameter: float | None = None,
@@ -156,6 +171,9 @@ def render_map_svg(
         parts.extend(_render_coverage_raster(packet, coverage_polygon, scale))
     elif coverage:
         parts.extend(_render_coverage_cells(coverage, scale, packet.board.height))
+
+    if hidden_coverage is not None:
+        parts.extend(_render_hidden_coverage_raster(packet, hidden_coverage, scale))
 
     for zone in packet.deployment_zones:
         parts.append(
@@ -199,6 +217,16 @@ def render_map_svg(
                 TERRAIN_LABEL_ATTRS,
             )
         )
+        if hidden_coverage is not None and area.id == hidden_coverage.terrain_area_id:
+            parts.append(
+                _polygon(
+                    area.footprint,
+                    scale,
+                    packet.board.height,
+                    "selected-terrain-area",
+                    SELECTED_TERRAIN_ATTRS,
+                )
+            )
 
     for light_feature in packet.light_features:
         parts.append(
@@ -221,6 +249,14 @@ def render_map_svg(
                 _dense_feature_attrs(dense_feature.profile),
             )
         )
+
+    if hidden_coverage is not None:
+        for point in hidden_coverage.hidden_sample_points:
+            cx, cy = _to_svg_point(point, scale, packet.board.height)
+            parts.append(
+                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="2.2" '
+                f'class="hidden-sample-point"{_attrs(HIDDEN_SAMPLE_POINT_ATTRS)}/>'
+            )
 
     if rays:
         ox, oy = base_center or (0.0, 0.0)
@@ -297,6 +333,34 @@ def _render_coverage_raster(packet: MapPacket, polygon: BaseGeometry, scale: int
     rgba[visible] = (42, 140, 158, 118)
     image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "coverage-image")]
+
+
+def _render_hidden_coverage_raster(
+    packet: MapPacket,
+    coverage: HiddenCoverageResult,
+    scale: int,
+) -> list[str]:
+    if not coverage.cells:
+        return []
+    width = int(round(packet.board.width * scale))
+    height = int(round(packet.board.height * scale))
+    step = _infer_grid_step([cell.x for cell in coverage.cells])
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+
+    for cell in coverage.cells:
+        if cell.exposure <= 0:
+            continue
+        x0, y0 = _to_svg_point(
+            (cell.x - step / 2.0, cell.y + step / 2.0),
+            scale,
+            packet.board.height,
+        )
+        x1 = x0 + step * scale
+        y1 = y0 + step * scale
+        draw.rectangle([x0, y0, x1, y1], fill=_hidden_coverage_rgba(cell.exposure))
+
+    return [_image_data_uri(image, width, height, "hidden-coverage-image")]
 
 
 def _draw_geometry_mask(
@@ -439,6 +503,27 @@ def _heatmap_color(visibility: float) -> str:
     if visibility >= 0.2:
         return "#cf7e3a"
     return "#9b3b35"
+
+
+def _hidden_coverage_rgba(exposure: float) -> tuple[int, int, int, int]:
+    clamped = min(max(exposure, 0.0), 1.0)
+    stops = np.array([0.0, 0.25, 0.5, 0.75, 1.0], dtype=np.float32)
+    colors = np.array(
+        [
+            [31, 122, 95],
+            [100, 166, 93],
+            [213, 182, 76],
+            [207, 126, 58],
+            [155, 59, 53],
+        ],
+        dtype=np.float32,
+    )
+    return (
+        int(np.interp(clamped, stops, colors[:, 0])),
+        int(np.interp(clamped, stops, colors[:, 1])),
+        int(np.interp(clamped, stops, colors[:, 2])),
+        190,
+    )
 
 
 def _feature_css_class(base_class: str, profile: str | None) -> str:

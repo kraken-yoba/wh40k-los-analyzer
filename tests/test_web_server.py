@@ -5,7 +5,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from warhammer_companion.application.services import WarhammerCompanionService
-from warhammer_companion.application.view_models import HeatmapState
+from warhammer_companion.application.view_models import (
+    HeatmapState,
+    HiddenCoverageState,
+    TerrainSelectOption,
+)
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.domain.repository import FileBackedMapRepository, StaticMapRepository
@@ -141,6 +145,64 @@ def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
     assert 'name="source"' in response.text
     assert 'name="offset_inches"' in response.text
     assert 'value="6"' in response.text
+
+
+def test_hidden_coverage_route_uses_terrain_and_range_controls(monkeypatch) -> None:
+    calls: list[tuple[str, str, int]] = []
+    packet = server.repository.default_packet()
+    terrain_area = packet.terrain_areas[0]
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
+
+    class FakeService:
+        def hidden_coverage_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+            terrain_area_id: str | None = None,
+            detection_range: int = 15,
+        ) -> HiddenCoverageState:
+            resolved_packet_id = packet_id or packet.id
+            resolved_terrain_id = terrain_area_id or terrain_area.id
+            calls.append((resolved_packet_id, resolved_terrain_id, detection_range))
+            return HiddenCoverageState(
+                packet=packet,
+                packet_groups=[],
+                packet_selector=packet_selector,
+                terrain_options=[
+                    TerrainSelectOption(id=area.id, label=area.label)
+                    for area in packet.terrain_areas
+                ],
+                selected_terrain_area_id=resolved_terrain_id,
+                selected_detection_range=detection_range,
+                detection_range_options=[12, 15, 18],
+                map_svg=(
+                    '<svg class="map-svg" role="img" aria-label="fake hidden map">'
+                    '<image class="hidden-coverage-image"/></svg>'
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/hidden-coverage?packet_id={packet.id}"
+        f"&terrain_area_id={terrain_area.id}&detection_range=18"
+    )
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, terrain_area.id, 18)]
+    assert 'name="terrain_area_id"' in response.text
+    assert 'name="detection_range"' in response.text
+    assert 'value="18"' in response.text
+    assert "Hidden Coverage" in response.text
+    assert "hidden-coverage-image" in response.text
 
 
 def test_pages_do_not_load_custom_frontend_javascript() -> None:

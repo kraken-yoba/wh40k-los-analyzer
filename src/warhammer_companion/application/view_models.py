@@ -42,6 +42,12 @@ class PacketSelectorState:
 
 
 @dataclass(frozen=True)
+class TerrainSelectOption:
+    id: str
+    label: str
+
+
+@dataclass(frozen=True)
 class SettingsState:
     app_backend_status: str
     app_backend_detail: str
@@ -85,4 +91,16 @@ class LosCheckerState:
     x: float
     y: float
     base: float
+    map_svg: str
+
+
+@dataclass(frozen=True)
+class HiddenCoverageState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    terrain_options: list[TerrainSelectOption]
+    selected_terrain_area_id: str
+    selected_detection_range: int
+    detection_range_options: list[int]
     map_svg: str

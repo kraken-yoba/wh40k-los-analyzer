@@ -7,6 +7,7 @@ from typing import Protocol
 
 from warhammer_companion.application.view_models import (
     HeatmapState,
+    HiddenCoverageState,
     LosCheckerState,
     MapDataState,
     PacketLayoutOption,
@@ -14,6 +15,7 @@ from warhammer_companion.application.view_models import (
     PacketSelectOption,
     PacketSelectorState,
     SettingsState,
+    TerrainSelectOption,
     ViewerState,
 )
 from warhammer_companion.domain.models import MapPacket
@@ -32,6 +34,7 @@ from warhammer_companion.los.geometry import (
     heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_edge,
     heatmap_visibility_polygons_from_deployment_zone,
+    hidden_coverage_from_terrain_area,
     safe_heatmap_regions,
     visibility_polygon_from_base,
     visibility_rays_from_base,
@@ -46,6 +49,9 @@ class ReloadableMapRepository(MapRepository, Protocol):
 IngestionRunner = Callable[..., IngestionReport]
 PipelineStatusProvider = Callable[[], list[PipelineStage]]
 HeatmapCacheKey = tuple[str, str, str, int]
+HIDDEN_DETECTION_RANGE_OPTIONS = [12, 15, 18]
+HIDDEN_COVERAGE_OBSERVER_GRID_STEP = 1.0
+HIDDEN_COVERAGE_SAMPLE_STEP = 2.0
 
 APP_BACKEND_STATUS = "python ingestion backend ready"
 APP_BACKEND_DETAIL = (
@@ -183,6 +189,67 @@ class WarhammerCompanionService:
                 base_center=center,
                 base_diameter=base,
             ),
+        )
+
+    def hidden_coverage_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        terrain_area_id: str | None = None,
+        detection_range: int = 15,
+    ) -> HiddenCoverageState:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        terrain_options = [
+            TerrainSelectOption(id=area.id, label=area.label) for area in packet.terrain_areas
+        ]
+        if not terrain_options:
+            return HiddenCoverageState(
+                packet=packet,
+                packet_groups=self.packet_select_groups(),
+                packet_selector=self.packet_selector_state(packet_id=packet.id),
+                terrain_options=[],
+                selected_terrain_area_id="",
+                selected_detection_range=_closest_option(
+                    detection_range,
+                    HIDDEN_DETECTION_RANGE_OPTIONS,
+                ),
+                detection_range_options=list(HIDDEN_DETECTION_RANGE_OPTIONS),
+                map_svg=render_map_svg(packet),
+            )
+        terrain_ids = {option.id for option in terrain_options}
+        selected_terrain_area_id = (
+            terrain_area_id
+            if terrain_area_id is not None and terrain_area_id in terrain_ids
+            else terrain_options[0].id
+        )
+        selected_detection_range = _closest_option(
+            detection_range,
+            HIDDEN_DETECTION_RANGE_OPTIONS,
+        )
+        hidden_coverage = hidden_coverage_from_terrain_area(
+            packet,
+            selected_terrain_area_id,
+            detection_range=float(selected_detection_range),
+            observer_grid_step=HIDDEN_COVERAGE_OBSERVER_GRID_STEP,
+            hidden_sample_step=HIDDEN_COVERAGE_SAMPLE_STEP,
+        )
+        return HiddenCoverageState(
+            packet=packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=packet.id),
+            terrain_options=terrain_options,
+            selected_terrain_area_id=selected_terrain_area_id,
+            selected_detection_range=selected_detection_range,
+            detection_range_options=list(HIDDEN_DETECTION_RANGE_OPTIONS),
+            map_svg=render_map_svg(packet, hidden_coverage=hidden_coverage),
         )
 
     def packet_select_groups(self) -> list[PacketSelectGroup]:
@@ -491,3 +558,7 @@ def _unique(values: Iterable[str]) -> list[str]:
         if value not in unique_values:
             unique_values.append(value)
     return unique_values
+
+
+def _closest_option(value: int, options: Sequence[int]) -> int:
+    return min(options, key=lambda option: (abs(option - value), option))

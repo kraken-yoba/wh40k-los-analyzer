@@ -6,6 +6,7 @@ from warhammer_companion.domain.models import DeploymentZone
 from warhammer_companion.los.geometry import (
     heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_zone,
+    hidden_coverage_from_terrain_area,
     safe_heatmap_regions,
     visibility_polygon_from_base,
 )
@@ -58,6 +59,24 @@ def test_binary_coverage_polygon_renders_as_embedded_pixel_raster() -> None:
     assert 'class="coverage-image"' in svg
     assert "data:image/png;base64," in svg
     assert 'class="coverage-cell"' not in svg
+
+
+def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:
+    packet = SAMPLE_PACKETS[0]
+    terrain_area_id = packet.terrain_areas[0].id
+    coverage = hidden_coverage_from_terrain_area(
+        packet,
+        terrain_area_id,
+        observer_grid_step=4.0,
+        hidden_sample_step=3.0,
+    )
+
+    svg = render_map_svg(packet, hidden_coverage=coverage)
+
+    assert 'class="hidden-coverage-image"' in svg
+    assert 'class="selected-terrain-area"' in svg
+    assert 'class="hidden-sample-point"' in svg
+    assert "data:image/png;base64," in svg
 
 
 def test_light_and_dense_feature_profiles_render_with_distinct_classes() -> None:

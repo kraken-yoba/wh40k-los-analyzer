@@ -44,6 +44,21 @@ class CoverageCell:
 
 
 @dataclass(frozen=True)
+class HiddenCoverageCell:
+    x: float
+    y: float
+    exposure: float
+
+
+@dataclass(frozen=True)
+class HiddenCoverageResult:
+    terrain_area_id: str
+    detection_range: float
+    cells: list[HiddenCoverageCell]
+    hidden_sample_points: list[tuple[float, float]]
+
+
+@dataclass(frozen=True)
 class VisibilityPolygon:
     origin: tuple[float, float]
     polygon: BaseGeometry
@@ -130,6 +145,55 @@ def binary_visibility_overlay_from_base(
         y += grid_step
 
     return cells
+
+
+def hidden_coverage_from_terrain_area(
+    packet: MapPacket,
+    terrain_area_id: str,
+    *,
+    detection_range: float = 15.0,
+    observer_grid_step: float = 0.5,
+    hidden_sample_step: float = 1.0,
+) -> HiddenCoverageResult:
+    if detection_range <= 0:
+        raise ValueError("detection_range must be positive")
+    if observer_grid_step <= 0:
+        raise ValueError("observer_grid_step must be positive")
+    if hidden_sample_step <= 0:
+        raise ValueError("hidden_sample_step must be positive")
+
+    terrain_area = _terrain_area_by_id(packet, terrain_area_id)
+    selected_polygon = terrain_area.polygon()
+    hidden_sample_area = _hidden_sample_area(packet, terrain_area)
+    hidden_sample_points = _points_in_geometry(hidden_sample_area, hidden_sample_step)
+    board = _board_polygon(packet)
+    threat_regions = [
+        visibility_polygon_from_point(packet, sample).intersection(
+            Point(sample).buffer(detection_range, quad_segs=32)
+        )
+        for sample in hidden_sample_points
+    ]
+    cells: list[HiddenCoverageCell] = []
+
+    y = observer_grid_step / 2.0
+    while y < packet.board.height:
+        x = observer_grid_step / 2.0
+        while x < packet.board.width:
+            point = Point(x, y)
+            visible_count = 0
+            if board.covers(point) and not selected_polygon.covers(point):
+                visible_count = sum(region.covers(point) for region in threat_regions)
+            exposure = visible_count / len(hidden_sample_points) if hidden_sample_points else 0.0
+            cells.append(HiddenCoverageCell(x=x, y=y, exposure=exposure))
+            x += observer_grid_step
+        y += observer_grid_step
+
+    return HiddenCoverageResult(
+        terrain_area_id=terrain_area.id,
+        detection_range=detection_range,
+        cells=cells,
+        hidden_sample_points=hidden_sample_points,
+    )
 
 
 def visibility_polygon_from_base(
@@ -406,6 +470,26 @@ def _obscuring_terrain_geometries(
 
 def _terrain_group_key(area: TerrainArea) -> str:
     return area.terrain_group_id or area.id
+
+
+def _terrain_area_by_id(packet: MapPacket, terrain_area_id: str) -> TerrainArea:
+    for area in packet.terrain_areas:
+        if area.id == terrain_area_id:
+            return area
+    raise KeyError(f"Unknown terrain area: {terrain_area_id}")
+
+
+def _hidden_sample_area(packet: MapPacket, terrain_area: TerrainArea) -> BaseGeometry:
+    terrain_polygon = terrain_area.polygon()
+    dense_blockers = [
+        feature.polygon()
+        for feature in packet.dense_features
+        if feature.terrain_area_id == terrain_area.id and feature.blocks_los
+    ]
+    if not dense_blockers:
+        return terrain_polygon
+    sample_area = terrain_polygon.difference(unary_union(dense_blockers)).buffer(0)
+    return sample_area if not sample_area.is_empty else terrain_polygon
 
 
 def _blocker_union(blockers: list[Polygon]) -> BaseGeometry:
@@ -822,6 +906,24 @@ def _points_in_polygon(polygon: Polygon, spacing: float) -> list[tuple[float, fl
     if not points:
         centroid = polygon.centroid
         points.append((centroid.x, centroid.y))
+    return points
+
+
+def _points_in_geometry(geometry: BaseGeometry, spacing: float) -> list[tuple[float, float]]:
+    min_x, min_y, max_x, max_y = geometry.bounds
+    points: list[tuple[float, float]] = []
+    y = min_y + spacing / 2.0
+    while y < max_y:
+        x = min_x + spacing / 2.0
+        while x < max_x:
+            point = Point(x, y)
+            if geometry.covers(point):
+                points.append((x, y))
+            x += spacing
+        y += spacing
+    if not points:
+        representative = geometry.representative_point()
+        points.append((representative.x, representative.y))
     return points
 
 
