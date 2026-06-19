@@ -32,9 +32,18 @@ dev = [
   "ruff>=0.6.0",
   "types-shapely>=2.0.0"
 ]
+desktop = [
+  "platformdirs>=4.3.0",
+  "PySide6>=6.8.0"
+]
+package = [
+  "pyinstaller>=6.11.0",
+  "pyinstaller-hooks-contrib>=2024.10"
+]
 
 [project.scripts]
 warhammer-companion = "warhammer_companion.cli:main"
+warhammer-companion-desktop = "warhammer_companion.desktop.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -62,3 +71,12 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 packages = ["warhammer_companion"]
+
+[[tool.mypy.overrides]]
+module = [
+  "warhammer_companion.desktop.main_window",
+  "warhammer_companion.desktop.screens.*",
+  "warhammer_companion.desktop.widgets.*",
+  "warhammer_companion.desktop.workers"
+]
+ignore_errors = true

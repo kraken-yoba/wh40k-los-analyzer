@@ -59,3 +59,26 @@ Changes:
 - Refactored `web.server` routes to call the service and keep redirects/templates as web-only concerns.
 - Updated web tests to inject services rather than monkeypatching route globals.
 - Added direct service tests for packet grouping and heatmap cache behavior.
+
+## 2026-06-19 - Native Desktop Shell
+
+Branch: `codex/standalone-windows-desktop-app`
+
+Purpose:
+
+- Add a true Python desktop entrypoint and native PySide6 shell without introducing JavaScript.
+- Keep a non-GUI `--smoke-test` path for CI and packaging verification.
+
+Changes:
+
+- Added optional `desktop` and `package` dependencies plus the `warhammer-companion-desktop` console script.
+- Added desktop data path helpers that use user-writable packaged app data when frozen and repo-local data during source runs.
+- Added a PySide6 main window with Settings, Map Data, Map Viewer, LOS Heatmap, and LOS Checker screens.
+- Added a reusable Qt SVG map widget as the transitional desktop rendering path.
+- Added a background worker wrapper for long-running desktop actions such as ingestion.
+- Added desktop smoke tests for the non-GUI entrypoint.
+
+Verification:
+
+- `python -m warhammer_companion.desktop.app --smoke-test` returned JSON with `status: ok`, 45 packets, and rendered viewer/heatmap/LOS SVG.
+- Headless Qt construction with `QT_QPA_PLATFORM=offscreen` created `Warhammer Tournament Companion` with 5 screens.
