@@ -539,3 +539,46 @@ Browser and Computer Use:
 - 2026-06-20: browser-QA subagent `019ee6a8-eaec-7be0-9471-4b9dfa555daf` hit the same Browser
   runtime blocker, but confirmed `http://127.0.0.1:8000` returned HTTP 200 with title
   `Warhammer Tournament Companion`.
+
+## 2026-06-21 - Browser And Computer Use Recovery Slice
+
+Purpose:
+
+- Restore the built-in Browser/Computer Use QA path required by the user before treating Phase 3
+  as fully closed.
+- Gather independent route/render evidence while the Codex MCP bridge remains unavailable.
+
+Findings:
+
+- Post-restart `node_repl/js` still failed before JavaScript execution with
+  `Mcp error: -32602: js: codex/sandbox-state-meta: missing field sandboxPolicy`.
+- Manual stdio probes showed the bundled
+  `C:\Users\Conferences and AI\AppData\Local\OpenAI\Codex\runtimes\cua_node\a89897d3d9baa117\bin\node_repl.exe`
+  can execute JavaScript when called directly.
+- A manual malformed-metadata probe reproduced the exact `sandboxPolicy` rejection when
+  `_meta["codex/sandbox-state-meta"]` was present without `sandboxPolicy`.
+- A temporary metadata-sanitizing proxy was prototyped and verified to strip only the malformed
+  sandbox-state subfield while preserving other `_meta` keys.
+- Global Codex config was pointed at that proxy with backup
+  `C:\Users\Conferences and AI\.codex\config.toml.bak-node-repl-proxy-20260621004038`.
+- The current Codex MCP transport stayed closed after stale `node_repl.exe` helper processes were
+  stopped; a Codex Desktop restart is still required before the proxy can be proven in the hosted
+  tool path.
+
+Independent QA evidence:
+
+- `http://127.0.0.1:49231` was started with direct Uvicorn on a Browser-allowlisted origin.
+- `Invoke-WebRequest -UseBasicParsing http://127.0.0.1:49231` returned HTTP 200 with title
+  `Warhammer Tournament Companion` and response length 18358.
+- Headless Firefox with a throwaway `C:\tmp` profile captured
+  `C:\tmp\w40k-phase3-home-49231.png`.
+- Screenshot evidence: 1280x900 PNG, 104614 bytes, nonblank RGB extrema
+  `((21, 255), (27, 255), (22, 255))`, SHA-256
+  `02F1ABFBB8B5D4D9583E3E0E38561A49786C627132DC63CBD1B3EEBE42B32353`.
+- The screenshot visibly renders the Map Viewer page for Layout A - Event Companion page 9.
+
+Remaining blocker:
+
+- Built-in Browser/Computer Use manual QA is not yet restored in the active Codex session.
+- Retest after Codex Desktop reloads the proxy-backed `node_repl` config with:
+  `nodeRepl.write("node-repl-ok")`.
