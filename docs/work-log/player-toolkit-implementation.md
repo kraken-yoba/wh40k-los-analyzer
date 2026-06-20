@@ -223,3 +223,47 @@ Verification results:
 - 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with status `ok` and 45 official packets.
 - 2026-06-20: `git diff --check` passed; Git reported normal line-ending warnings for touched files.
 - 2026-06-20: Browser and Computer Use checks were not required because Phase 1 changes no web, desktop, packaged, or runtime UI behavior.
+
+## 2026-06-20 - Phase 1.5 - Source Foundation Housekeeping
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Perform behavior-preserving cleanup after Phase 1.
+- Make the remote verifier test helper contract explicit before Phase 2.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-phase-1-5-housekeeping-source-foundation.md`
+- `docs/superpowers/plans/2026-06-20-phase-1-5-housekeeping-source-foundation.md`
+- `docs/superpowers/qa/2026-06-20-phase-1-5-housekeeping-source-foundation-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-1-5-consultant-source-foundation.md`
+- `docs/superpowers/reviews/2026-06-20-phase-1-5-adversarial-source-foundation.md`
+- `src/warhammer_companion/ingestion/rules_sources.py`
+- `tests/test_rules_sources.py`
+
+Review triage:
+
+- Consultant approved the narrow cleanup and found no larger cleanup needed before Phase 2.
+- Adversarial review found the initial `_fake_get_factory() -> RemoteGet` annotation did not pass
+  `mypy tests\test_rules_sources.py`.
+- Accepted: `RemoteResponse` fields are now read-only properties, and fake getters use
+  `RemoteGet`/`RemoteResponse` explicitly.
+- Accepted: Phase 1.5 QA includes `.\.venv\Scripts\mypy.exe tests\test_rules_sources.py`.
+
+Final review approvals:
+
+- 2026-06-20: consultant reviewer `019ee4ff-3ca7-7e30-acac-e0fdf1244884` approved the narrow housekeeping scope.
+- 2026-06-20: adversarial reviewer `019ee4ff-65bb-7f01-b412-67b033c8e6b7` approved after the test-mypy fix.
+
+Verification results:
+
+- 2026-06-20: initial `.\.venv\Scripts\mypy.exe tests\test_rules_sources.py` failed with four test helper typing errors.
+- 2026-06-20: after the protocol fix, `.\.venv\Scripts\mypy.exe tests\test_rules_sources.py` passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest tests\test_rules_sources.py -q` passed: 11 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 75 files already formatted.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: Phase 1.5 changed-file allowlist passed. Visible files are Phase 1.5 artifacts plus user-owned untracked `AGENTS.md`.
+- 2026-06-20: `git diff --check` passed; Git reported normal line-ending warnings for touched files.

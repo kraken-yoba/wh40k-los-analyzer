@@ -9,6 +9,8 @@ from types import TracebackType
 import pytest
 
 from warhammer_companion.ingestion.rules_sources import (
+    RemoteGet,
+    RemoteResponse,
     SourceRef,
     build_current_rules_foundation,
     verify_remote_http_source,
@@ -41,8 +43,8 @@ class _FakeResponse:
         return (chunk for chunk in self.chunks)
 
 
-def _fake_get_factory(response: _FakeResponse) -> object:
-    def _fake_get(url: str, *, stream: bool, timeout: int | float) -> _FakeResponse:
+def _fake_get_factory(response: RemoteResponse) -> RemoteGet:
+    def _fake_get(url: str, *, stream: bool, timeout: int | float) -> RemoteResponse:
         assert url == "https://assets.warhammer-community.com/example-core-rules.pdf"
         assert stream is True
         assert timeout == 120
@@ -51,7 +53,7 @@ def _fake_get_factory(response: _FakeResponse) -> object:
     return _fake_get
 
 
-def _fake_get(url: str, *, stream: bool, timeout: int | float) -> _FakeResponse:
+def _fake_get(url: str, *, stream: bool, timeout: int | float) -> RemoteResponse:
     assert url == "https://assets.warhammer-community.com/example-core-rules.pdf"
     assert stream is True
     assert timeout == 120

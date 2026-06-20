@@ -82,9 +82,14 @@ LEGACY_ASSUMPTION_BLACKLIST = (
 
 
 class RemoteResponse(Protocol):
-    status_code: int
-    url: str
-    headers: Mapping[str, str]
+    @property
+    def status_code(self) -> int: ...
+
+    @property
+    def url(self) -> str: ...
+
+    @property
+    def headers(self) -> Mapping[str, str]: ...
 
     def __enter__(self) -> RemoteResponse: ...
 
