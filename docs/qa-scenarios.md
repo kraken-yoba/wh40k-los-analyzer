@@ -13,6 +13,14 @@ These scripts define the web MVP baseline and the desktop parity target. The sam
 - Page 52 is used for diagonal terrain footprint and rotated dense-feature regression coverage.
 - Web and desktop runs should use the same packet directory when parity is being checked.
 
+## Roadmap Phase QA
+
+Each player-toolkit roadmap phase must have a phase-specific QA pathway under `docs/superpowers/qa/` before implementation is considered complete. The pathway must be executable by a fresh subagent and must identify the required local data, exact commands, expected results, reviewer approval evidence, work-log evidence, and commit checks.
+
+Every phase QA pathway should include consultant review and adversarial review gates. Any phase that uses mutable external data must include freshness/source-refresh checks for official rules and balance documents, public sheets, MFM data, roster formats, mission-pack data, community-pack data, and source timestamps. Runtime phases must include the standard Python checks plus targeted unit, integration, web, desktop, and packaging checks that match the files changed. Browser verification is required when web routes, controls, maps, rendered HTML, generated SVG, or visual layout behavior change. Computer Use verification is required when native Windows desktop behavior, OS dialogs, installers, or packaged app interactions change.
+
+Phase QA must include page 9 and page 52 regression checks when map overlays, geometry, terrain, deployment, LOS, movement, threat, exposure, or mission-zone rendering behavior changes. A phase may skip Browser or Computer Use only when it documents that the phase is docs-only or otherwise has no runtime surface to exercise.
+
 ## Scenario 1: App Shell And Navigation
 
 Steps:
