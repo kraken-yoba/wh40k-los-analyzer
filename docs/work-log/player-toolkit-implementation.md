@@ -267,3 +267,88 @@ Verification results:
 - 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
 - 2026-06-20: Phase 1.5 changed-file allowlist passed. Visible files are Phase 1.5 artifacts plus user-owned untracked `AGENTS.md`.
 - 2026-06-20: `git diff --check` passed; Git reported normal line-ending warnings for touched files.
+
+## 2026-06-20 - Phase 2 - Toolkit Result And Board State Foundation
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add shared toolkit result and board-state primitives before new deterministic tools are built.
+- Keep `MapPacket` as layout geometry and bind game-state assumptions through `BoardState`.
+- Prove the LOS checker can produce a `ToolkitResult` before existing SVG projection.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-toolkit-result-and-board-state-spec.md`
+- `docs/superpowers/plans/2026-06-20-toolkit-result-and-board-state.md`
+- `docs/superpowers/qa/2026-06-20-toolkit-result-and-board-state-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-2-consultant-toolkit-foundation.md`
+- `docs/superpowers/reviews/2026-06-20-phase-2-adversarial-toolkit-foundation.md`
+- `src/warhammer_companion/domain/board_state.py`
+- `src/warhammer_companion/domain/overlays.py`
+- `src/warhammer_companion/application/toolkit.py`
+- `tests/test_toolkit_contracts.py`
+- `tests/test_board_state.py`
+
+Design decisions:
+
+- `MapOverlayLayer`, `ToolkitReadiness`, `ToolkitAssumption`, and `ToolkitWarning` live in
+  `domain.overlays` so domain modules do not depend on application modules.
+- `BoardState` lives in `domain.board_state` and is a shallow immutable wrapper over a live
+  `MapPacket` plus a packet content digest.
+- `ToolkitResult` lives in `application.toolkit` as the service envelope returned before web or
+  desktop rendering.
+- `trusted` toolkit results require both source refs and a passed validation record.
+- Phase 2 adds a narrow `los_checker_toolkit_result()` service method. Heatmap and hidden coverage
+  toolkit wrappers are deferred to later slices.
+- Browser and Computer Use checks are not required because this slice changes no web route,
+  template, static asset, generated SVG behavior, desktop widget, installer, OS interaction, or
+  packaged UI behavior.
+
+Review triage:
+
+- Accepted: split board-state, overlay, and result-envelope modules by ownership.
+- Accepted: add invalid-readiness validation for `ToolkitResult` and `MapOverlayLayer`.
+- Accepted: reject blocked results without block reasons and blocked results with tactical
+  overlays.
+- Accepted: reject trusted results without source refs or a passed validation record.
+- Accepted: reject overlays whose readiness exceeds the parent result readiness.
+- Accepted: add packet content digest and include it in LOS toolkit input identity.
+- Accepted: document `BoardState` shallow immutability and store `packet_digest`.
+- Accepted: warn when units contain no models.
+- Accepted: prove `los_checker_state()` still matches the direct legacy render path.
+- Accepted: update the QA protected-content scan so it does not self-match the QA regex.
+
+Verification results:
+
+- 2026-06-20: red step confirmed Phase 2 tests initially failed because
+  `warhammer_companion.application.toolkit` and `warhammer_companion.domain.board_state` did not
+  exist.
+- 2026-06-20: red step confirmed `MapOverlayLayer` initially accepted invalid readiness.
+- 2026-06-20: red step confirmed `trusted` results initially did not require source refs or passed
+  validation.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest tests\test_toolkit_contracts.py tests\test_board_state.py tests\test_application_service.py -q` passed after fixes: 19 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest tests\test_toolkit_contracts.py tests\test_board_state.py tests\test_application_service.py tests\test_los_geometry.py tests\test_rendering_svg.py -q` passed after reviewer fixes: 62 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest` passed: 213 passed, 1 warning.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets` passed for 45 official seed packets.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with status `ok` and 45 official packets.
+- 2026-06-20: Phase 2 protected-content scan returned no matches.
+- 2026-06-20: `git diff --check` passed with normal CRLF warnings for touched files.
+- 2026-06-20: `git diff --cached --check` passed before staging.
+
+Final review approvals:
+
+- 2026-06-20: architecture/code-quality re-review `019ee520-1e85-7dd1-ab08-769ccf1df0b3`
+  approved with no findings.
+- 2026-06-20: spec/readiness re-review `019ee51f-f32c-7b32-a4cd-9c0c8d81ea76` approved with no
+  code/spec/QA blockers.
+
+Browser and Computer Use:
+
+- 2026-06-20: not required for Phase 2 because this slice changes no web route, template, static
+  asset, generated SVG behavior, desktop widget, installer, OS interaction, or packaged UI
+  behavior. Existing service/rendering/desktop smoke checks passed.

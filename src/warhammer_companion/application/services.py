@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from shapely.geometry.base import BaseGeometry
+
+from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
     HeatmapState,
     HiddenCoverageState,
@@ -18,7 +23,13 @@ from warhammer_companion.application.view_models import (
     TerrainSelectOption,
     ViewerState,
 )
+from warhammer_companion.domain.board_state import BoardState
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.overlays import (
+    MapOverlayLayer,
+    ToolkitAssumption,
+    ToolkitWarning,
+)
 from warhammer_companion.domain.repository import MapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
@@ -30,6 +41,7 @@ from warhammer_companion.integrations.codex_backend import (
     CodexLoginStart,
 )
 from warhammer_companion.los.geometry import (
+    VisibilityRay,
     clamp_base_center,
     heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_edge,
@@ -52,12 +64,23 @@ HeatmapCacheKey = tuple[str, str, str, int]
 HIDDEN_DETECTION_RANGE_OPTIONS = [12, 15, 18]
 HIDDEN_COVERAGE_OBSERVER_GRID_STEP = 1.0
 HIDDEN_COVERAGE_SAMPLE_STEP = 2.0
+LOS_CHECKER_TOOLKIT_SCHEMA_VERSION = "los-checker-toolkit/v0"
 
 APP_BACKEND_STATUS = "python ingestion backend ready"
 APP_BACKEND_DETAIL = (
     "Official PDF extraction, LOS geometry, and visual categorizer artifacts "
     "run through Python service boundaries."
 )
+
+
+@dataclass(frozen=True)
+class LosCheckerToolkitPayload:
+    board_state: BoardState
+    packet: MapPacket
+    center: tuple[float, float]
+    base_diameter: float
+    coverage_polygon: BaseGeometry
+    rays: tuple[VisibilityRay, ...]
 
 
 class WarhammerCompanionService:
@@ -162,6 +185,43 @@ class WarhammerCompanionService:
         y: float = 10.0,
         base: float = 1.57,
     ) -> LosCheckerState:
+        result = self.los_checker_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            x=x,
+            y=y,
+            base=base,
+        )
+        payload = result.payload
+        return LosCheckerState(
+            packet=payload.packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=payload.packet.id),
+            x=payload.center[0],
+            y=payload.center[1],
+            base=payload.base_diameter,
+            map_svg=render_map_svg(
+                payload.packet,
+                coverage_polygon=payload.coverage_polygon,
+                rays=list(payload.rays),
+                base_center=payload.center,
+                base_diameter=payload.base_diameter,
+            ),
+        )
+
+    def los_checker_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        x: float = 22.0,
+        y: float = 10.0,
+        base: float = 1.57,
+    ) -> ToolkitResult[LosCheckerToolkitPayload]:
         packet = self._selected_packet_by_selector(
             packet_id=packet_id,
             player_a=player_a,
@@ -174,20 +234,57 @@ class WarhammerCompanionService:
             center=center,
             base_diameter=base,
         )
-        rays = visibility_rays_from_base(packet, center=center, base_diameter=base)
-        return LosCheckerState(
-            packet=packet,
-            packet_groups=self.packet_select_groups(),
-            packet_selector=self.packet_selector_state(packet_id=packet.id),
-            x=center[0],
-            y=center[1],
+        rays = tuple(visibility_rays_from_base(packet, center=center, base_diameter=base))
+        board_state = BoardState.from_packet(
+            packet,
+            state_id=f"{packet.id}:los-checker",
+            assumptions=(
+                ToolkitAssumption(
+                    assumption_id="two-dimensional-los",
+                    detail="LOS uses current two-dimensional dense terrain geometry.",
+                ),
+            ),
+        )
+        input_hash = _toolkit_input_hash(
+            tool_id="los_checker",
+            packet_digest=board_state.packet_digest,
+            center=center,
             base=base,
-            map_svg=render_map_svg(
-                packet,
+        )
+        result_suffix = input_hash.removeprefix("sha256:")[:12]
+        return ToolkitResult(
+            result_id=f"{packet.id}:los-checker:{result_suffix}",
+            tool_id="los_checker",
+            input_hash=input_hash,
+            readiness="estimated",
+            payload=LosCheckerToolkitPayload(
+                board_state=board_state,
+                packet=packet,
+                center=center,
+                base_diameter=base,
                 coverage_polygon=coverage_polygon,
                 rays=rays,
-                base_center=center,
-                base_diameter=base,
+            ),
+            overlays=(
+                MapOverlayLayer(
+                    layer_id=f"{packet.id}:los-coverage:{result_suffix}",
+                    layer_kind="line_of_sight_coverage",
+                    geometry=coverage_polygon,
+                    units="battlefield_inches",
+                    style_token="los-coverage-estimated",
+                    label="Estimated LOS coverage",
+                    readiness="estimated",
+                ),
+            ),
+            assumptions=board_state.assumptions,
+            warnings=(
+                *board_state.warnings,
+                ToolkitWarning(
+                    warning_id="source-backed-los-mechanics-pending",
+                    detail=(
+                        "LOS output is diagnostic until source-backed visibility mechanics exist."
+                    ),
+                ),
             ),
         )
 
@@ -562,3 +659,16 @@ def _unique(values: Iterable[str]) -> list[str]:
 
 def _closest_option(value: int, options: Sequence[int]) -> int:
     return min(options, key=lambda option: (abs(option - value), option))
+
+
+def _toolkit_input_hash(
+    tool_id: str,
+    packet_digest: str,
+    center: tuple[float, float],
+    base: float,
+) -> str:
+    payload = (
+        f"{LOS_CHECKER_TOOLKIT_SCHEMA_VERSION}|{tool_id}|{packet_digest}|"
+        f"{center[0]:.6f}|{center[1]:.6f}|{base:.6f}"
+    )
+    return f"sha256:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"

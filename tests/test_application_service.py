@@ -4,6 +4,12 @@ from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.domain.repository import StaticMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
+from warhammer_companion.los.geometry import (
+    clamp_base_center,
+    visibility_polygon_from_base,
+    visibility_rays_from_base,
+)
+from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 from warhammer_companion.web import server
 
@@ -158,3 +164,84 @@ def test_hidden_coverage_state_selects_terrain_and_detection_range() -> None:
     assert state.terrain_options[0].label == terrain_area.label
     assert 'class="hidden-coverage-image"' in state.map_svg
     assert 'class="selected-terrain-area"' in state.map_svg
+
+
+def test_los_checker_toolkit_result_wraps_analysis_before_svg_projection() -> None:
+    packet = SAMPLE_PACKETS[0]
+    before = packet.model_dump()
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.los_checker_toolkit_result(
+        packet_id=SAMPLE_PACKETS[0].id,
+        x=22.0,
+        y=10.0,
+        base=1.57,
+    )
+
+    assert result.tool_id == "los_checker"
+    assert result.readiness == "estimated"
+    assert result.payload.packet is SAMPLE_PACKETS[0]
+    assert result.overlays
+    assert result.overlays[0].layer_kind == "line_of_sight_coverage"
+    assert not result.allows_recommendation_language()
+    assert packet.model_dump() == before
+
+
+def test_los_checker_toolkit_identity_includes_inputs_and_packet_content() -> None:
+    packet = SAMPLE_PACKETS[0]
+    changed_packet = packet.model_copy(update={"name": f"{packet.name} revised"})
+    original_service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    )
+    changed_service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository([changed_packet]),
+        codex_backend=server.codex_backend,
+    )
+
+    original = original_service.los_checker_toolkit_result(packet_id=packet.id, x=22.0, y=10.0)
+    moved = original_service.los_checker_toolkit_result(packet_id=packet.id, x=23.0, y=10.0)
+    changed = changed_service.los_checker_toolkit_result(
+        packet_id=changed_packet.id,
+        x=22.0,
+        y=10.0,
+    )
+
+    original_suffix = original.input_hash.removeprefix("sha256:")[:12]
+    assert original.input_hash != moved.input_hash
+    assert original.input_hash != changed.input_hash
+    assert original.result_id.endswith(original_suffix)
+    assert original.overlays[0].layer_id.endswith(original_suffix)
+
+
+def test_los_checker_state_matches_direct_legacy_rendering_path() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+    packet = SAMPLE_PACKETS[0]
+    center = clamp_base_center(packet, (22.0, 10.0), 1.57)
+    coverage_polygon = visibility_polygon_from_base(packet, center, 1.57)
+    rays = visibility_rays_from_base(packet, center, 1.57)
+    expected_svg = render_map_svg(
+        packet,
+        coverage_polygon=coverage_polygon,
+        rays=rays,
+        base_center=center,
+        base_diameter=1.57,
+    )
+
+    state = service.los_checker_state(packet_id=packet.id, x=22.0, y=10.0, base=1.57)
+
+    assert state.packet is packet
+    assert state.x == center[0]
+    assert state.y == center[1]
+    assert state.base == 1.57
+    assert state.map_svg == expected_svg
