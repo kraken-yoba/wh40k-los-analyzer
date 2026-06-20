@@ -352,3 +352,59 @@ Browser and Computer Use:
 - 2026-06-20: not required for Phase 2 because this slice changes no web route, template, static
   asset, generated SVG behavior, desktop widget, installer, OS interaction, or packaged UI
   behavior. Existing service/rendering/desktop smoke checks passed.
+
+## 2026-06-20 - Phase 2.5 - LOS Toolkit Housekeeping
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Keep `WarhammerCompanionService` from owning LOS toolkit construction details after Phase 2.
+- Extract behavior-preserving LOS toolkit result construction into a focused application module.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-phase-2-5-housekeeping-los-toolkit.md`
+- `docs/superpowers/plans/2026-06-20-phase-2-5-housekeeping-los-toolkit.md`
+- `docs/superpowers/qa/2026-06-20-phase-2-5-housekeeping-los-toolkit-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-2-5-consultant-los-toolkit.md`
+- `docs/superpowers/reviews/2026-06-20-phase-2-5-adversarial-los-toolkit.md`
+- `src/warhammer_companion/application/los_toolkit.py`
+- `tests/test_los_toolkit.py`
+
+Design decisions:
+
+- `application.los_toolkit` owns `LosCheckerToolkitPayload`, the LOS toolkit schema version,
+  input hashing, assumptions, warnings, overlays, and payload construction.
+- `WarhammerCompanionService` still owns packet selection, selector handling, input clamping, and
+  view-model projection.
+- No domain contracts, LOS geometry, rendering, heatmap, hidden coverage, web route, desktop code,
+  or UI behavior changed.
+
+Review triage:
+
+- Consultant approved the extraction as warranted before Phase 3.
+- Adversarial reviewer requested tighter builder-contract tests and ASCII-only spec text.
+- Accepted: `tests/test_los_toolkit.py` now pins the literal v0 hash format, exact result/layer
+  IDs, assumption and warning metadata, overlay metadata, overlay geometry identity,
+  recommendation-language guard, and packet non-mutation.
+- Accepted: replaced non-ASCII spec text with ASCII `facade`.
+
+Verification results:
+
+- 2026-06-20: red step confirmed `tests\test_los_toolkit.py` failed because
+  `warhammer_companion.application.los_toolkit` did not exist.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest tests\test_los_toolkit.py tests\test_application_service.py tests\test_toolkit_contracts.py tests\test_board_state.py -q` passed: 20 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest tests\test_los_toolkit.py tests\test_application_service.py tests\test_los_geometry.py tests\test_rendering_svg.py -q` passed: 51 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: adversarial re-review approved Phase 2.5 with no critical or important findings.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest` passed: 214 passed, 1 warning.
+- 2026-06-20: `git diff --check` passed with normal CRLF warnings for touched files.
+
+Browser and Computer Use:
+
+- 2026-06-20: not required because Phase 2.5 changes no web route, template, static asset,
+  generated SVG behavior, desktop widget, installer, OS interaction, or packaged UI behavior.
+  Existing service and rendering regression tests passed.
