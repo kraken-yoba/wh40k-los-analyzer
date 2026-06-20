@@ -146,3 +146,80 @@ Verification results:
 - 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets` passed for 45 official seed packets.
 - 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with status `ok` and 45 official packets.
 - 2026-06-20: Browser and Computer Use checks were not required because Phase 0.5 changes no runtime, web, desktop, or packaged behavior.
+
+## 2026-06-20 - Phase 1 - Source Pack Registry And Current RulesPack
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add the first source/rules foundation for downstream toolkit solvers.
+- Represent current source candidates, freshness metadata, readiness, and legacy assumption blockers.
+- Avoid bundling official PDFs, public sheets, roster data, community packs, or copied rules text.
+
+Current source facts checked:
+
+- Warhammer Community downloads page lists the Warhammer 40,000 Munitorum Field Manual and marks it updated `17/6/2026`.
+- The Munitorum Field Manual page reports upstream version `v1.0`.
+- The current core rules PDF candidate is `https://assets.warhammer-community.com/eng_01-06_warhammer40k_new40k_core_rules-was6fbu1ix-hfewhmxyiy.pdf`.
+- New Recruit describes Warhammer 40k support and BattleScribe roster compatibility.
+- New Recruit states that BattleScribe data sets are maintained by BSData communities and downloaded from GitHub.
+- BSData presents itself as a community-maintained GitHub-hosted project.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-source-pack-registry-and-rulespack-current-spec.md`
+- `docs/superpowers/plans/2026-06-20-source-pack-registry-and-rulespack-current.md`
+- `docs/superpowers/qa/2026-06-20-source-pack-registry-and-rulespack-current-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-1-consultant-source-foundation.md`
+- `docs/superpowers/reviews/2026-06-20-phase-1-adversarial-source-foundation.md`
+- `src/warhammer_companion/ingestion/rules_sources.py`
+- `tests/test_rules_sources.py`
+
+Design decisions:
+
+- The first implementation is metadata-only and side-effect free.
+- Current-source metadata lives under `warhammer_companion.ingestion` to match the existing source registry boundary.
+- No rules concept is `trusted` in this slice because field-level source refs, hashes, and reviewed mechanics are not implemented yet.
+- Legacy assumptions are represented as explicit blacklist keys so downstream solvers can block them in tests.
+
+Review triage:
+
+- Accepted: add an explicitly invoked `verify_remote_http_source()` fetch/hash verifier with injected fake-response tests.
+- Accepted: block non-200 remote responses before hashing, even when an injected response no-ops `raise_for_status()`.
+- Accepted: validate HTTPS scheme and approved hosts before remote verification network access.
+- Accepted: validate redirected final URLs and block unapproved redirect targets.
+- Accepted: block empty content and missing content type.
+- Accepted: MFM freshness is `unknown` unless a refresh timestamp is supplied to `build_current_rules_foundation()`.
+
+Final review approvals:
+
+- 2026-06-20: consultant reviewer `019ee4f2-376b-75e3-b5a3-f615cda286e2` approved after verifier hardening.
+- 2026-06-20: adversarial reviewer `019ee4f2-6019-78d1-b684-43c09d549a91` approved source-trust/IP/security and QA after verifier hardening.
+
+Verification to run before commit:
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_rules_sources.py -q`
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+- `.\.venv\Scripts\python.exe -m ruff check .`
+- `.\.venv\Scripts\mypy.exe src`
+- `.\.venv\Scripts\python.exe -m pytest`
+- `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets`
+- `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test`
+- `git diff --check`
+- Phase 1 changed-file allowlist and protected-content scan.
+
+Verification results:
+
+- 2026-06-20: red step confirmed `tests\test_rules_sources.py` initially failed because `warhammer_companion.ingestion.rules_sources` did not exist.
+- 2026-06-20: targeted `.\.venv\Scripts\python.exe -m pytest tests\test_rules_sources.py -q` passed: 11 passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 75 files already formatted.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: protected-content scan over `rules_sources.py` and `test_rules_sources.py` returned no matches.
+- 2026-06-20: Phase 1 changed-file allowlist passed. Visible files are Phase 1 artifacts plus user-owned untracked `AGENTS.md`.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest` passed: 198 passed, 1 warning.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets` passed for 45 official seed packets.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with status `ok` and 45 official packets.
+- 2026-06-20: `git diff --check` passed; Git reported normal line-ending warnings for touched files.
+- 2026-06-20: Browser and Computer Use checks were not required because Phase 1 changes no web, desktop, packaged, or runtime UI behavior.
