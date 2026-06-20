@@ -408,3 +408,134 @@ Browser and Computer Use:
 - 2026-06-20: not required because Phase 2.5 changes no web route, template, static asset,
   generated SVG behavior, desktop widget, installer, OS interaction, or packaged UI behavior.
   Existing service and rendering regression tests passed.
+
+## 2026-06-20 - Phase 3 - Base Size And Terrain Semantics
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add source-aware manual base-size/model-frame records and terrain semantics records before
+  movement, threat, and exposure solvers are implemented.
+- Let rosterless/manual tool inputs exist without treating manual data or packet labels as trusted
+  mechanics.
+- Preserve current LOS, `MapPacket`, rendering, web, and desktop behavior.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-base-size-and-terrain-semantics-spec.md`
+- `docs/superpowers/plans/2026-06-20-base-size-and-terrain-semantics.md`
+- `docs/superpowers/qa/2026-06-20-base-size-and-terrain-semantics-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-3-consultant-base-terrain.md`
+- `docs/superpowers/reviews/2026-06-20-phase-3-adversarial-base-terrain.md`
+- `src/warhammer_companion/domain/semantics.py`
+- `src/warhammer_companion/domain/base_sizes.py`
+- `src/warhammer_companion/domain/terrain_semantics.py`
+- `src/warhammer_companion/application/base_sizes.py`
+- `src/warhammer_companion/application/terrain_semantics.py`
+- `tests/test_base_sizes.py`
+- `tests/test_terrain_semantics.py`
+
+Design decisions:
+
+- Phase 3 is a contracts-and-adapters slice, not a solver or UI slice.
+- Shared semantic readiness primitives live in `domain.semantics`.
+- Base and model-frame records live in `domain.base_sizes`.
+- Terrain semantics live in `domain.terrain_semantics` and are keyed over `MapPacket` IDs plus
+  `map_packet_digest`.
+- Thin application builders return `ToolkitResult` payloads for manual model-frame records and
+  terrain semantics indexes.
+- Manual base records normalize dimensions to inches, retain original units in provenance, and
+  remain `estimated`.
+- Source refs on a manual record do not make it trusted. Trusted tactical claims still require
+  source refs plus passed validation at the `ToolkitResult` level.
+- Invalid/missing base data and incompatible source packs return blocked results with block reasons
+  and no overlays.
+- Terrain semantics preserve existing 2D LOS blocker flags as geometry hints, not official rules
+  truth.
+
+Consultant review triage:
+
+- Accepted: split base-size and terrain-semantics records into focused domain modules.
+- Accepted: include local operator marker, timestamp, reason, reviewed fields, override history,
+  units, field-level source refs, freshness, compatibility, assumptions, warnings, and validation
+  record slots for manual base records.
+- Accepted: include packet digest in terrain semantics records and toolkit input hashes.
+- Accepted: test that manual base size changes, packet digest changes, and source-pack version
+  changes alter toolkit input hashes.
+- Accepted: keep `MapPacket.blockers()`, LOS toolkit, LOS geometry, rendering, web, and desktop
+  paths unchanged.
+
+Adversarial review triage:
+
+- Accepted: reject non-finite base dimensions (`NaN`, `Infinity`) for round and oval manual bases.
+- Accepted: ensure app-level manual model-frame builders block non-finite dimensions.
+- Accepted: trusted semantic reports require source refs and a passed validation record.
+- Accepted: record-level stale freshness or incompatible source-pack state blocks trusted tactical
+  claims.
+- Accepted: model-frame readiness reports preserve nested base source refs, validation records, and
+  assumptions.
+- Accepted: add regression tests for all review findings before changing production code.
+- Accepted: second adversarial re-review found mixed trusted-record aggregates could still allow
+  trusted claims; add a regression and validate source refs plus passed validation per trusted
+  record.
+
+Verification results:
+
+- 2026-06-20: red step confirmed `tests\test_base_terrain_semantics.py` initially failed because
+  `warhammer_companion.domain.semantics` did not exist.
+- 2026-06-20: after consultant triage, split red step confirmed `tests\test_base_sizes.py` and
+  `tests\test_terrain_semantics.py` failed because the new Phase 3 domain/application modules did
+  not exist.
+- 2026-06-20: focused `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q` passed: 12 passed.
+- 2026-06-20: regression `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py tests\test_toolkit_contracts.py -q` passed: 68 passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: initial Ruff format/check found new-file formatting/import issues; formatter and
+  import-sort fix were applied.
+- 2026-06-20: after formatting, `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  passed: 89 files already formatted.
+- 2026-06-20: after formatting, `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: after formatting, focused regression passed again: 68 passed.
+- 2026-06-20: adversarial review requested finite dimension validation, trusted semantic gating,
+  and nested base provenance propagation.
+- 2026-06-20: review-fix red step failed as expected: 8 failed, 12 passed across
+  `tests\test_base_sizes.py` and `tests\test_terrain_semantics.py`.
+- 2026-06-20: after review fixes, focused `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q` passed: 20 passed.
+- 2026-06-20: after review fixes, focused regression `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_toolkit_contracts.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py -q` passed: 76 passed.
+- 2026-06-20: after review fixes, `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: after review fixes, `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  and `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: full `.\.venv\Scripts\python.exe -m pytest` passed: 226 passed, 1 warning.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets` passed for 45 official seed packets.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test`
+  passed with status `ok`, 45 official packets, page 9 selected, and viewer/LOS/heatmap/hidden
+  coverage SVG checks true.
+- 2026-06-20: protected-content scan over Phase 3 production/test files returned no matches.
+- 2026-06-20: tracked-file raw artifact scan returned no tracked raw PDFs, roster archives,
+  spreadsheets, SQLite/db files, or processed data paths.
+- 2026-06-20: second adversarial re-review found a mixed trusted-record aggregate false-trust bug.
+- 2026-06-20: mixed trusted-record red step failed as expected with `trusted` instead of
+  `degraded`.
+- 2026-06-20: after the reducer fix, mixed trusted-record regression passed.
+- 2026-06-20: after the reducer fix, focused `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q` passed: 21 passed.
+- 2026-06-20: after the reducer fix, `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: after the reducer fix, focused regression `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_toolkit_contracts.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py -q` passed: 77 passed.
+- 2026-06-20: final adversarial re-review `019ee6ae-95aa-72e2-8375-21c064be0db9` approved the
+  per-record trusted gating fix with no critical or important findings.
+- 2026-06-20: final full `.\.venv\Scripts\python.exe -m pytest` passed: 235 passed, 1 warning.
+- 2026-06-20: final packet validation passed for all 45 official seed packets.
+- 2026-06-20: final desktop smoke passed with status `ok`.
+- 2026-06-20: final `git diff --check` passed with the normal CRLF warning for the work log.
+
+Browser and Computer Use:
+
+- 2026-06-20: built-in-browser manual QA is required for final Phase 3 closeout because the user
+  requested it, even though Phase 3 changes no web route, template, static asset, generated SVG
+  behavior, desktop widget, installer, OS interaction, or packaged UI behavior.
+- 2026-06-20: main-thread Browser and Computer Use setup were blocked because `node_repl/js` failed
+  before any app interaction with `Mcp error: -32602: js: codex/sandbox-state-meta: missing field
+  sandboxPolicy`.
+- 2026-06-20: browser-QA subagent `019ee6a8-eaec-7be0-9471-4b9dfa555daf` hit the same Browser
+  runtime blocker, but confirmed `http://127.0.0.1:8000` returned HTTP 200 with title
+  `Warhammer Tournament Companion`.
