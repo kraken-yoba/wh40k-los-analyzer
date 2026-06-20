@@ -91,3 +91,58 @@ Known notes:
 
 - `AGENTS.md` is present in the worktree and applies to the repository. It is treated as user-owned unless explicitly staged for this phase.
 - No production code, tests, data, packaging, web UI, or desktop UI should change in Phase 0.
+
+## 2026-06-20 - Phase 0.5 - Housekeeping Formatting Baseline
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Resolve the known Phase 0 optional baseline issue where Ruff would reformat `src\warhammer_companion\los\geometry.py`.
+- Keep the slice behavior-preserving and formatter-only before Phase 1 begins.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-20-phase-0-5-housekeeping-formatting-design.md`
+- `docs/superpowers/plans/2026-06-20-phase-0-5-housekeeping-formatting.md`
+- `docs/superpowers/qa/2026-06-20-phase-0-5-housekeeping-formatting-qa.md`
+- `docs/superpowers/reviews/2026-06-20-phase-0-5-consultant-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-20-phase-0-5-adversarial-housekeeping.md`
+- `src/warhammer_companion/los/geometry.py`
+
+Design decisions:
+
+- Phase 0.5 is a behavior-preserving housekeeping slice.
+- The only source edit allowed is Ruff formatter output in `src\warhammer_companion\los\geometry.py`.
+- No new tests are added because no behavior changes are intended.
+- Browser and Computer Use checks are not required because this slice changes no runtime, web, desktop, or packaged behavior.
+
+Verification to run before commit:
+
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+- `.\.venv\Scripts\python.exe -m ruff check .`
+- `.\.venv\Scripts\mypy.exe src`
+- `.\.venv\Scripts\python.exe -m pytest`
+- `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets`
+- `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test`
+- `git diff --check`
+- Phase 0.5 changed-file allowlist check.
+
+Review approvals:
+
+- 2026-06-20: consultant reviewer `019ee4e5-8a9e-7c12-a3a0-28459b4b13ff` approved the Phase 0.5 housekeeping scope and QA pathway.
+- 2026-06-20: adversarial reviewer `019ee4e5-b2d2-7681-814c-9407ca9befd3` approved behavior preservation, source-trust/IP/security scope, and QA adequacy.
+
+Verification results:
+
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format src\warhammer_companion\los\geometry.py` reformatted one file.
+- 2026-06-20: source diff in `src\warhammer_companion\los\geometry.py` is formatter-only: one chained expression rewrapped.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 73 files already formatted.
+- 2026-06-20: Phase 0.5 changed-file allowlist passed. Visible files were Phase 0.5 artifacts plus user-owned untracked `AGENTS.md`.
+- 2026-06-20: `git diff --check` passed; Git reported normal line-ending warnings for touched files.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-20: `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m pytest` passed: 187 passed, 1 warning.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets` passed for 45 official seed packets.
+- 2026-06-20: `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with status `ok` and 45 official packets.
+- 2026-06-20: Browser and Computer Use checks were not required because Phase 0.5 changes no runtime, web, desktop, or packaged behavior.

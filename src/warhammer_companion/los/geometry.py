@@ -169,9 +169,10 @@ def hidden_coverage_from_terrain_area(
     hidden_sample_points = _points_in_geometry(hidden_sample_area, hidden_sample_step)
     board = _board_polygon(packet)
     threat_regions = [
-        visibility_polygon_from_point(packet, sample).intersection(
-            Point(sample).buffer(detection_range, quad_segs=32)
-        ).difference(selected_polygon).intersection(board)
+        visibility_polygon_from_point(packet, sample)
+        .intersection(Point(sample).buffer(detection_range, quad_segs=32))
+        .difference(selected_polygon)
+        .intersection(board)
         for sample in hidden_sample_points
     ]
     cells: list[HiddenCoverageCell] = []
