@@ -27,6 +27,9 @@ BaseShape = Literal["round", "oval", "rectangle", "hull", "custom"]
 BaseSourceKind = Literal[
     "manual_entry", "profile_pack", "roster_snapshot", "source_pending", "unknown"
 ]
+SUPPORTED_BASE_SHAPES: frozenset[BaseShape] = frozenset(
+    ("round", "oval", "rectangle", "hull", "custom")
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +58,12 @@ class BaseGeometry:
         return cls(shape="oval", length_inches=length_inches, width_inches=width_inches)
 
     def __post_init__(self) -> None:
+        if self.shape not in SUPPORTED_BASE_SHAPES:
+            raise ValueError(f"unknown base geometry shape: {self.shape}")
+        if self.shape in {"hull", "custom"}:
+            raise ValueError(
+                f"{self.shape} base geometry is unsupported without a footprint policy"
+            )
         if self.shape == "round":
             _require_positive("diameter", self.diameter_inches)
         if self.shape in {"oval", "rectangle"}:
@@ -299,7 +308,39 @@ class ManualUnitFootprint:
     source_ref_ids: tuple[str, ...] = ()
 
     def readiness_report(self) -> SemanticsReadinessReport:
-        return report_semantics_readiness(model_frames=self.models)
+        if not self.models:
+            return SemanticsReadinessReport(
+                readiness="blocked",
+                warnings=(
+                    ToolkitWarning(
+                        warning_id="missing-unit-models",
+                        detail=f"Manual unit footprint {self.unit_id} has no models.",
+                        source_ref_ids=self.source_ref_ids,
+                    ),
+                ),
+                block_reasons=(
+                    SemanticsBlockReason(
+                        reason_id="missing-unit-models",
+                        detail=(
+                            f"Manual unit footprint {self.unit_id} requires at least one model."
+                        ),
+                        remediation="Add at least one model frame before running toolkit checks.",
+                        source_ref_ids=self.source_ref_ids,
+                    ),
+                ),
+                source_ref_ids=self.source_ref_ids,
+            )
+        report = report_semantics_readiness(model_frames=self.models)
+        if not self.source_ref_ids:
+            return report
+        return SemanticsReadinessReport(
+            readiness=report.readiness,
+            warnings=report.warnings,
+            block_reasons=report.block_reasons,
+            assumptions=report.assumptions,
+            source_ref_ids=_unique_strings((*report.source_ref_ids, *self.source_ref_ids)),
+            validation_records=report.validation_records,
+        )
 
 
 def _require_positive(field_name: str, value: float | None) -> None:

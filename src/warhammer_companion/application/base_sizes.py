@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime
+from math import isfinite, isnan
 
 from warhammer_companion.application.toolkit import BlockReason, ToolkitResult
 from warhammer_companion.domain.base_sizes import BaseSizeRecord, ModelFrameRecord
@@ -31,10 +33,13 @@ def build_manual_model_frame_result(
 ) -> ToolkitResult[ManualModelFramePayload]:
     input_hash = _manual_model_frame_hash(
         model_id=model_id,
+        model_label=model_label,
         base_record_id=base_record_id,
+        base_label=base_label,
         diameter_mm=diameter_mm,
         operator_id=operator_id,
         entered_at=entered_at,
+        reason=reason,
         source_ref_ids=source_ref_ids,
     )
     suffix = input_hash.removeprefix("sha256:")[:12]
@@ -96,15 +101,42 @@ def build_manual_model_frame_result(
 def _manual_model_frame_hash(
     *,
     model_id: str,
+    model_label: str,
     base_record_id: str,
+    base_label: str,
     diameter_mm: float,
     operator_id: str,
     entered_at: datetime,
+    reason: str,
     source_ref_ids: tuple[str, ...],
 ) -> str:
-    payload = (
-        f"{BASE_SIZE_TOOLKIT_SCHEMA_VERSION}|manual_model_frame|{model_id}|"
-        f"{base_record_id}|{diameter_mm:.6f}|{operator_id}|{entered_at.isoformat()}|"
-        f"{','.join(source_ref_ids)}"
+    payload = {
+        "base_label": base_label,
+        "base_record_id": base_record_id,
+        "diameter_mm": _canonical_float(diameter_mm),
+        "entered_at": entered_at.isoformat(),
+        "model_id": model_id,
+        "model_label": model_label,
+        "operator_id": operator_id,
+        "reason": reason,
+        "schema_version": BASE_SIZE_TOOLKIT_SCHEMA_VERSION,
+        "source_ref_ids": sorted(set(source_ref_ids)),
+        "tool_id": "manual_model_frame",
+    }
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
     )
-    return f"sha256:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+    return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
+
+
+def _canonical_float(value: float) -> str:
+    if isfinite(value):
+        return f"{value:.6f}"
+    if isnan(value):
+        return "nan"
+    if value > 0:
+        return "inf"
+    return "-inf"

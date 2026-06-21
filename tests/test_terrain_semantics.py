@@ -68,6 +68,20 @@ def test_terrain_semantics_result_blocks_incompatible_source_pack() -> None:
     assert not result.allows_recommendation_language()
 
 
+def test_terrain_semantics_result_blocks_stale_source_freshness() -> None:
+    result = build_terrain_semantics_result(
+        SAMPLE_PACKETS[0],
+        source_pack_version="rules-pack-a",
+        source_freshness="stale",
+    )
+
+    assert result.readiness == "blocked"
+    assert result.is_blocked
+    assert not result.overlays
+    assert any(reason.reason_id == "stale-source-pack" for reason in result.block_reasons)
+    assert not result.allows_recommendation_language()
+
+
 def test_trusted_semantics_require_source_refs_passed_validation_and_current_compatibility() -> (
     None
 ):
@@ -206,3 +220,29 @@ def test_terrain_semantics_result_hash_changes_with_packet_or_source_version() -
     assert changed_source.readiness == "estimated"
     assert original.input_hash != changed_packet.input_hash
     assert original.input_hash != changed_source.input_hash
+
+
+def test_terrain_semantics_result_hash_changes_with_source_refs_or_freshness() -> None:
+    packet = SAMPLE_PACKETS[0]
+
+    source_a = build_terrain_semantics_result(
+        packet,
+        source_ref_ids=("map-packet:source-a",),
+        source_pack_version="rules-pack-a",
+        source_freshness="unknown",
+    )
+    source_b = build_terrain_semantics_result(
+        packet,
+        source_ref_ids=("map-packet:source-b",),
+        source_pack_version="rules-pack-a",
+        source_freshness="unknown",
+    )
+    current = build_terrain_semantics_result(
+        packet,
+        source_ref_ids=("map-packet:source-a",),
+        source_pack_version="rules-pack-a",
+        source_freshness="current",
+    )
+
+    assert source_a.input_hash != source_b.input_hash
+    assert source_a.input_hash != current.input_hash

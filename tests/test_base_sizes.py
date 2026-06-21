@@ -61,6 +61,17 @@ def test_base_geometry_rejects_non_positive_dimensions() -> None:
         BaseGeometry.round(diameter_inches=0.0)
 
 
+@pytest.mark.parametrize("shape", ["hull", "custom"])
+def test_base_geometry_rejects_unsupported_hull_and_custom_shapes(shape: str) -> None:
+    with pytest.raises(ValueError, match="unsupported"):
+        BaseGeometry(shape=shape)
+
+
+def test_base_geometry_rejects_unknown_runtime_shape() -> None:
+    with pytest.raises(ValueError, match="unknown"):
+        BaseGeometry(shape="triangle")  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("diameter_mm", [nan, inf])
 def test_manual_round_base_rejects_non_finite_dimensions(diameter_mm: float) -> None:
     with pytest.raises(ValueError, match="finite"):
@@ -167,6 +178,73 @@ def test_manual_model_frame_result_hash_changes_with_base_size() -> None:
     assert not larger.allows_recommendation_language()
 
 
+def test_manual_model_frame_result_hash_changes_with_audit_fields() -> None:
+    base = build_manual_model_frame_result(
+        model_id="m1",
+        model_label="Model 1",
+        base_record_id="base-40mm",
+        base_label="40mm round base",
+        diameter_mm=40.0,
+        operator_id="local-user",
+        entered_at=ENTERED_AT,
+        reason="Manual setup measurement.",
+        source_ref_ids=("manual-entry:setup",),
+    )
+    changed_model_label = build_manual_model_frame_result(
+        model_id="m1",
+        model_label="Model One",
+        base_record_id="base-40mm",
+        base_label="40mm round base",
+        diameter_mm=40.0,
+        operator_id="local-user",
+        entered_at=ENTERED_AT,
+        reason="Manual setup measurement.",
+        source_ref_ids=("manual-entry:setup",),
+    )
+    changed_base_label = build_manual_model_frame_result(
+        model_id="m1",
+        model_label="Model 1",
+        base_record_id="base-40mm",
+        base_label="Round 40mm base",
+        diameter_mm=40.0,
+        operator_id="local-user",
+        entered_at=ENTERED_AT,
+        reason="Manual setup measurement.",
+        source_ref_ids=("manual-entry:setup",),
+    )
+    changed_reason = build_manual_model_frame_result(
+        model_id="m1",
+        model_label="Model 1",
+        base_record_id="base-40mm",
+        base_label="40mm round base",
+        diameter_mm=40.0,
+        operator_id="local-user",
+        entered_at=ENTERED_AT,
+        reason="Measured from event packet setup sheet.",
+        source_ref_ids=("manual-entry:setup",),
+    )
+    changed_source_refs = build_manual_model_frame_result(
+        model_id="m1",
+        model_label="Model 1",
+        base_record_id="base-40mm",
+        base_label="40mm round base",
+        diameter_mm=40.0,
+        operator_id="local-user",
+        entered_at=ENTERED_AT,
+        reason="Manual setup measurement.",
+        source_ref_ids=("manual-entry:alternate",),
+    )
+
+    hashes = {
+        base.input_hash,
+        changed_model_label.input_hash,
+        changed_base_label.input_hash,
+        changed_reason.input_hash,
+        changed_source_refs.input_hash,
+    }
+    assert len(hashes) == 5
+
+
 def test_non_round_frame_records_can_be_represented_without_los_changes() -> None:
     record = BaseSizeRecord.manual_oval_mm(
         record_id="base-75x42mm",
@@ -214,6 +292,50 @@ def test_model_frame_report_preserves_nested_base_provenance() -> None:
     assert report.source_ref_ids == ("profile-pack:base-size",)
     assert report.validation_records == base.validation_records
     assert report.allows_trusted_claims()
+
+
+def test_empty_manual_unit_footprint_blocks_with_source_refs() -> None:
+    footprint = ManualUnitFootprint(
+        unit_id="unit-empty",
+        label="Empty manual unit",
+        models=(),
+        source_ref_ids=("manual-footprint:setup",),
+    )
+
+    report = footprint.readiness_report()
+
+    assert report.readiness == "blocked"
+    assert report.source_ref_ids == ("manual-footprint:setup",)
+    assert not report.allows_trusted_claims()
+    assert any(reason.reason_id == "missing-unit-models" for reason in report.block_reasons)
+
+
+def test_manual_unit_footprint_preserves_footprint_source_refs() -> None:
+    ready_model = ModelFrameRecord(
+        model_id="m1",
+        label="Model 1",
+        base=BaseSizeRecord.manual_round_mm(
+            record_id="base-40mm",
+            label="40mm round base",
+            diameter_mm=40.0,
+            operator_id="local-user",
+            entered_at=ENTERED_AT,
+            reason="Manual setup measurement.",
+            source_ref_ids=("manual-entry:setup",),
+            reviewed_fields=("diameter_mm",),
+        ),
+    )
+    footprint = ManualUnitFootprint(
+        unit_id="unit-1",
+        label="Manual unit",
+        models=(ready_model,),
+        source_ref_ids=("manual-footprint:setup",),
+    )
+
+    report = footprint.readiness_report()
+
+    assert report.readiness == "estimated"
+    assert report.source_ref_ids == ("manual-entry:setup", "manual-footprint:setup")
 
 
 def test_manual_unit_footprint_reports_missing_model_base() -> None:

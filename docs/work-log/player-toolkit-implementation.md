@@ -648,3 +648,146 @@ Final verification:
 - 2026-06-21: packet validation passed for all 45 official seed packets.
 - 2026-06-21: desktop smoke passed with status `ok`, 45 official packets, page 9 selected, and
   viewer/LOS/heatmap/hidden coverage SVG checks true.
+
+## 2026-06-21 - Phase 3.5 - Semantics Identity Hardening
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Close provenance, identity, and unsupported-shape gaps in Phase 3 before Phase 4 introduces
+  roster archives, XML, pasted text, and community-derived profile data.
+- Keep this as a housekeeping hardening slice, not a roster/profile implementation slice.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-phase-3-5-semantics-identity-hardening.md`
+- `docs/superpowers/plans/2026-06-21-phase-3-5-semantics-identity-hardening.md`
+- `docs/superpowers/qa/2026-06-21-phase-3-5-semantics-identity-hardening-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-3-5-consultant-semantics-hardening.md`
+- `docs/superpowers/reviews/2026-06-21-phase-3-5-adversarial-semantics-hardening.md`
+- `src/warhammer_companion/application/base_sizes.py`
+- `src/warhammer_companion/application/terrain_semantics.py`
+- `src/warhammer_companion/domain/base_sizes.py`
+- `tests/test_base_sizes.py`
+- `tests/test_terrain_semantics.py`
+
+Design decisions:
+
+- Phase 4 implementation remains blocked until the Phase 4 fine-grain spec and QA path are written.
+- Terrain semantics result hashes now include canonical source refs and source freshness.
+- Manual model-frame result hashes now use canonical JSON over durable audit inputs instead of a
+  partial delimited string.
+- Empty manual unit footprints block with `missing-unit-models`.
+- Manual unit footprints preserve footprint-level source refs in readiness reports.
+- Hull/custom base shapes are explicitly unsupported until a future slice adds real footprint
+  geometry or a source-backed measurement policy.
+- No LOS, rendering, `MapPacket`, web, desktop, roster/profile, or protected-data behavior changed.
+
+Consultant review triage:
+
+- Consultant reviewer `019ee952-7e35-7283-aef6-be68652cf0ff` recommended going straight into the
+  Phase 4 spec loop, but accepted that any forced housekeeping slice must stay narrow and avoid
+  LOS/rendering/UI/packet changes.
+- Final consultant reviewer `019ee95b-717b-78d1-8536-cf8b68370ba4` approved the Phase 3.5 working
+  tree with no findings.
+
+Adversarial review triage:
+
+- Adversarial reviewer `019ee952-a817-7fe0-8698-a25dd8f3e7b7` blocked direct Phase 4 implementation
+  until a Phase 4 spec/QA path exists and requested Phase 3.5 hardening first.
+- Accepted: terrain semantics hashes must include provenance-sensitive source refs and freshness.
+- Accepted: stale terrain source freshness must block.
+- Accepted: empty manual footprints must not remain `estimated`.
+- Accepted: hull/custom base shapes must not create exact-looking usable records without a footprint
+  policy.
+- Accepted: manual model-frame hashes must include labels, reason, and source refs in a structured
+  canonical payload.
+- Final adversarial reviewer `019ee96e-04e3-7fb3-a2ee-64cf4f6b8cb2` found one remaining P2:
+  arbitrary runtime strings such as `triangle` could bypass the type hint and create a
+  dimensionless `BaseGeometry`.
+- Accepted: add a runtime shape whitelist and hostile-string regression before commit.
+
+Verification results:
+
+- 2026-06-21: red step failed as expected: targeted tests reported 7 failures covering unsupported
+  hull/custom shapes, manual hash audit fields, empty footprint blocking, footprint source refs,
+  and terrain source-freshness/source-ref identity.
+- 2026-06-21: after implementation, targeted
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  passed: 28 passed.
+- 2026-06-21: adversarial runtime-shape red step failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py::test_base_geometry_rejects_unknown_runtime_shape -q`
+  reported that `BaseGeometry(shape="triangle")` did not raise.
+- 2026-06-21: after the runtime whitelist fix, the hostile-shape regression passed: 1 passed.
+- 2026-06-21: after the runtime whitelist fix, targeted
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  passed: 29 passed.
+- 2026-06-21: focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_toolkit_contracts.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py -q`
+  returned 84 passed.
+- 2026-06-21: after the runtime whitelist fix, focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_toolkit_contracts.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py -q`
+  returned 85 passed.
+- 2026-06-21: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed:
+  89 files already formatted.
+- 2026-06-21: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-21: `.\.venv\Scripts\mypy.exe src` passed: no issues in 62 source files.
+- 2026-06-21: after the runtime whitelist fix, `.\.venv\Scripts\python.exe -m ruff format --check
+  src tests`, `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`
+  all passed again.
+- 2026-06-21: adversarial re-review `019ee971-f6db-7fc1-84bb-15c7ffdcdd14` approved the runtime
+  shape whitelist fix with no critical or important findings. The reviewer independently ran the
+  targeted Phase 3.5 tests and `git diff --check`.
+- 2026-06-21: final targeted
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  passed: 29 passed.
+- 2026-06-21: final focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py tests\test_board_state.py tests\test_toolkit_contracts.py tests\test_los_toolkit.py tests\test_los_geometry.py tests\test_rendering_svg.py -q`
+  returned 85 passed.
+- 2026-06-21: final `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed:
+  89 files already formatted.
+- 2026-06-21: final `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-21: final `.\.venv\Scripts\mypy.exe src` passed: no issues in 62 source files.
+- 2026-06-21: final full pytest passed: 243 passed, 1 known Starlette `TestClient`
+  deprecation warning.
+- 2026-06-21: final packet validation passed for all 45 official seed packets.
+- 2026-06-21: final desktop smoke passed with status `ok`.
+- 2026-06-21: final `git diff --check` passed with normal LF-to-CRLF warnings for touched files.
+- 2026-06-21: first full pytest run timed out at 120 seconds before reporting a failure.
+- 2026-06-21: full pytest rerun with a longer timeout passed: 242 passed, 1 known Starlette
+  `TestClient` deprecation warning.
+- 2026-06-21: packet validation passed for all 45 official seed packets.
+- 2026-06-21: desktop smoke passed with status `ok`, 45 official packets, page 9 selected, and
+  viewer/LOS/heatmap/hidden coverage SVG checks true.
+- 2026-06-21: `git diff --check` passed with normal LF-to-CRLF warnings for touched files.
+
+Browser and Computer Use:
+
+- 2026-06-21: local web app was launched on `http://127.0.0.1:49231`. `Start-Process` was blocked
+  by a Windows duplicate `Path`/`PATH` environment issue, and `C:\tmp` was not writable in this
+  session. A detached Python process launched through the Node-backed helper and HTTP returned 200
+  with title `Warhammer Tournament Companion`.
+- 2026-06-21: Browser route sweep confirmed:
+  - `/viewer`: `Map Viewer`, 1 form, 3 selects, 1 SVG, 16 terrain labels, no console errors.
+  - `/heatmap`: `LOS Heatmap`, 1 form, 5 selects, 1 SVG, 1 embedded PNG, 16 terrain labels, no
+    console errors.
+  - `/los-checker`: `LOS Checker`, 1 form, 3 selects, 1 SVG, 1 embedded PNG, 16 terrain labels, no
+    console errors.
+  - `/hidden-coverage`: `Hidden Coverage`, 1 form, 4 selects, 1 SVG, 1 embedded PNG, 16 terrain
+    labels, no console errors.
+  - `/settings`: `Settings`, 2 forms, no console errors.
+  - `/map-data`: `Map Data Management`, 46 forms, no console errors.
+- 2026-06-21: Browser GET-form path checks confirmed:
+  - `/viewer?layout_variant=B` selected Layout B and rendered 1 SVG with 16 terrain labels.
+  - `/heatmap?layout_variant=B&zone_id=defender&source=interior&offset_inches=0` selected Layout B,
+    Defender, Full deployment zone and rendered 1 SVG with 1 embedded PNG.
+  - `/los-checker?layout_variant=B&x=30.5&y=24.0&base=1.57` preserved the submitted coordinates and
+    base, rendered 1 SVG with 1 embedded PNG, and showed clear/blocked result text.
+  - `/hidden-coverage?layout_variant=B&terrain_area_id=terrain-06&detection_range=15` selected
+    Layout B, Terrain 6, and detection range 15; rendered 1 SVG, 1 embedded PNG, 16 terrain labels,
+    and a 67,101-byte screenshot.
+
+Remaining gate:
+
+- Atomic commit remains before Phase 3.5 closeout.
