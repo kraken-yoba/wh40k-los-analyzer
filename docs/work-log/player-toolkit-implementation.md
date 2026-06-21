@@ -582,3 +582,69 @@ Remaining blocker:
 - Built-in Browser/Computer Use manual QA is not yet restored in the active Codex session.
 - Retest after Codex Desktop reloads the proxy-backed `node_repl` config with:
   `nodeRepl.write("node-repl-ok")`.
+
+## 2026-06-21 - Browser Control Restored After Codex Update
+
+Purpose:
+
+- Re-test built-in Browser after the Codex Desktop update and complete the pending Phase 3 manual
+  QA gate.
+
+Findings:
+
+- Codex updated Browser/Computer tooling to `26.616.51431` and replaced the temporary proxy config
+  with the bundled `cua_node\1b23c930bdf84ed6` runtime.
+- `winget upgrade Codex -s msstore` returned `No available upgrade found`.
+- `node_repl/js` now executes successfully and exposes complete turn metadata.
+- Browser setup with `browser\26.616.51431\scripts\browser-client.mjs` succeeded.
+- The temporary local proxy script was removed because it is no longer needed.
+
+Built-in Browser QA evidence:
+
+- Local web app was launched with Uvicorn on `http://127.0.0.1:49231`.
+- `Invoke-WebRequest -UseBasicParsing http://127.0.0.1:49231` returned HTTP 200 with title
+  `Warhammer Tournament Companion`.
+- Browser opened `http://127.0.0.1:49231/viewer` and confirmed:
+  - title `Warhammer Tournament Companion`
+  - heading `Map Viewer`
+  - 3 selectors
+  - 1 SVG map
+  - all 16 terrain labels
+  - no console errors
+- Browser route sweep confirmed the main pages render without console errors:
+  - `/viewer`: `Map Viewer`, 1 form, 3 selects, 1 SVG, 16 terrain labels.
+  - `/heatmap`: `LOS Heatmap`, 1 form, 5 selects, 1 SVG, 1 embedded PNG.
+  - `/los-checker`: `LOS Checker`, 1 form, 1 SVG, 1 embedded PNG.
+  - `/hidden-coverage`: `Hidden Coverage`, 1 form, 4 selects, 1 SVG, 1 embedded PNG,
+    16 terrain labels.
+  - `/settings`: `Settings`, 2 forms, no console errors.
+  - `/map-data`: `Map Data Management`, 46 forms, no console errors.
+- Browser interaction checks passed:
+  - Map Viewer submitted Layout B and rendered Event Companion page 10 with 1 SVG and 16 terrain
+    labels.
+  - LOS Heatmap submitted Layout B, defender zone, and full deployment zone source; rendered 1 SVG
+    and 1 embedded PNG.
+  - LOS Checker submitted x=30.5, y=24.0, base=1.57; rendered 1 SVG and 1 embedded PNG with
+    clear/blocked result text.
+  - Hidden Coverage submitted Layout B and Terrain 6; rendered 1 SVG, 1 embedded PNG, and 16
+    terrain labels.
+- Browser screenshot evidence from the final Hidden Coverage state:
+  - URL:
+    `http://127.0.0.1:49231/hidden-coverage?player_a=Take+and+Hold&player_b=Take+and+Hold&layout_variant=B&terrain_area_id=terrain-06&detection_range=15`
+  - title `Warhammer Tournament Companion`
+  - screenshot size 67101 bytes.
+
+Final verification:
+
+- 2026-06-21: `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed:
+  89 files already formatted.
+- 2026-06-21: `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- 2026-06-21: `.\.venv\Scripts\mypy.exe src` passed: no issues in 62 source files.
+- 2026-06-21: focused Phase 3 tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  returned 21 passed.
+- 2026-06-21: full `.\.venv\Scripts\python.exe -m pytest` passed: 235 passed,
+  1 known Starlette `TestClient` deprecation warning.
+- 2026-06-21: packet validation passed for all 45 official seed packets.
+- 2026-06-21: desktop smoke passed with status `ok`, 45 official packets, page 9 selected, and
+  viewer/LOS/heatmap/hidden coverage SVG checks true.
