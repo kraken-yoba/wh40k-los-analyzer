@@ -1053,6 +1053,113 @@ Verification results:
 - 2026-06-21: final adversarial reviewer `019eead0-337e-7732-8778-2124147c562b` approved Phase 4B
   with no open critical, important, or minor findings.
 
+Closeout:
+
+- 2026-06-21: Phase 4B committed as `c089240 Add roster snapshot profile candidates`.
+- 2026-06-21: `AGENTS.md` remained unstaged because it is a user-provided repository instruction
+  file.
+
+## 2026-06-21 - Phase 4.5 - Roster Snapshot Housekeeping
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Keep the Phase 4 roster adapter foundation maintainable before Phase 5 movement reach work.
+- Extract pure roster index/source-ref/snapshot profile-pack builders from the byte-admission
+  service into a focused application module.
+- Keep the slice behavior-preserving and avoid new roster authority, profile resolution, official
+  points, UI, persistence, BoardState, movement, threat, damage, mission, analytics, or AI behavior.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-phase-4-5-roster-snapshot-housekeeping.md`
+- `docs/superpowers/plans/2026-06-21-phase-4-5-roster-snapshot-housekeeping.md`
+- `docs/superpowers/qa/2026-06-21-phase-4-5-roster-snapshot-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4-5-consultant-roster-snapshot-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4-5-adversarial-roster-snapshot-housekeeping.md`
+- `src/warhammer_companion/application/roster_snapshots.py`
+- `src/warhammer_companion/application/roster_import.py`
+- `tests/test_roster_snapshot_builders.py`
+
+Design decisions:
+
+- The extracted module lives under `application` because it assembles source-ready application
+  payload projections and hashes rather than defining new durable domain records.
+- `build_roster_import_result_from_bytes(...)` remains the only roster byte-admission entrypoint.
+- `domain.rosters`, `ingestion.roster_xml`, and `ingestion.roster_archives` are intentionally
+  unchanged.
+- The public helper API is limited to canonical source-ref propagation, canonical roster index
+  construction, and roster snapshot profile candidate pack construction.
+- Phase 4B hash/key semantics and local-evidence authority markers must remain stable.
+
+Consultant review triage:
+
+- Consultant reviewer `019eebac-62b1-7983-adbd-0ac8ac4d44ee` approved the extraction as the right
+  Phase 4.5 target before Phase 5.
+- Accepted: keep `build_roster_import_result_from_bytes(...)` behavior and payload shape identical.
+- Accepted: make the new module pure and avoid archive inspection, XML parsing, filesystem, UI,
+  persistence, BoardState, profile resolution, official points, and solver imports.
+- Accepted: direct tests must cover duplicate selection keys, parent/depth/source paths, deep
+  source-ref propagation, snapshot hash sensitivity, and no retained rule-description text.
+
+Adversarial review triage:
+
+- Adversarial reviewer `019eebac-9415-7510-ae38-42e0e1b2767d` approved only as a narrow
+  behavior-preserving extraction.
+- Accepted: do not change selection-key, ordinal-path, duplicate-ID, source-ref normalization, or
+  snapshot pack hash semantics.
+- Accepted: preserve unresolved/local/non-authoritative candidate markers.
+- Accepted: keep rule descriptions hash/length only and keep ingestion safety logic out of the new
+  module.
+- Accepted: run an import-boundary check proving `domain` and `ingestion` do not import
+  `application.roster_snapshots`.
+
+Verification results:
+
+- 2026-06-21: red step confirmed Phase 4.5 direct builder tests failed before implementation
+  because `warhammer_companion.application.roster_snapshots` did not exist.
+- 2026-06-21: after extraction, direct builder tests passed: 4 passed.
+- 2026-06-21: roster regression passed:
+  `tests\test_roster_snapshot_builders.py tests\test_roster_snapshot_profiles.py tests\test_roster_import_safety.py`
+  returned 65 passed.
+- 2026-06-21: broader focused regression passed:
+  `tests\test_roster_snapshot_builders.py tests\test_roster_snapshot_profiles.py tests\test_roster_import_safety.py tests\test_toolkit_contracts.py tests\test_rules_sources.py tests\test_base_sizes.py tests\test_terrain_semantics.py`
+  returned 111 passed.
+- 2026-06-21: import-boundary scan found no `domain` or `ingestion` imports of
+  `application.roster_snapshots`.
+- 2026-06-21: initial static checks found only Ruff formatting/import-order drift in
+  `application.roster_import`; after formatting, `ruff format --check src tests`,
+  `ruff check .`, and `mypy src` passed.
+- 2026-06-21: implementation spec reviewer `019eebb1-ff3d-7742-8b76-2f7e64e35eb4` approved the
+  extraction with no spec-compliance findings.
+- 2026-06-21: implementation adversarial reviewer `019eebb2-3146-7530-9614-267372618b96` approved
+  with no critical or important findings and one minor test-hardening suggestion.
+- 2026-06-21: accepted the minor suggestion and added a direct test proving snapshot pack hashes
+  normalize source refs while exposed `source_ref_ids` preserve the original tuple.
+- 2026-06-21: after the test hardening, roster regression passed:
+  `tests\test_roster_snapshot_builders.py tests\test_roster_snapshot_profiles.py tests\test_roster_import_safety.py`
+  returned 66 passed.
+- 2026-06-21: after the test hardening, `ruff format --check src tests`, `ruff check .`,
+  `mypy src`, and `git diff --check` passed. `git diff --check` reported only normal LF-to-CRLF
+  warnings for touched files.
+- 2026-06-21: final full pytest passed: 309 passed, 1 known Starlette `TestClient` deprecation
+  warning.
+- 2026-06-21: final packet validation passed for all 45 bundled official seed packets.
+- 2026-06-21: final desktop smoke passed with status `ok`, 45 packets, viewer SVG, LOS SVG,
+  heatmap SVG, and hidden coverage SVG.
+- 2026-06-21: final `git diff --check` passed with only normal LF-to-CRLF warnings for touched
+  files.
+- 2026-06-21: Browser QA launched the local app on `http://127.0.0.1:8000`. The first Browser
+  route sweep hit a navigation timeout, but the tab remained healthy and landed on the requested
+  route. A recovered route sweep passed for `/viewer`, `/settings`, `/map-data`, `/heatmap`,
+  `/los-checker`, `/hidden-coverage`, and Layout B/query smoke routes. Map pages rendered expected
+  SVGs, raster pages rendered embedded PNG overlays, submitted query values were preserved, and no
+  browser console warnings or errors were captured.
+- 2026-06-21: protected-artifact path scan passed; no raw roster/archive/PDF/db/log/image/generated
+  data paths were present in the Phase 4.5 candidate file set. `AGENTS.md` remained untracked and
+  excluded.
+
 Remaining gates:
 
-- Atomic commit remains before Phase 4B closeout.
+- Atomic commit.
