@@ -95,6 +95,24 @@ class LosCheckerState:
 
 
 @dataclass(frozen=True)
+class MovementReachState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    start_x: float
+    start_y: float
+    target_x: float
+    target_y: float
+    base: float
+    move: float
+    mode: str
+    movement_modes: list[str]
+    endpoint_estimated_reachable: bool
+    endpoint_reason_details: list[str]
+    map_svg: str
+
+
+@dataclass(frozen=True)
 class HiddenCoverageState:
     packet: MapPacket
     packet_groups: list[PacketSelectGroup]

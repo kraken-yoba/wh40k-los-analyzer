@@ -110,6 +110,27 @@ MODEL_BASE_ATTRS: SVG_ATTRS = {
     "stroke": "#1f5948",
     "stroke-width": 2,
 }
+MOVEMENT_PATH_ATTRS: SVG_ATTRS = {
+    "fill": "none",
+    "stroke": "#294b77",
+    "stroke-opacity": 0.72,
+    "stroke-width": 1.8,
+    "stroke-linejoin": "round",
+    "stroke-linecap": "round",
+}
+MOVEMENT_START_BASE_ATTRS: SVG_ATTRS = {
+    "fill": "#e7f1ff",
+    "fill-opacity": 0.88,
+    "stroke": "#294b77",
+    "stroke-width": 2,
+}
+MOVEMENT_TARGET_BASE_ATTRS: SVG_ATTRS = {
+    "fill": "#fff1d7",
+    "fill-opacity": 0.86,
+    "stroke": "#8b5a1f",
+    "stroke-width": 2,
+    "stroke-dasharray": "4 2",
+}
 RAY_VISIBLE_ATTRS: SVG_ATTRS = {
     "stroke": "#2d6f5b",
     "stroke-opacity": 0.44,
@@ -134,6 +155,11 @@ def render_map_svg(
     rays: list[VisibilityRay] | None = None,
     base_center: tuple[float, float] | None = None,
     base_diameter: float | None = None,
+    movement_envelope: BaseGeometry | None = None,
+    movement_path: BaseGeometry | None = None,
+    movement_start_center: tuple[float, float] | None = None,
+    movement_target_center: tuple[float, float] | None = None,
+    movement_base_diameter: float | None = None,
 ) -> str:
     scale = 12
     width = packet.board.width * scale
@@ -174,6 +200,17 @@ def render_map_svg(
 
     if hidden_coverage is not None:
         parts.extend(_render_hidden_coverage_raster(packet, hidden_coverage, scale))
+
+    if movement_envelope is not None:
+        parts.extend(
+            _render_geometry_raster(
+                packet,
+                movement_envelope,
+                scale,
+                css_class="movement-envelope-image",
+                color=(75, 125, 178, 96),
+            )
+        )
 
     for zone in packet.deployment_zones:
         parts.append(
@@ -248,6 +285,33 @@ def render_map_svg(
                 _feature_css_class("dense-feature", dense_feature.profile),
                 _dense_feature_attrs(dense_feature.profile),
             )
+        )
+
+    if movement_path is not None:
+        parts.extend(
+            _render_geometry_outlines(
+                movement_path,
+                scale,
+                packet.board.height,
+                "movement-path-outline",
+                MOVEMENT_PATH_ATTRS,
+            )
+        )
+
+    if movement_start_center is not None and movement_base_diameter is not None:
+        cx, cy = _to_svg_point(movement_start_center, scale, packet.board.height)
+        parts.append(
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
+            f'r="{movement_base_diameter * scale / 2:.1f}" '
+            f'class="movement-start-base"{_attrs(MOVEMENT_START_BASE_ATTRS)}/>'
+        )
+
+    if movement_target_center is not None and movement_base_diameter is not None:
+        cx, cy = _to_svg_point(movement_target_center, scale, packet.board.height)
+        parts.append(
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
+            f'r="{movement_base_diameter * scale / 2:.1f}" '
+            f'class="movement-target-base"{_attrs(MOVEMENT_TARGET_BASE_ATTRS)}/>'
         )
 
     if hidden_coverage is not None:
@@ -333,6 +397,29 @@ def _render_coverage_raster(packet: MapPacket, polygon: BaseGeometry, scale: int
     rgba[visible] = (42, 140, 158, 118)
     image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "coverage-image")]
+
+
+def _render_geometry_raster(
+    packet: MapPacket,
+    geometry: BaseGeometry,
+    scale: int,
+    *,
+    css_class: str,
+    color: tuple[int, int, int, int],
+) -> list[str]:
+    if geometry.is_empty:
+        return []
+    width = int(round(packet.board.width * scale))
+    height = int(round(packet.board.height * scale))
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    _draw_geometry_mask(draw, geometry, scale, packet.board.height, exterior_fill=255)
+
+    rgba: NDArray[np.uint8] = np.zeros((height, width, 4), dtype=np.uint8)
+    visible = np.asarray(mask, dtype=np.uint8) > 0
+    rgba[visible] = color
+    image = Image.fromarray(rgba, "RGBA")
+    return [_image_data_uri(image, width, height, css_class)]
 
 
 def _render_hidden_coverage_raster(
@@ -457,16 +544,19 @@ def _render_geometry_outlines(
     scale: int,
     board_height: float,
     css_class: str,
+    attrs: SVG_ATTRS | None = None,
 ) -> list[str]:
     if geometry.is_empty:
         return []
     if isinstance(geometry, MultiPolygon):
         rendered: list[str] = []
         for polygon in geometry.geoms:
-            rendered.extend(_render_polygon_outlines(polygon, scale, board_height, css_class))
+            rendered.extend(
+                _render_polygon_outlines(polygon, scale, board_height, css_class, attrs)
+            )
         return rendered
     if isinstance(geometry, Polygon):
-        return _render_polygon_outlines(geometry, scale, board_height, css_class)
+        return _render_polygon_outlines(geometry, scale, board_height, css_class, attrs)
     return []
 
 
@@ -475,6 +565,7 @@ def _render_polygon_outlines(
     scale: int,
     board_height: float,
     css_class: str,
+    attrs: SVG_ATTRS | None = None,
 ) -> list[str]:
     rings = [polygon.exterior, *polygon.interiors]
     return [
@@ -483,7 +574,7 @@ def _render_polygon_outlines(
             scale,
             board_height,
             css_class,
-            SAFE_ZONE_ATTRS if css_class == "safe-zone-outline" else None,
+            attrs or (SAFE_ZONE_ATTRS if css_class == "safe-zone-outline" else None),
         )
         for ring in rings
         if len(ring.coords) >= 3

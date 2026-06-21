@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Warhammer Tournament Companion</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v=20260619">
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v=20260621">
   </head>
   <body>
     <div class="app-shell">
@@ -20,6 +20,7 @@
           <a href="/viewer" class="{{ 'active' if active_page == 'viewer' else '' }}">Map Viewer</a>
           <a href="/heatmap" class="{{ 'active' if active_page == 'heatmap' else '' }}">LOS Heatmap</a>
           <a href="/los-checker" class="{{ 'active' if active_page == 'los-checker' else '' }}">LOS Checker</a>
+          <a href="/movement-reach" class="{{ 'active' if active_page == 'movement-reach' else '' }}">Movement Reach</a>
           <a href="/hidden-coverage" class="{{ 'active' if active_page == 'hidden-coverage' else '' }}">Hidden Coverage</a>
         </nav>
       </aside>

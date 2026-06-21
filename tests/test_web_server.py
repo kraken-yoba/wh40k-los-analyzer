@@ -8,6 +8,7 @@ from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import (
     HeatmapState,
     HiddenCoverageState,
+    MovementReachState,
     TerrainSelectOption,
 )
 from warhammer_companion.domain.models import MapPacket
@@ -203,6 +204,91 @@ def test_hidden_coverage_route_uses_terrain_and_range_controls(monkeypatch) -> N
     assert 'value="18"' in response.text
     assert "Hidden Coverage" in response.text
     assert "hidden-coverage-image" in response.text
+
+
+def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_language(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, float, float, float, float, float, float, str]] = []
+    packet = server.repository.default_packet()
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
+
+    class FakeService:
+        def movement_reach_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+            start_x: float = 16.0,
+            start_y: float = 10.0,
+            target_x: float = 22.0,
+            target_y: float = 10.0,
+            base: float = 1.57,
+            move: float = 6.0,
+            mode: str = "normal",
+        ) -> MovementReachState:
+            resolved_packet_id = packet_id or packet.id
+            calls.append(
+                (
+                    resolved_packet_id,
+                    start_x,
+                    start_y,
+                    target_x,
+                    target_y,
+                    base,
+                    move,
+                    mode,
+                )
+            )
+            return MovementReachState(
+                packet=packet,
+                packet_groups=[],
+                packet_selector=packet_selector,
+                start_x=start_x,
+                start_y=start_y,
+                target_x=target_x,
+                target_y=target_y,
+                base=base,
+                move=move,
+                mode=mode,
+                movement_modes=["normal", "advance", "charge"],
+                endpoint_estimated_reachable=True,
+                endpoint_reason_details=[],
+                map_svg=(
+                    '<svg class="map-svg" role="img" aria-label="fake movement map">'
+                    '<image class="movement-envelope-image"/></svg>'
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/movement-reach?packet_id={packet.id}&start_x=16&start_y=10"
+        "&target_x=22&target_y=10&base=1.57&move=6&mode=advance"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, 16.0, 10.0, 22.0, 10.0, 1.57, 6.0, "advance")]
+    assert "Movement Reach" in response.text
+    assert 'name="start_x"' in response.text
+    assert 'name="target_x"' in response.text
+    assert 'name="move"' in response.text
+    assert 'name="mode"' in response.text
+    assert 'value="advance" selected' in response.text
+    assert "estimated 2d geometry" in normalized
+    assert "no straight-corridor blocker found under current assumptions" in normalized
+    assert "movement-envelope-image" in response.text
+    assert "<script" not in response.text
+    for forbidden in ("legal", " safe", "recommended", "optimal", "likely"):
+        assert forbidden not in normalized
 
 
 def test_pages_do_not_load_custom_frontend_javascript() -> None:

@@ -403,6 +403,43 @@ button,
   filter: drop-shadow(0 0 1px rgba(28, 37, 32, 0.7));
 }
 
+.movement-envelope-swatch {
+  background: rgba(75, 125, 178, 0.5);
+}
+
+.movement-path-line {
+  color: rgba(41, 75, 119, 0.82);
+}
+
+.movement-start-swatch {
+  background: #e7f1ff;
+  border-color: #294b77;
+}
+
+.movement-target-swatch {
+  background: #fff1d7;
+  border-color: #8b5a1f;
+}
+
+.diagnostic-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.diagnostic-summary strong {
+  color: var(--ink);
+}
+
+.diagnostic-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .map-wrap {
   overflow: auto;
   background: #d8d2c4;
@@ -555,6 +592,32 @@ button,
   stroke-width: 2;
 }
 
+.movement-envelope-image {
+  opacity: 1;
+}
+
+.movement-path-outline {
+  fill: none;
+  stroke: #294b77;
+  stroke-opacity: 0.72;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.movement-start-base {
+  fill: rgba(231, 241, 255, 0.88);
+  stroke: #294b77;
+  stroke-width: 2;
+}
+
+.movement-target-base {
+  fill: rgba(255, 241, 215, 0.86);
+  stroke: #8b5a1f;
+  stroke-width: 2;
+  stroke-dasharray: 4 2;
+}
+
 @media (max-width: 820px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -585,10 +648,14 @@ button,
 .coverage-image,
 .heatmap-image,
 .hidden-coverage-image,
+.movement-envelope-image,
 .coverage-cell,
 .safe-zone-outline,
 .selected-terrain-area,
 .hidden-sample-point,
+.movement-path-outline,
+.movement-start-base,
+.movement-target-base,
 .ray-visible,
 .ray-blocked {
   pointer-events: none;

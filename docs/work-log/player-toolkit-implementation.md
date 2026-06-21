@@ -1160,6 +1160,114 @@ Verification results:
   data paths were present in the Phase 4.5 candidate file set. `AGENTS.md` remained untracked and
   excluded.
 
-Remaining gates:
+Closeout:
 
-- Atomic commit.
+- 2026-06-21: Phase 4.5 committed as `11bd4cd Housekeep roster snapshot builders`.
+- 2026-06-21: `AGENTS.md` remained unstaged because it is a user-provided repository instruction
+  file.
+
+## 2026-06-21 - Phase 5 - Movement Reach Toolkit
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add the first deterministic player tool beyond LOS.
+- Provide a manual single-model circular-base 2D movement reach diagnostic before roster/profile
+  import is complete.
+- Surface board-edge, dense-feature, and straight-line swept-base endpoint diagnostics without
+  claiming exact rules-legal movement.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-movement-reach-toolkit-spec.md`
+- `docs/superpowers/plans/2026-06-21-movement-reach-toolkit.md`
+- `docs/superpowers/qa/2026-06-21-movement-reach-toolkit-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-5-consultant-movement-reach.md`
+- `docs/superpowers/reviews/2026-06-21-phase-5-adversarial-movement-reach.md`
+
+Design decisions:
+
+- Phase 5 is manual-input first: start point, target point, base diameter, movement distance, and
+  movement mode label.
+- Results are single-model circular-base geometric estimates, not exact movement legality.
+- Dense features are treated as 2D movement blockers in this estimate, matching the current MVP
+  terrain assumption until source-backed movement traits exist.
+- The movement-envelope overlay is an endpoint estimate. The selected endpoint diagnostic separately
+  checks board edge, distance, and straight-line swept-base collision.
+- Move modes are labels for the operator-entered distance in this slice. Dice, modifiers, rerolls,
+  reserves, transports, vertical movement, and source-backed mode legality are deferred.
+- Coherency, multi-model collision, enemy/friendly collision, non-round base orientation, objective
+  and action markers, exposure summaries, and pathfinding around obstacles are explicitly deferred.
+- Web and desktop surfaces should remain thin adapters over `WarhammerCompanionService`.
+
+Consultant review triage:
+
+- Geometry consultant `019eebbe-579b-7631-9786-69efc5050571` approved if the tool remains an
+  estimated 2D movement reach diagnostic, not endpoint legality.
+- UI consultant `019eebbe-8fb8-7050-bb2c-5a6c1867063e` approved adding web and desktop surfaces
+  after the service/result layer, as thin adapters only.
+- Accepted: use `los/movement.py`, a toolkit builder, service state, and thin web/desktop surfaces.
+- Accepted: avoid legal, safe, recommended, optimal, likely, and guaranteed wording.
+
+Adversarial review triage:
+
+- Adversarial reviewer `019eebbe-bd44-7e60-b0a0-aa6a30cedc19` conditionally approved only after
+  narrowing to a diagnostic single-model, manual, circular-base, 2D straight-corridor estimate.
+- Accepted: cut coherency, multi-model collision, enemy/friendly collision, non-round base support,
+  objective/action markers, exposure summaries, pathfinding around obstacles, and later-phase
+  mechanics.
+- Accepted: valid manual round-base results are `estimated`; invalid base/movement inputs are
+  `blocked` with no overlays.
+
+Review gates:
+
+- Consultant reviewers must approve movement geometry/service scope and UI adapter scope.
+- Adversarial reviewer must approve false-precision guardrails, source/readiness boundaries, and
+  scope cuts before implementation.
+
+TDD and implementation results:
+
+- Red step: focused movement geometry/toolkit tests failed on missing
+  `warhammer_companion.los.movement` and `warhammer_companion.application.movement_reach`.
+- Green step: movement geometry/toolkit tests passed after adding typed movement domain records,
+  geometry helpers, and the `movement_reach` toolkit result builder.
+- Integration step: service, rendering, web, and desktop adapter tests failed first on missing
+  state/route/rendering/smoke contracts, then passed after adding shared service state, SVG
+  projection, server-rendered web controls, and a PySide6 desktop screen.
+
+Implementation review results:
+
+- Spec-compliance reviewer `019eebcf-f3ca-79f0-b9c0-79bd8928978c` found no movement-code or
+  overclaim-language blocker, then blocked on this stale log section.
+- Adversarial implementation reviewer `019eebd0-76c3-72c1-9309-4259ece613b8` initially blocked on
+  Ruff, mypy, and broad "geometric blocker" wording. The fixes were applied and the reviewer
+  approved the current diff.
+
+Verification completed:
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_movement_reach_toolkit.py -q`
+  passed: 9 tests.
+- `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_movement_reach_toolkit.py tests\test_application_service.py tests\test_rendering_svg.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  passed: 53 tests, with the existing Starlette `httpx` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- `.\.venv\Scripts\python.exe -m pytest` passed: 323 tests, with the existing Starlette `httpx`
+  deprecation warning.
+- `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets`
+  passed: all 45 bundled official seed packets valid.
+- `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with
+  `movement_reach_svg: true`.
+- `git diff --check` reported no whitespace errors; Git printed line-ending normalization warnings.
+- Protected changed-path scan found no blocked generated/raw artifact paths; `AGENTS.md` remains
+  untracked and unstaged.
+- Built-in Browser QA passed for `/movement-reach`, the Layout B query path, `/viewer`,
+  `/heatmap`, `/los-checker`, `/hidden-coverage`, `/settings`, and `/map-data`, with no console
+  warnings or errors. The movement page rendered one map SVG and one movement-envelope raster,
+  preserved manual query inputs, showed "Estimated 2D geometry" wording, and avoided legal, safe,
+  recommended, optimal, likely, and guaranteed wording.
+
+Remaining blocker status:
+
+- No validation blocker remains at commit preparation time. Atomic commit follows this log entry.

@@ -15,6 +15,7 @@ from warhammer_companion.desktop.screens.heatmap import HeatmapScreen
 from warhammer_companion.desktop.screens.hidden_coverage import HiddenCoverageScreen
 from warhammer_companion.desktop.screens.los_checker import LosCheckerScreen
 from warhammer_companion.desktop.screens.map_data import MapDataScreen
+from warhammer_companion.desktop.screens.movement_reach import MovementReachScreen
 from warhammer_companion.desktop.screens.settings import SettingsScreen
 from warhammer_companion.desktop.screens.viewer import ViewerScreen
 
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self._add_screen("Map Viewer", ViewerScreen(service))
         self._add_screen("LOS Heatmap", HeatmapScreen(service))
         self._add_screen("LOS Checker", LosCheckerScreen(service))
+        self._add_screen("Movement Reach", MovementReachScreen(service))
         self._add_screen("Hidden Coverage", HiddenCoverageScreen(service))
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setCurrentRow(2)

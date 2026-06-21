@@ -28,6 +28,7 @@ def test_desktop_smoke_summary_renders_core_states() -> None:
     assert summary["heatmap_svg"]
     assert summary["los_svg"]
     assert summary["hidden_coverage_svg"]
+    assert summary["movement_reach_svg"]
     assert summary["deployment_zones"] == 2
 
 
@@ -135,6 +136,29 @@ def test_desktop_hidden_coverage_screen_renders_map_pixmap() -> None:
     assert "Hidden Coverage" in labels
     hidden_screen = window.stack.widget(labels.index("Hidden Coverage"))
     pixmap = hidden_screen.map.rendered_pixmap()
+
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.width() > 528
+    assert pixmap.height() > 720
+    window.close()
+    app.processEvents()
+
+
+def test_desktop_movement_reach_screen_renders_map_pixmap() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Movement Reach" in labels
+    movement_screen = window.stack.widget(labels.index("Movement Reach"))
+    pixmap = movement_screen.map.rendered_pixmap()
 
     assert pixmap is not None
     assert not pixmap.isNull()

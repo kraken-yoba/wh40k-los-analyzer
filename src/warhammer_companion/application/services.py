@@ -9,12 +9,14 @@ from warhammer_companion.application.los_toolkit import (
     LosCheckerToolkitPayload,
     build_los_checker_toolkit_result,
 )
+from warhammer_companion.application.movement_reach import build_movement_reach_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
     HeatmapState,
     HiddenCoverageState,
     LosCheckerState,
     MapDataState,
+    MovementReachState,
     PacketLayoutOption,
     PacketSelectGroup,
     PacketSelectOption,
@@ -24,6 +26,7 @@ from warhammer_companion.application.view_models import (
     ViewerState,
 )
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
 from warhammer_companion.domain.repository import MapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
@@ -213,6 +216,95 @@ class WarhammerCompanionService:
             packet,
             center=center,
             base_diameter=base,
+        )
+
+    def movement_reach_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        start_x: float = 16.0,
+        start_y: float = 10.0,
+        target_x: float = 22.0,
+        target_y: float = 10.0,
+        base: float = 1.57,
+        move: float = 6.0,
+        mode: str = "normal",
+    ) -> MovementReachState:
+        result = self.movement_reach_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            start_x=start_x,
+            start_y=start_y,
+            target_x=target_x,
+            target_y=target_y,
+            base=base,
+            move=move,
+            mode=mode,
+        )
+        payload = result.payload
+        if result.is_blocked:
+            map_svg = render_map_svg(payload.packet)
+            endpoint_details = [reason.detail for reason in result.block_reasons]
+        else:
+            map_svg = render_map_svg(
+                payload.packet,
+                movement_envelope=payload.movement_envelope,
+                movement_path=payload.swept_path,
+                movement_start_center=payload.start_center,
+                movement_target_center=payload.target_center,
+                movement_base_diameter=payload.base_diameter,
+            )
+            endpoint_details = [reason.detail for reason in payload.endpoint.reasons]
+        return MovementReachState(
+            packet=payload.packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=payload.packet.id),
+            start_x=payload.start_center[0],
+            start_y=payload.start_center[1],
+            target_x=payload.target_center[0],
+            target_y=payload.target_center[1],
+            base=payload.base_diameter,
+            move=payload.move_distance,
+            mode=payload.mode,
+            movement_modes=list(MOVEMENT_MODES),
+            endpoint_estimated_reachable=payload.endpoint.estimated_reachable,
+            endpoint_reason_details=endpoint_details,
+            map_svg=map_svg,
+        )
+
+    def movement_reach_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        start_x: float = 16.0,
+        start_y: float = 10.0,
+        target_x: float = 22.0,
+        target_y: float = 10.0,
+        base: float = 1.57,
+        move: float = 6.0,
+        mode: str = "normal",
+    ) -> ToolkitResult[MovementReachPayload]:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        return build_movement_reach_toolkit_result(
+            packet,
+            start_center=(start_x, start_y),
+            target_center=(target_x, target_y),
+            base_diameter=base,
+            move_distance=move,
+            mode=mode,
         )
 
     def hidden_coverage_state(

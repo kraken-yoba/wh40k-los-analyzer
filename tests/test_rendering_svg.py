@@ -11,6 +11,7 @@ from warhammer_companion.los.geometry import (
     safe_heatmap_regions,
     visibility_polygon_from_base,
 )
+from warhammer_companion.los.movement import movement_envelope, swept_base_path
 from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
@@ -60,6 +61,36 @@ def test_binary_coverage_polygon_renders_as_embedded_pixel_raster() -> None:
     assert 'class="coverage-image"' in svg
     assert "data:image/png;base64," in svg
     assert 'class="coverage-cell"' not in svg
+
+
+def test_movement_envelope_renders_as_embedded_raster_with_endpoint_markers() -> None:
+    packet = SAMPLE_PACKETS[0]
+    envelope = movement_envelope(
+        packet,
+        start_center=(16.0, 10.0),
+        base_diameter=1.57,
+        move_distance=6.0,
+    )
+    movement_path = swept_base_path(
+        start_center=(16.0, 10.0),
+        target_center=(22.0, 10.0),
+        base_diameter=1.57,
+    )
+
+    svg = render_map_svg(
+        packet,
+        movement_envelope=envelope,
+        movement_path=movement_path,
+        movement_start_center=(16.0, 10.0),
+        movement_target_center=(22.0, 10.0),
+        movement_base_diameter=1.57,
+    )
+
+    assert 'class="movement-envelope-image"' in svg
+    assert 'class="movement-path-outline"' in svg
+    assert 'class="movement-start-base"' in svg
+    assert 'class="movement-target-base"' in svg
+    assert "data:image/png;base64," in svg
 
 
 def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:

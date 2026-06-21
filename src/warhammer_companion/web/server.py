@@ -224,6 +224,57 @@ def los_checker(
     )
 
 
+@app.get("/movement-reach", response_class=HTMLResponse)
+def movement_reach(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    start_x: float = 16.0,
+    start_y: float = 10.0,
+    target_x: float = 22.0,
+    target_y: float = 10.0,
+    base: float = 1.57,
+    move: float = 6.0,
+    mode: str = "normal",
+) -> HTMLResponse:
+    state = service.movement_reach_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        start_x=start_x,
+        start_y=start_y,
+        target_x=target_x,
+        target_y=target_y,
+        base=base,
+        move=move,
+        mode=mode,
+    )
+    return templates.TemplateResponse(
+        request,
+        "movement_reach.html",
+        {
+            "active_page": "movement-reach",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "start_x": state.start_x,
+            "start_y": state.start_y,
+            "target_x": state.target_x,
+            "target_y": state.target_y,
+            "base": state.base,
+            "move": state.move,
+            "mode": state.mode,
+            "movement_modes": state.movement_modes,
+            "endpoint_estimated_reachable": state.endpoint_estimated_reachable,
+            "endpoint_reason_details": state.endpoint_reason_details,
+            "map_svg": state.map_svg,
+        },
+    )
+
+
 @app.get("/hidden-coverage", response_class=HTMLResponse)
 def hidden_coverage(
     request: Request,
@@ -277,6 +328,44 @@ def update_los_checker(
     )
     return RedirectResponse(
         f"/los-checker?packet_id={resolved_packet_id}&x={x}&y={y}&base={base}",
+        status_code=303,
+    )
+
+
+@app.post("/movement-reach", response_class=HTMLResponse)
+def update_movement_reach(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    start_x: float = Form(...),
+    start_y: float = Form(...),
+    target_x: float = Form(...),
+    target_y: float = Form(...),
+    base: float = Form(...),
+    move: float = Form(...),
+    mode: str = Form("normal"),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    return RedirectResponse(
+        "/movement-reach?"
+        + urlencode(
+            {
+                "packet_id": resolved_packet_id,
+                "start_x": start_x,
+                "start_y": start_y,
+                "target_x": target_x,
+                "target_y": target_y,
+                "base": base,
+                "move": move,
+                "mode": mode,
+            }
+        ),
         status_code=303,
     )
 

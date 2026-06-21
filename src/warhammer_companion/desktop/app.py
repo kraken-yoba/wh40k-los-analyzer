@@ -66,6 +66,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
         offset_inches=0,
     )
     los = service.los_checker_state(packet_id=viewer.packet.id)
+    movement_reach = service.movement_reach_state(packet_id=viewer.packet.id)
     hidden_coverage = service.hidden_coverage_state(packet_id=viewer.packet.id)
     return {
         "status": "ok",
@@ -80,6 +81,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
         "viewer_svg": "<svg" in viewer.map_svg,
         "heatmap_svg": "<svg" in heatmap.map_svg,
         "los_svg": "<svg" in los.map_svg,
+        "movement_reach_svg": "<svg" in movement_reach.map_svg,
         "hidden_coverage_svg": "<svg" in hidden_coverage.map_svg,
         "dense_features": len(viewer.packet.dense_features),
         "light_features": len(viewer.packet.light_features),
