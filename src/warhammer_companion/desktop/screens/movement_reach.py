@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (  # type: ignore[import-not-found]
     QComboBox,
-    QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -12,7 +11,7 @@ from PySide6.QtWidgets import (  # type: ignore[import-not-found]
 
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import MovementReachState
-from warhammer_companion.desktop.screens.common import PacketSelectorWidget
+from warhammer_companion.desktop.screens.common import PacketSelectorWidget, double_spin_box
 from warhammer_companion.desktop.widgets.svg_map import SvgMapWidget
 
 
@@ -21,12 +20,12 @@ class MovementReachScreen(QWidget):
         super().__init__()
         self.service = service
         self.packet_selector = PacketSelectorWidget(service)
-        self.start_x_input = _spin_box(0.0, 44.0, 16.0)
-        self.start_y_input = _spin_box(0.0, 60.0, 10.0)
-        self.target_x_input = _spin_box(0.0, 44.0, 22.0)
-        self.target_y_input = _spin_box(0.0, 60.0, 10.0)
-        self.base_input = _spin_box(0.1, 8.0, 1.57)
-        self.move_input = _spin_box(0.1, 30.0, 6.0)
+        self.start_x_input = double_spin_box(0.0, 44.0, 16.0)
+        self.start_y_input = double_spin_box(0.0, 60.0, 10.0)
+        self.target_x_input = double_spin_box(0.0, 44.0, 22.0)
+        self.target_y_input = double_spin_box(0.0, 60.0, 10.0)
+        self.base_input = double_spin_box(0.1, 8.0, 1.57)
+        self.move_input = double_spin_box(0.1, 30.0, 6.0)
         self.mode_combo = QComboBox()
         self.generate_button = QPushButton("Generate")
         self.status_label = QLabel("")
@@ -104,12 +103,3 @@ class MovementReachScreen(QWidget):
             return
         detail = "; ".join(state.endpoint_reason_details) or "Manual inputs need adjustment."
         self.status_label.setText(f"Endpoint diagnostic: {detail}")
-
-
-def _spin_box(minimum: float, maximum: float, value: float) -> QDoubleSpinBox:
-    spin_box = QDoubleSpinBox()
-    spin_box.setRange(minimum, maximum)
-    spin_box.setDecimals(2)
-    spin_box.setSingleStep(0.25)
-    spin_box.setValue(value)
-    return spin_box

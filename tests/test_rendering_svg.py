@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import base64
 import re
 from dataclasses import replace
+from io import BytesIO
+
+import numpy as np
+from PIL import Image
 
 from warhammer_companion.domain.models import DeploymentZone
 from warhammer_companion.los.geometry import (
@@ -63,6 +68,19 @@ def test_binary_coverage_polygon_renders_as_embedded_pixel_raster() -> None:
     assert 'class="coverage-cell"' not in svg
 
 
+def test_coverage_raster_preserves_visible_pixel_color_and_alpha() -> None:
+    packet = SAMPLE_PACKETS[0]
+    polygon = visibility_polygon_from_base(packet, center=(22.0, 10.0), base_diameter=1.57)
+
+    svg = render_map_svg(packet, coverage_polygon=polygon)
+
+    image = _decoded_png_for_class(svg, "coverage-image")
+    rgba = np.asarray(image, dtype=np.uint8)
+    visible = rgba[rgba[..., 3] > 0]
+    assert visible.size > 0
+    assert (42, 140, 158, 118) in {tuple(pixel) for pixel in visible}
+
+
 def test_movement_envelope_renders_as_embedded_raster_with_endpoint_markers() -> None:
     packet = SAMPLE_PACKETS[0]
     envelope = movement_envelope(
@@ -93,6 +111,24 @@ def test_movement_envelope_renders_as_embedded_raster_with_endpoint_markers() ->
     assert "data:image/png;base64," in svg
 
 
+def test_movement_envelope_raster_preserves_visible_pixel_color_and_alpha() -> None:
+    packet = SAMPLE_PACKETS[0]
+    envelope = movement_envelope(
+        packet,
+        start_center=(16.0, 10.0),
+        base_diameter=1.57,
+        move_distance=6.0,
+    )
+
+    svg = render_map_svg(packet, movement_envelope=envelope)
+
+    image = _decoded_png_for_class(svg, "movement-envelope-image")
+    rgba = np.asarray(image, dtype=np.uint8)
+    visible = rgba[rgba[..., 3] > 0]
+    assert visible.size > 0
+    assert (75, 125, 178, 96) in {tuple(pixel) for pixel in visible}
+
+
 def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:
     packet = SAMPLE_PACKETS[0]
     terrain_area_id = packet.terrain_areas[0].id
@@ -109,6 +145,41 @@ def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:
     assert 'class="selected-terrain-area"' in svg
     assert 'class="hidden-sample-point"' in svg
     assert "data:image/png;base64," in svg
+
+
+def test_hidden_coverage_raster_preserves_zero_and_positive_alpha_pixels() -> None:
+    packet = SAMPLE_PACKETS[0]
+    terrain_area_id = packet.terrain_areas[0].id
+    coverage = hidden_coverage_from_terrain_area(
+        packet,
+        terrain_area_id,
+        observer_grid_step=4.0,
+        hidden_sample_step=3.0,
+    )
+
+    svg = render_map_svg(packet, hidden_coverage=coverage)
+
+    image = _decoded_png_for_class(svg, "hidden-coverage-image")
+    alpha = np.asarray(image, dtype=np.uint8)[..., 3]
+    assert int(alpha.max()) > 0
+    assert int(alpha.min()) == 0
+
+
+def test_heatmap_raster_exclusion_preserves_transparent_pixels() -> None:
+    packet = SAMPLE_PACKETS[0]
+    polygons = heatmap_visibility_polygons_from_deployment_zone(packet, "attacker")
+    excluded_area = heatmap_exclusion_zone(packet, "attacker", source="interior")
+
+    svg = render_map_svg(
+        packet,
+        heatmap_polygons=polygons,
+        heatmap_exclusion=excluded_area,
+    )
+
+    image = _decoded_png_for_class(svg, "heatmap-image")
+    alpha = np.asarray(image, dtype=np.uint8)[..., 3]
+    assert int(alpha.max()) > 0
+    assert int(alpha.min()) == 0
 
 
 def test_hidden_coverage_raster_uses_pixel_accumulated_threat_regions() -> None:
@@ -181,3 +252,10 @@ def test_curved_deployment_zone_visual_boundary_is_densified() -> None:
 
     assert match is not None
     assert len(match.group(1).split()) > len(curved_attacker.footprint) * 2
+
+
+def _decoded_png_for_class(svg: str, css_class: str) -> Image.Image:
+    pattern = rf'<image [^>]*href="data:image/png;base64,([^"]+)"[^>]*class="{css_class}"'
+    match = re.search(pattern, svg)
+    assert match is not None
+    return Image.open(BytesIO(base64.b64decode(match.group(1)))).convert("RGBA")

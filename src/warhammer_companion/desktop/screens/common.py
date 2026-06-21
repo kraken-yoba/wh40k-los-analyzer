@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal  # type: ignore[import-not-found]
 from PySide6.QtWidgets import (  # type: ignore[import-not-found]
     QComboBox,
+    QDoubleSpinBox,
     QGridLayout,
     QLabel,
     QWidget,
@@ -37,6 +38,15 @@ def selected_packet_id(combo: QComboBox) -> str | None:
 def set_label_text(label: QLabel, text: str) -> None:
     label.setText(text)
     label.setWordWrap(True)
+
+
+def double_spin_box(minimum: float, maximum: float, value: float) -> QDoubleSpinBox:
+    spin_box = QDoubleSpinBox()
+    spin_box.setRange(minimum, maximum)
+    spin_box.setDecimals(2)
+    spin_box.setSingleStep(0.25)
+    spin_box.setValue(value)
+    return spin_box
 
 
 class PacketSelectorWidget(QWidget):

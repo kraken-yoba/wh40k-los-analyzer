@@ -1271,3 +1271,82 @@ Verification completed:
 Remaining blocker status:
 
 - No validation blocker remains at commit preparation time. Atomic commit follows this log entry.
+
+## 2026-06-21 - Phase 5.5 - Movement Reach Housekeeping
+
+Branch: `codex/assistant-companion-roadmap`
+
+Commit: pending
+
+Goal:
+
+- Run a behavior-preserving housekeeping slice after Movement Reach and before Phase 6 Threat
+  Range.
+- Reduce helper duplication without changing movement reach, LOS, web, desktop, renderer semantics,
+  route parameters, or source authority.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-phase-5-5-movement-housekeeping.md`
+- `docs/superpowers/plans/2026-06-21-phase-5-5-movement-housekeeping.md`
+- `docs/superpowers/qa/2026-06-21-phase-5-5-movement-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-5-5-consultant-movement-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-21-phase-5-5-adversarial-movement-housekeeping.md`
+
+Changes:
+
+- Added `double_spin_box(...)` in `desktop/screens/common.py`.
+- Replaced the duplicate private `_spin_box(...)` helpers in LOS Checker and Movement Reach desktop
+  screens.
+- Made `_render_coverage_raster(...)` delegate to the existing binary `_render_geometry_raster(...)`
+  helper with the same `coverage-image` CSS class and `(42, 140, 158, 118)` RGBA value.
+- Added decoded PNG tests that lock representative raster semantics for `coverage-image`,
+  `movement-envelope-image`, `hidden-coverage-image`, and `heatmap-image`.
+
+Review results:
+
+- Consultant reviewer `019eebe6-ce37-7130-9723-f8389d72930a` approved the narrow helper/raster
+  cleanup and rejected broader `render_map_svg(...)` API redesign before Phase 6.
+- Adversarial scope reviewer `019eebe6-f9c7-7e33-8da3-fe5a5bc4133e` approved with constraints:
+  share raster plumbing only, preserve overlay-specific semantics/classes/order, keep legacy cell
+  fallbacks, and avoid web/desktop behavior changes.
+- Adversarial implementation reviewer `019eebf1-b1c5-7ca0-a222-f171e39777b0` found no code blocker
+  and blocked only on this missing work-log entry.
+
+TDD and verification:
+
+- Red step: `.\.venv\Scripts\python.exe -m pytest tests\test_desktop_screen_helpers.py -q`
+  failed because `double_spin_box` did not exist.
+- Raster semantic-lock tests in `tests/test_rendering_svg.py` passed before the raster refactor,
+  proving they captured existing behavior.
+- After implementation, `.\.venv\Scripts\python.exe -m pytest tests\test_desktop_screen_helpers.py tests\test_desktop_app.py -q`
+  passed: 12 tests.
+- `.\.venv\Scripts\python.exe -m pytest tests\test_rendering_svg.py -q` passed after the refactor.
+- Targeted regression passed: `.\.venv\Scripts\python.exe -m pytest tests\test_rendering_svg.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py tests\test_desktop_screen_helpers.py tests\test_los_geometry.py tests\test_movement_reach_geometry.py -q`
+  returned 88 passed with the existing Starlette `httpx` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed after import sorting.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 328 tests, with the existing Starlette
+  `httpx` deprecation warning.
+- `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` passed with
+  `los_svg: true`, `movement_reach_svg: true`, and `viewer_svg: true`.
+- `git diff --check` reported no whitespace errors; Git printed line-ending normalization warnings.
+- Protected changed-path scan found no blocked generated/raw artifact paths; `AGENTS.md` remains
+  untracked and unstaged.
+
+Browser QA:
+
+- Built-in Browser verified `/viewer`, `/heatmap`, `/los-checker`, `/hidden-coverage`,
+  `/movement-reach`, `/movement-reach?layout_variant=B&start_x=12&start_y=12&target_x=18&target_y=18&base=1.57&move=6&mode=normal`,
+  and `/heatmap?player_a=Priority%20Assets&player_b=Priority%20Assets&layout_variant=B`.
+- All checked pages rendered one SVG map where applicable, contained no script tags, and produced no
+  console warnings or errors.
+- Overlay-specific image classes remained present: `heatmap-image`, `coverage-image`,
+  `hidden-coverage-image`, and `movement-envelope-image`.
+- The default `/heatmap` navigation surfaced the known Browser navigation-timeout quirk, but the
+  page state after recovery showed `LOS Heatmap`, one SVG map, and one `heatmap-image`.
+
+Remaining blocker status:
+
+- Awaiting implementation reviewer re-check after this log update, then atomic commit.

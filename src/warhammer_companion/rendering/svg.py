@@ -384,19 +384,13 @@ def _render_heatmap_raster(
 
 
 def _render_coverage_raster(packet: MapPacket, polygon: BaseGeometry, scale: int) -> list[str]:
-    if polygon.is_empty:
-        return []
-    width = int(round(packet.board.width * scale))
-    height = int(round(packet.board.height * scale))
-    mask = Image.new("L", (width, height), 0)
-    draw = ImageDraw.Draw(mask)
-    _draw_geometry_mask(draw, polygon, scale, packet.board.height, exterior_fill=255)
-
-    rgba: NDArray[np.uint8] = np.zeros((height, width, 4), dtype=np.uint8)
-    visible = np.asarray(mask, dtype=np.uint8) > 0
-    rgba[visible] = (42, 140, 158, 118)
-    image = Image.fromarray(rgba, "RGBA")
-    return [_image_data_uri(image, width, height, "coverage-image")]
+    return _render_geometry_raster(
+        packet,
+        polygon,
+        scale,
+        css_class="coverage-image",
+        color=(42, 140, 158, 118),
+    )
 
 
 def _render_geometry_raster(
