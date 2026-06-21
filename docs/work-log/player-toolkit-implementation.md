@@ -791,3 +791,148 @@ Browser and Computer Use:
 Remaining gate:
 
 - Atomic commit remains before Phase 3.5 closeout.
+
+## 2026-06-21 - Phase 4A - Roster Import Safety And Source Records
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add a safe hostile-input boundary for synthetic `.ros` and `.rosz` roster-like data.
+- Record local roster source provenance, hashes, archive member metadata, XML safety status, and a
+  shallow canonical army snapshot.
+- Do not implement profile resolution, official points, legality, roster UI, persistence, movement,
+  threat, damage, mission, analytics, or AI behavior.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-roster-import-safety-and-source-records-spec.md`
+- `docs/superpowers/plans/2026-06-21-roster-import-safety-and-source-records.md`
+- `docs/superpowers/qa/2026-06-21-roster-import-safety-and-source-records-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4a-consultant-roster-import.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4a-adversarial-roster-import.md`
+- `src/warhammer_companion/domain/rosters.py`
+- `src/warhammer_companion/ingestion/roster_archives.py`
+- `src/warhammer_companion/ingestion/roster_xml.py`
+- `src/warhammer_companion/application/roster_import.py`
+- `tests/test_roster_import_safety.py`
+
+Design decisions:
+
+- Phase 4 is split. Phase 4A is quarantine/admission and shallow source records only.
+- `.ros` and `.rosz` are supported first because BSData documentation describes `.ros` as XML and
+  `.rosz` as a zip archive containing XML; `.cat`, `.catz`, `.gst`, `.gstz`, `.bsr`, pasted text,
+  and community-pack refresh are deferred.
+- `defusedxml` is not currently installed in the project venv. Phase 4A therefore uses an explicit
+  fail-closed XML gate: only UTF-8/ASCII XML bytes are admitted, unsafe DTD/entity/include/URL
+  tokens are rejected before parsing, XML byte size is limited, and selection nesting depth is
+  bounded before recursive extraction.
+- Domain and ingestion modules do not import `application.toolkit`; roster block reasons live in
+  `domain.rosters` and are adapted to toolkit block reasons in `application.roster_import`.
+- Safe imports are `estimated` local evidence. Unsafe imports are `blocked`. No import result can
+  claim list legality, resolved profiles, official points, recommendations, or tactical safety.
+
+Consultant review triage:
+
+- Consultant reviewer `019ee97a-4ac5-7ca1-9a0e-2700a5bb0df2` approved the Phase 4A direction:
+  split Phase 4, start with safe `.ros`/`.rosz`, place domain records under `domain`, hostile
+  admission helpers under `ingestion`, and a thin builder under `application`.
+- Consultant final reviewer `019ee985-63f6-7d42-9933-1011bfa5b87a` blocked the first implementation
+  on UTF-16 XML safety bypass, missing XML depth enforcement, architecture inversion through
+  domain/ingestion importing application `BlockReason`, and missing `CanonicalArmy.source_ref_ids`.
+- Accepted: reject non-UTF-8/BOM XML before token scanning/parsing.
+- Accepted: reject NUL-containing XML bytes before token scanning/parsing.
+- Accepted: enforce selection depth before recursive extraction.
+- Accepted: move roster block reasons into `domain.rosters` and convert them at the application
+  boundary.
+- Accepted: add source refs to `CanonicalArmy`.
+
+Adversarial review triage:
+
+- Adversarial reviewer `019ee97a-7851-7022-8617-8c6ecdd8845b` approved only quarantine/admission
+  and blocked direct roster/profile implementation.
+- Accepted: no profile resolution, MFM points, pasted text, UI, persistence, BoardState adapter, or
+  downstream solver integration in Phase 4A.
+- Accepted: archive tests must include traversal, absolute paths, nested archive, encrypted member,
+  unexpected extension, member count, size, and decompression ratio.
+- Accepted: XML tests must include malformed XML, DOCTYPE, entity references, XInclude, URL
+  references, non-UTF-8 encoding bypasses, and excessive depth.
+- Adversarial final reviewer `019ee985-9f64-7c80-afec-f67ac382f36d` blocked the first
+  implementation on XML depth crash and path normalization bypasses such as `safe/../evil.ros` and
+  `C:../evil.ros`.
+- Accepted: check raw archive path components and colons before normalization.
+- Accepted: add regressions for embedded traversal and Windows drive-qualified paths.
+- Accepted: add XML depth regression.
+
+Verification results:
+
+- 2026-06-21: initial red step failed because `warhammer_companion.application.roster_import` did
+  not exist.
+- 2026-06-21: after initial implementation, targeted Phase 4A tests failed on the synthetic
+  encrypted-member fixture; fixed the fixture by patching ZIP header flags directly.
+- 2026-06-21: targeted Phase 4A tests then passed: 17 passed.
+- 2026-06-21: focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_roster_import_safety.py tests\test_toolkit_contracts.py tests\test_rules_sources.py tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  returned 63 passed.
+- 2026-06-21: static checks initially found new-file formatting, Ruff B008/default issues, line
+  length issues, and mypy narrowing issues; all were fixed.
+- 2026-06-21: adversarial path/depth red step failed as expected for `safe/../evil.ros`,
+  `C:../evil.ros`, `C:evil.ros`, and excessive selection depth.
+- 2026-06-21: after path/depth fixes, those four regressions passed.
+- 2026-06-21: consultant UTF-16 red step failed as expected because UTF-16 `DOCTYPE` XML returned
+  `estimated`.
+- 2026-06-21: after XML encoding/domain-boundary/source-ref fixes, adversarial regressions passed:
+  5 passed.
+- 2026-06-21: after reviewer fixes, targeted Phase 4A tests passed: 22 passed.
+- 2026-06-21: after reviewer fixes, focused regression passed: 68 passed.
+- 2026-06-21: after reviewer fixes, `.\.venv\Scripts\python.exe -m ruff format --check src tests`
+  passed: 94 files already formatted.
+- 2026-06-21: after reviewer fixes, `.\.venv\Scripts\python.exe -m ruff check .` passed with a
+  nonblocking Ruff cache-write warning.
+- 2026-06-21: after reviewer fixes, `.\.venv\Scripts\mypy.exe src` passed: no issues in 66 source
+  files.
+- 2026-06-21: re-review found a remaining P1: UTF-16LE/BE XML without BOM could bypass the raw
+  token scan. Added explicit no-BOM UTF-16LE/BE regressions.
+- 2026-06-21: no-BOM UTF-16 red step failed as expected before the NUL-byte encoding gate fix.
+- 2026-06-21: after the NUL-byte encoding gate fix, no-BOM UTF-16 regressions passed: 2 passed.
+- 2026-06-21: after the NUL-byte encoding gate fix, targeted Phase 4A tests passed: 24 passed.
+- 2026-06-21: after the NUL-byte encoding gate fix, focused regression passed: 70 passed.
+- 2026-06-21: after the NUL-byte encoding gate fix, `.\.venv\Scripts\python.exe -m ruff format
+  --check src tests`, `.\.venv\Scripts\python.exe -m ruff check .`, and
+  `.\.venv\Scripts\mypy.exe src` passed.
+- 2026-06-21: full pytest before reviewer fixes passed: 260 passed, 1 known Starlette
+  `TestClient` deprecation warning. Full pytest must be rerun after final reviewer fixes before
+  commit.
+- 2026-06-21: packet validation before reviewer fixes passed for all 45 official seed packets.
+- 2026-06-21: desktop smoke before reviewer fixes passed with status `ok`.
+- 2026-06-21: follow-up adversarial reviews hardened `.rosz` admission against forged central
+  sizes, corrupt payloads, unsupported compression, local/central path mismatches, encryption flag
+  mismatches, compression mismatches, data descriptor ambiguity, hidden trailing deflate bytes,
+  unsafe or payload-bearing directory entries, local/central extra fields, archive/member comments,
+  unreferenced leading local entries, trailing bytes after EOCD, excessive directory entries, and
+  ZIP layout gaps.
+- 2026-06-21: follow-up adversarial reviews hardened XML admission against encoded URL schemes in
+  decoded attributes, namespaces, unused namespace declarations, comments, and processing
+  instructions.
+- 2026-06-21: final consultant reviewer `019ee99a-5ac5-7181-b9db-e96ef20076f9` approved Phase 4A
+  scope and implementation after documentation closeout.
+- 2026-06-21: final adversarial reviewer `019ee9ce-7261-7b23-8305-c58cf0beb084` approved Phase 4A
+  with no open critical, important, or minor findings.
+- 2026-06-21: final focused Phase 4A tests passed: 49 passed.
+- 2026-06-21: final focused regression pack passed: 95 passed.
+- 2026-06-21: final focused `ruff format --check src tests`, `ruff check .`, and `mypy src`
+  passed.
+- 2026-06-21: final full pytest passed: 292 passed, 1 known Starlette `TestClient`
+  deprecation warning.
+- 2026-06-21: final packet validation passed for all 45 bundled official seed packets.
+- 2026-06-21: final desktop smoke passed with status `ok`, 45 packets, viewer SVG, LOS SVG,
+  heatmap SVG, and hidden coverage SVG.
+- 2026-06-21: final Browser route sweep passed for `/viewer`, `/heatmap`, `/los-checker`,
+  `/hidden-coverage`, `/settings`, `/map-data`, and Layout B/query smoke routes. Map pages
+  rendered expected SVGs, raster pages rendered embedded PNG overlays, and no browser console
+  warnings or errors were captured.
+- 2026-06-21: `git diff --check` passed with only the known LF-to-CRLF work-log warning.
+
+Remaining gates:
+
+- Protected-data scan and atomic commit remain before Phase 4A closeout.
