@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from io import BytesIO
@@ -9,6 +10,9 @@ from warhammer_companion.domain.rosters import (
     RosterCost,
     RosterImportBlockReason,
     RosterSelection,
+    RosterSnapshotCharacteristic,
+    RosterSnapshotProfile,
+    RosterSnapshotRule,
 )
 
 DISALLOWED_XML_TOKENS = (
@@ -31,6 +35,14 @@ DISALLOWED_XML_TOKENS = (
 class RosterXmlLimits:
     max_xml_bytes: int = 1024 * 512
     max_depth: int = 32
+    max_element_count: int = 2048
+    max_element_depth: int = 64
+    max_attributes_per_element: int = 32
+    max_text_characters: int = 2048
+    max_profiles_per_selection: int = 64
+    max_rules_per_selection: int = 128
+    max_characteristics_per_profile: int = 64
+    max_snapshot_value_chars: int = 64
 
 
 DEFAULT_XML_LIMITS = RosterXmlLimits()
@@ -92,7 +104,16 @@ def parse_roster_xml(
                 ),
             ),
         )
-    army = _canonical_army_from_root(root)
+    document_structure_reason = _document_structure_reason(root, limits=limits)
+    if document_structure_reason is not None:
+        return RosterXmlParseResult(None, (document_structure_reason,))
+    force_shape_reason = _unsupported_force_shape_reason(root)
+    if force_shape_reason is not None:
+        return RosterXmlParseResult(None, (force_shape_reason,))
+    snapshot_shape_reason = _snapshot_shape_reason(root, limits=limits)
+    if snapshot_shape_reason is not None:
+        return RosterXmlParseResult(None, (snapshot_shape_reason,))
+    army = _canonical_army_from_root(root, limits=limits)
     return RosterXmlParseResult(army)
 
 
@@ -196,13 +217,14 @@ def _is_admitted_xml_encoding(xml_bytes: bytes) -> bool:
     return b'encoding="utf-8"' in head or b"encoding='utf-8'" in head
 
 
-def _canonical_army_from_root(root: ET.Element) -> CanonicalArmy:
-    first_force = _first_descendant(root, "force")
+def _canonical_army_from_root(root: ET.Element, *, limits: RosterXmlLimits) -> CanonicalArmy:
+    first_force = _roster_forces(root)[0]
     roster_costs = _costs(root)
     selections_parent = _first_child(first_force, "selections") if first_force is not None else None
     selections = _child_selections(
         selections_parent,
         parent_path=f"roster/{_attr(first_force, 'id')}",
+        limits=limits,
     )
     return CanonicalArmy(
         roster_id=_attr(root, "id"),
@@ -228,10 +250,119 @@ def _selection_depth_exceeds_limit(element: ET.Element, *, max_depth: int) -> bo
     return False
 
 
+def _document_structure_reason(
+    root: ET.Element,
+    *,
+    limits: RosterXmlLimits,
+) -> RosterImportBlockReason | None:
+    stack: list[tuple[ET.Element, int]] = [(root, 0)]
+    element_count = 0
+    while stack:
+        current, depth = stack.pop()
+        element_count += 1
+        if element_count > limits.max_element_count:
+            return RosterImportBlockReason(
+                reason_id="roster-xml-too-many-elements",
+                detail="Roster XML exceeds the maximum admitted element count.",
+            )
+        if depth > limits.max_element_depth:
+            return RosterImportBlockReason(
+                reason_id="roster-xml-document-too-deep",
+                detail="Roster XML document nesting exceeds the maximum admitted depth.",
+            )
+        if len(current.attrib) > limits.max_attributes_per_element:
+            return RosterImportBlockReason(
+                reason_id="roster-xml-too-many-attributes",
+                detail="Roster XML contains an element with too many attributes.",
+            )
+        if any(
+            len(str(name)) > limits.max_text_characters
+            or len(str(value)) > limits.max_text_characters
+            for name, value in current.attrib.items()
+        ):
+            return RosterImportBlockReason(
+                reason_id="roster-xml-field-too-long",
+                detail="Roster XML contains an attribute value that exceeds the admitted length.",
+            )
+        text_values = (current.text or "", current.tail or "")
+        if any(len(value.strip()) > limits.max_text_characters for value in text_values):
+            return RosterImportBlockReason(
+                reason_id="roster-xml-field-too-long",
+                detail="Roster XML contains text that exceeds the admitted length.",
+            )
+        stack.extend((child, depth + 1) for child in current)
+    return None
+
+
+def _unsupported_force_shape_reason(root: ET.Element) -> RosterImportBlockReason | None:
+    forces = _roster_forces(root)
+    if len(forces) == 1:
+        return None
+    return RosterImportBlockReason(
+        reason_id="unsupported-roster-force-count",
+        detail=(
+            "Phase 4B roster indexing requires exactly one force; multi-force and zero-force "
+            "rosters are blocked until force-aware indexing is implemented."
+        ),
+    )
+
+
+def _snapshot_shape_reason(
+    root: ET.Element,
+    *,
+    limits: RosterXmlLimits,
+) -> RosterImportBlockReason | None:
+    for selection in root.iter():
+        if _local_name(selection.tag) != "selection":
+            continue
+        profiles = _direct_children(_first_child(selection, "profiles"), "profile")
+        rules = _direct_children(_first_child(selection, "rules"), "rule")
+        if len(profiles) > limits.max_profiles_per_selection:
+            return RosterImportBlockReason(
+                reason_id="roster-xml-too-many-profiles",
+                detail="Roster XML contains too many embedded profiles in one selection.",
+            )
+        if len(rules) > limits.max_rules_per_selection:
+            return RosterImportBlockReason(
+                reason_id="roster-xml-too-many-rules",
+                detail="Roster XML contains too many embedded rules in one selection.",
+            )
+        for rule in rules:
+            if len(_description_text(rule)) > limits.max_text_characters:
+                return RosterImportBlockReason(
+                    reason_id="roster-xml-field-too-long",
+                    detail=(
+                        "Roster XML contains aggregate rule description text that exceeds the "
+                        "admitted length."
+                    ),
+                )
+        for profile in profiles:
+            characteristics = _direct_children(
+                _first_child(profile, "characteristics"),
+                "characteristic",
+            )
+            if len(characteristics) > limits.max_characteristics_per_profile:
+                return RosterImportBlockReason(
+                    reason_id="roster-xml-too-many-characteristics",
+                    detail="Roster XML contains too many embedded characteristics in one profile.",
+                )
+            for characteristic in characteristics:
+                if len(_collapsed_text(characteristic)) > limits.max_text_characters:
+                    return RosterImportBlockReason(
+                        reason_id="roster-xml-field-too-long",
+                        detail=(
+                            "Roster XML contains aggregate characteristic text that exceeds the "
+                            "admitted length."
+                        ),
+                    )
+    return None
+
+
 def _child_selections(
     parent: ET.Element | None,
     *,
     parent_path: str,
+    limits: RosterXmlLimits,
 ) -> tuple[RosterSelection, ...]:
     if parent is None:
         return ()
@@ -249,10 +380,127 @@ def _child_selections(
                 selection_type=_attr(child, "type"),
                 source_path=source_path,
                 costs=_costs(child),
-                children=_child_selections(child_selections_parent, parent_path=source_path),
+                profiles=_profiles(child, selection_path=source_path, limits=limits),
+                rules=_rules(child, selection_path=source_path),
+                children=_child_selections(
+                    child_selections_parent,
+                    parent_path=source_path,
+                    limits=limits,
+                ),
             )
         )
     return tuple(selections)
+
+
+def _profiles(
+    selection: ET.Element,
+    *,
+    selection_path: str,
+    limits: RosterXmlLimits,
+) -> tuple[RosterSnapshotProfile, ...]:
+    profiles_parent = _first_child(selection, "profiles")
+    if profiles_parent is None:
+        return ()
+    profiles: list[RosterSnapshotProfile] = []
+    for child in profiles_parent:
+        if _local_name(child.tag) != "profile":
+            continue
+        raw_id = _attr(child, "id")
+        source_path = f"{selection_path}/{raw_id}"
+        profiles.append(
+            RosterSnapshotProfile(
+                raw_id=raw_id,
+                name=_attr(child, "name"),
+                type_id=_attr(child, "typeId"),
+                type_name=_optional_attr(child, "typeName"),
+                source_path=source_path,
+                characteristics=_characteristics(
+                    child,
+                    profile_path=source_path,
+                    limits=limits,
+                ),
+            )
+        )
+    return tuple(profiles)
+
+
+def _characteristics(
+    profile: ET.Element,
+    *,
+    profile_path: str,
+    limits: RosterXmlLimits,
+) -> tuple[RosterSnapshotCharacteristic, ...]:
+    characteristics_parent = _first_child(profile, "characteristics")
+    if characteristics_parent is None:
+        return ()
+    characteristics: list[RosterSnapshotCharacteristic] = []
+    for child in characteristics_parent:
+        if _local_name(child.tag) != "characteristic":
+            continue
+        raw_id = _attr(child, "id")
+        value = _collapsed_text(child)
+        stored_value = value if len(value) <= limits.max_snapshot_value_chars else None
+        characteristics.append(
+            RosterSnapshotCharacteristic(
+                raw_id=raw_id,
+                name=_attr(child, "name"),
+                type_id=_attr(child, "typeId"),
+                source_path=f"{profile_path}/{raw_id}",
+                value=stored_value,
+                value_sha256=_sha256_or_none(value),
+                value_length=len(value),
+            )
+        )
+    return tuple(characteristics)
+
+
+def _rules(selection: ET.Element, *, selection_path: str) -> tuple[RosterSnapshotRule, ...]:
+    rules_parent = _first_child(selection, "rules")
+    if rules_parent is None:
+        return ()
+    rules: list[RosterSnapshotRule] = []
+    for child in rules_parent:
+        if _local_name(child.tag) != "rule":
+            continue
+        raw_id = _attr(child, "id")
+        description = _description_text(child)
+        rules.append(
+            RosterSnapshotRule(
+                raw_id=raw_id,
+                name=_attr(child, "name"),
+                source_path=f"{selection_path}/{raw_id}",
+                description_sha256=_sha256_or_none(description),
+                description_length=len(description),
+            )
+        )
+    return tuple(rules)
+
+
+def _roster_forces(root: ET.Element) -> tuple[ET.Element, ...]:
+    return _direct_children(_first_child(root, "forces"), "force")
+
+
+def _direct_children(element: ET.Element | None, local_name: str) -> tuple[ET.Element, ...]:
+    if element is None:
+        return ()
+    return tuple(child for child in element if _local_name(child.tag) == local_name)
+
+
+def _description_text(rule: ET.Element) -> str:
+    description = _first_child(rule, "description")
+    if description is None:
+        return ""
+    return _collapsed_text(description)
+
+
+def _collapsed_text(element: ET.Element) -> str:
+    return " ".join("".join(element.itertext()).split())
+
+
+def _sha256_or_none(value: str) -> str | None:
+    if not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _costs(element: ET.Element) -> tuple[RosterCost, ...]:

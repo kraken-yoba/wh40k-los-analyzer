@@ -933,6 +933,126 @@ Verification results:
   warnings or errors were captured.
 - 2026-06-21: `git diff --check` passed with only the known LF-to-CRLF work-log warning.
 
+Closeout:
+
+- 2026-06-21: Phase 4A protected-artifact scan passed before staging.
+- 2026-06-21: Phase 4A committed as `16a3884 Add roster import safety records`.
+- 2026-06-21: `AGENTS.md` remained unstaged because it is a user-provided repository instruction
+  file.
+
+## 2026-06-21 - Phase 4B - Roster Canonical Index And Snapshot Profiles
+
+Branch: `codex/assistant-companion-roadmap`
+
+Purpose:
+
+- Add deterministic canonical roster indexes over accepted synthetic `.ros`/`.rosz` imports.
+- Preserve embedded roster profiles, characteristics, and rules as local unresolved snapshot
+  candidates for later profile resolution.
+- Keep roster snapshot data `estimated` and explicitly non-authoritative.
+- Do not implement profile resolution, official points, legality, UI, persistence, BoardState
+  adapter, movement, threat, damage, mission, analytics, or AI companion behavior.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-roster-canonical-index-and-snapshot-profiles-spec.md`
+- `docs/superpowers/plans/2026-06-21-roster-canonical-index-and-snapshot-profiles.md`
+- `docs/superpowers/qa/2026-06-21-roster-canonical-index-and-snapshot-profiles-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4b-consultant-roster-candidates.md`
+- `docs/superpowers/reviews/2026-06-21-phase-4b-adversarial-roster-candidates.md`
+- `src/warhammer_companion/domain/rosters.py`
+- `src/warhammer_companion/ingestion/roster_xml.py`
+- `src/warhammer_companion/application/roster_import.py`
+- `tests/test_roster_snapshot_profiles.py`
+
+Design decisions:
+
+- Phase 4B remains an evidence/indexing slice, not a profile-resolution or points-authority slice.
+- Snapshot rule descriptions are represented only by SHA-256 and length.
+- Short characteristic values are retained as local evidence; long characteristic values are
+  represented only by SHA-256 and length.
+- Candidate records carry record-level `local_evidence`, `unresolved`, `not_official_points`, and
+  `not_profile_resolution` markers.
+- Stable roster selection keys include sibling ordinals so duplicate raw IDs do not collide.
+- Multi-force and zero-force roster XML are explicitly blocked until force-aware indexing is
+  designed, avoiding silent discard of later forces.
+- XML admission now includes whole-document element/depth/attribute/text limits and
+  profile/rule/characteristic count limits before snapshot extraction.
+
+Consultant review triage:
+
+- Consultant reviewer `019eeaad-e35e-7a20-9079-b5ed81f58a30` approved the Phase 4B direction if it
+  stays evidence/indexing only.
+- Accepted: write a fine-grain Phase 4B spec/plan/QA path before implementation.
+- Accepted: add stable keys separate from raw BattleScribe IDs.
+- Accepted: define extraction limits before implementation.
+- Accepted: keep roster snapshot extraction out of base-size records, BoardState, UI, persistence,
+  and solver code.
+
+Adversarial review triage:
+
+- Adversarial reviewer `019eeaae-0dbc-7ba1-94b1-e510635af8e0` initially failed the proposal until
+  the Phase 4B contract and guardrails were tightened.
+- Accepted: add Phase 4B docs before code.
+- Accepted: block unsupported force counts instead of silently indexing only the first force.
+- Accepted: minimize text-bearing snapshot records.
+- Accepted: add whole-document structural XML limits.
+- Accepted: add record-level no-authority markers.
+
+Verification results:
+
+- 2026-06-21: red step confirmed Phase 4B tests failed before implementation:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_roster_snapshot_profiles.py -q` returned
+  10 failures for missing index/profile-pack fields and unsupported-shape/structure guards.
+- 2026-06-21: after implementation, targeted Phase 4B tests passed: 10 passed.
+- 2026-06-21: combined Phase 4A/4B roster tests passed: 59 passed.
+- 2026-06-21: focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_roster_snapshot_profiles.py tests\test_roster_import_safety.py tests\test_toolkit_contracts.py tests\test_rules_sources.py tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  returned 105 passed.
+- 2026-06-21: `ruff format --check src tests`, `ruff check .`, and `mypy src` passed after an
+  import-sort auto-fix.
+- 2026-06-21: implementation adversarial review `019eeab9-9805-7c13-a4ca-a998cbd25d89` found
+  aggregate `itertext()` could bypass the text cap and nested characteristics lacked source refs.
+- 2026-06-21: review-fix red step failed as expected: targeted Phase 4B tests reported 2 failures
+  for characteristic provenance and fragmented rule-description text.
+- 2026-06-21: after review fixes, targeted Phase 4B tests passed: 11 passed.
+- 2026-06-21: after review fixes, focused regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_roster_snapshot_profiles.py tests\test_roster_import_safety.py tests\test_toolkit_contracts.py tests\test_rules_sources.py tests\test_base_sizes.py tests\test_terrain_semantics.py -q`
+  returned 106 passed.
+- 2026-06-21: after review fixes, `ruff format --check src tests`, `ruff check .`, and
+  `mypy src` passed. One Ruff check attempt hit a transient sandbox ACL error and passed on rerun.
+- 2026-06-21: final adversarial re-review `019eeabe-fc0d-7f22-b3e9-bf4fcab4d0a4` found the
+  exposed `payload.army` tree still missed nested source refs.
+- 2026-06-21: second review-fix red step failed as expected: targeted Phase 4B tests reported the
+  missing source refs on `payload.army.selections[0].profiles[0]`.
+- 2026-06-21: after the deep army-source-ref fix, targeted Phase 4B tests passed: 11 passed.
+- 2026-06-21: after the deep army-source-ref fix, focused regression passed: 106 passed.
+- 2026-06-21: after the deep army-source-ref fix, `ruff format --check src tests`,
+  `ruff check .`, and `mypy src` passed.
+- 2026-06-21: final approval reviewer `019eeac5-197c-7000-900c-784ebf63468e` requested two
+  test-only gaps: fragmented aggregate characteristic text and nested child source-ref assertions.
+- 2026-06-21: after adding those regressions, targeted Phase 4B tests passed: 12 passed.
+- 2026-06-21: after adding those regressions, focused regression passed: 107 passed.
+- 2026-06-21: after adding those regressions, `ruff format --check src tests`, `ruff check .`, and
+  `mypy src` passed.
+- 2026-06-21: final full pytest passed: 304 passed, 1 known Starlette `TestClient` deprecation
+  warning.
+- 2026-06-21: final packet validation passed for all 45 bundled official seed packets.
+- 2026-06-21: final desktop smoke passed with status `ok`, 45 packets, viewer SVG, LOS SVG,
+  heatmap SVG, and hidden coverage SVG.
+- 2026-06-21: final `git diff --check` passed with only normal LF-to-CRLF warnings for touched
+  files.
+- 2026-06-21: Browser QA launched the local app through a detached Node child process because
+  Windows PowerShell `Start-Process` failed on duplicated `Path`/`PATH` environment keys. Browser
+  route sweep passed for `/viewer`, `/settings`, `/map-data`, `/heatmap`, `/los-checker`,
+  `/hidden-coverage`, and Layout B/query smoke routes. Map pages rendered expected SVGs, raster
+  pages rendered embedded PNG overlays, submitted query values were preserved, and no browser
+  console warnings or errors were captured. The temporary server was stopped after QA.
+- 2026-06-21: protected-artifact scan passed; no raw roster/archive/PDF/db/log/image/generated-data
+  paths or protected profile/rule text were present in the Phase 4B staged candidate set.
+- 2026-06-21: final adversarial reviewer `019eead0-337e-7732-8778-2124147c562b` approved Phase 4B
+  with no open critical, important, or minor findings.
+
 Remaining gates:
 
-- Protected-data scan and atomic commit remain before Phase 4A closeout.
+- Atomic commit remains before Phase 4B closeout.
