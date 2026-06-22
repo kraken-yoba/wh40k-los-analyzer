@@ -2051,3 +2051,96 @@ Review and blocker status:
 - A broad secret-pattern scan hit an existing `data/codex-home` fixture line outside the Phase 9
   diff; the Phase 9 diff itself adds no credential or secret material.
 - `AGENTS.md` remains user-owned and must stay untracked unless explicitly requested.
+
+## Phase 9.5 - Mission Source Metadata Housekeeping
+
+Purpose:
+
+- Run a behavior-preserving cleanup after the Phase 9 Mission Pack skeleton.
+- Centralize mission-pack source refs and warning text inside the application builder.
+- Remove public-sheet metadata duplication between the `MissionSourceRef` and input-hash payload.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-9-5-mission-source-metadata-housekeeping.md`
+- `docs/superpowers/plans/2026-06-22-phase-9-5-mission-source-metadata-housekeeping.md`
+- `docs/superpowers/qa/2026-06-22-phase-9-5-mission-source-metadata-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-9-5-consultant-mission-source-metadata.md`
+- `docs/superpowers/reviews/2026-06-22-phase-9-5-adversarial-mission-source-metadata.md`
+- `src/warhammer_companion/application/mission_pack.py`
+- `tests/test_mission_pack_toolkit.py`
+- `docs/work-log/player-toolkit-implementation.md`
+
+Design decisions:
+
+- Keep the public `build_mission_pack_toolkit_result(...)` signature unchanged.
+- Keep test injection private to `_mission_pack_hash(...)`.
+- Preserve the Phase 9 default `input_hash`
+  `sha256:01f1430011d73eec7f009f95dc8a4e5671b581dcdf7ecfdd0097020a5eefd2bc`.
+- Preserve the Phase 9 default `result_id` `estimated:mission-pack:01f1430011d7`.
+- Keep source metadata in `application/mission_pack.py`; do not move public-source constants into
+  the generic domain model module.
+- No fetching, parsing, scoring, objective/action analytics, image storage, sheet export, or card
+  text behavior was added.
+
+TDD and implementation results:
+
+- Red step: `tests/test_mission_pack_toolkit.py` failed with expected missing private helper
+  `_mission_source_refs`.
+- Green step: `MISSION_PACK_WARNINGS`, `_mission_source_refs()`, and private source-ref injection
+  for `_mission_pack_hash(...)` were added.
+- The input hash now derives public-sheet hash fields from the canonical source-ref object instead
+  of duplicating URL, sheet id, gid, trust, and retrieval status literals.
+- Guardrail tests prove default identity preservation, public builder signature preservation,
+  canonical warning sharing, source-ref metadata preservation, and private hash sensitivity.
+
+Verification completed:
+
+- Red check before implementation failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py -q` reported missing
+  private helper `_mission_source_refs`.
+- Focused Phase 9.5 command passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py -q` returned
+  8 passed.
+- Focused app batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 66 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 123 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 406 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and `mission_pack_estimate: true`.
+
+Browser QA:
+
+- The local app was launched through a detached child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/mission-pack`.
+- The route rendered heading `Mission Pack`, primary mission records including `Battlefield
+  Dominance` and `Sabotage`, the public sheet source row with sheet id and gid `1565185881`,
+  source-pending/not-fetched/not-ingested warning copy, zero forms, zero `<script>` tags, no
+  traceback/internal-error text, no legal/optimal/recommended/likely/pairing-score claim wording,
+  and no localhost warning/error console logs.
+- The temporary QA tab and server process were closed after Browser QA.
+- Protected-path scan passed for the Phase 9.5 candidate files: no generated/raw/cache/log/build/
+  dist paths, raw PDFs, database/archive files, images, screenshots, Google Sheet exports, `.codex`,
+  `.agents`, `data/codex-home*`, auth/session files, or other Codex/OpenAI state paths are in the
+  candidate set.
+- A narrowed network-fetch scan over Phase 9.5 candidate files returned no fetch/HTTP/client
+  library matches.
+- A broad secret-pattern scan self-matched the new protected-path checklist text and one older
+  historical `.codex` work-log line outside the Phase 9.5 diff; the Phase 9.5 code/test diff adds
+  no credential or secret material.
+
+Review and blocker status:
+
+- Consultant reviewer initially required default `input_hash`/`result_id` and canonical warning
+  text guards. The plan and QA pathway were patched; consultant re-review approved.
+- Adversarial reviewer initially required public signature immutability, private-helper-only test
+  injection, default identity guards, and broader Codex/OpenAI state wording in the protected-path
+  checklist. The docs were patched; adversarial re-review approved.
+- Consultant implementation reviewer approved the staged Phase 9.5 diff with no required changes.
+- Adversarial implementation reviewer initially required moving Phase 9.5 scan evidence into the
+  Phase 9.5 section and staging the Phase 9.5 docs listed as artifacts. Both were fixed;
+  adversarial re-review approved.

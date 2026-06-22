@@ -28,19 +28,18 @@ PUBLIC_MISSION_SHEET_URL = (
     f"{PUBLIC_MISSION_SHEET_ID}/edit?gid={PUBLIC_MISSION_SHEET_GID}"
     f"#gid={PUBLIC_MISSION_SHEET_GID}"
 )
+MISSION_PACK_WARNINGS = (
+    "Mission mechanics, scoring, action timing, and objective-control behavior are source-pending.",
+    "The public mission sheet candidate is recorded as provenance only; it is not fetched, "
+    "not parsed, and not ingested.",
+)
 
 
 def build_mission_pack_toolkit_result(
     metadata: Mapping[int, OfficialLayoutMetadata] = OFFICIAL_LAYOUT_PAGE_METADATA,
 ) -> ToolkitResult[MissionPackPayload]:
-    source_refs = (_official_layout_source_ref(), _public_sheet_source_ref())
+    source_refs = _mission_source_refs()
     primary_missions = _primary_missions_from_layout_metadata(metadata)
-    warnings = (
-        "Mission mechanics, scoring, action timing, and objective-control behavior are "
-        "source-pending.",
-        "The public mission sheet candidate is recorded as provenance only; it is not fetched, "
-        "not parsed, and not ingested.",
-    )
     source_ref_ids = tuple(source.source_ref_id for source in source_refs)
     pack = MissionPack(
         pack_id="mission-pack-pariah-nexus-skeleton",
@@ -49,9 +48,9 @@ def build_mission_pack_toolkit_result(
         readiness="estimated",
         source_ref_ids=source_ref_ids,
         primary_missions=primary_missions,
-        warnings=warnings,
+        warnings=MISSION_PACK_WARNINGS,
     )
-    input_hash = _mission_pack_hash(metadata)
+    input_hash = _mission_pack_hash(metadata, source_refs=source_refs)
     suffix = input_hash.removeprefix("sha256:")[:12]
     return ToolkitResult(
         result_id=f"estimated:mission-pack:{suffix}",
@@ -72,12 +71,12 @@ def build_mission_pack_toolkit_result(
         warnings=(
             ToolkitWarning(
                 warning_id="mission-mechanics-source-pending",
-                detail=warnings[0],
+                detail=MISSION_PACK_WARNINGS[0],
                 source_ref_ids=source_ref_ids,
             ),
             ToolkitWarning(
                 warning_id="public-sheet-not-ingested",
-                detail=warnings[1],
+                detail=MISSION_PACK_WARNINGS[1],
                 source_ref_ids=(PUBLIC_MISSION_SHEET_SOURCE_REF_ID,),
             ),
         ),
@@ -119,6 +118,10 @@ def _primary_missions_from_layout_metadata(
     return tuple(missions)
 
 
+def _mission_source_refs() -> tuple[MissionSourceRef, ...]:
+    return (_official_layout_source_ref(), _public_sheet_source_ref())
+
+
 def _official_layout_source_ref() -> MissionSourceRef:
     return MissionSourceRef(
         source_ref_id=OFFICIAL_LAYOUT_SOURCE_REF_ID,
@@ -150,7 +153,13 @@ def _public_sheet_source_ref() -> MissionSourceRef:
     )
 
 
-def _mission_pack_hash(metadata: Mapping[int, OfficialLayoutMetadata]) -> str:
+def _mission_pack_hash(
+    metadata: Mapping[int, OfficialLayoutMetadata],
+    *,
+    source_refs: tuple[MissionSourceRef, ...] | None = None,
+) -> str:
+    source_refs = source_refs or _mission_source_refs()
+    public_sheet = _source_ref_by_id(source_refs, PUBLIC_MISSION_SHEET_SOURCE_REF_ID)
     payload = {
         "metadata": [
             {
@@ -162,17 +171,27 @@ def _mission_pack_hash(metadata: Mapping[int, OfficialLayoutMetadata]) -> str:
             for page_number, record in sorted(metadata.items())
         ],
         "public_sheet": {
-            "gid": PUBLIC_MISSION_SHEET_GID,
-            "retrieval_status": "not_fetched",
-            "sheet_id": PUBLIC_MISSION_SHEET_ID,
-            "trust": "untrusted_candidate",
-            "url": PUBLIC_MISSION_SHEET_URL,
+            "gid": public_sheet.gid,
+            "retrieval_status": public_sheet.retrieval_status,
+            "sheet_id": public_sheet.sheet_id,
+            "trust": public_sheet.trust,
+            "url": public_sheet.url,
         },
         "schema_version": MISSION_PACK_TOOLKIT_SCHEMA_VERSION,
         "tool_id": "mission_pack",
     }
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
+
+
+def _source_ref_by_id(
+    source_refs: tuple[MissionSourceRef, ...],
+    source_ref_id: str,
+) -> MissionSourceRef:
+    for source_ref in source_refs:
+        if source_ref.source_ref_id == source_ref_id:
+            return source_ref
+    raise ValueError(f"Missing mission source ref: {source_ref_id}")
 
 
 def _slugify(label: str) -> str:
