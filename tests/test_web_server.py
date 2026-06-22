@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import (
+    DeploymentExposureState,
+    DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
     MovementReachState,
@@ -443,6 +445,157 @@ def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None
         f"/threat-range?packet_id={packet.id}&source_x=16.0&source_y=10.0"
         "&target_x=24.0&target_y=10.0&base=1.57&move=6.0&threat=2.0"
         "&mode=2d6-move-plus-range"
+    )
+
+
+def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(
+    monkeypatch,
+) -> None:
+    packet = server.repository.default_packet()
+    real_service = server.service
+    calls: list[tuple[str | None, str, float, float, str]] = []
+
+    class FakeService:
+        def deployment_exposure_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+            deployment_zone_id: str = "attacker",
+            friendly_x: float = 10.0,
+            friendly_y: float = 5.0,
+            friendly_base: float = 1.57,
+            enemy_x: float = 38.0,
+            enemy_y: float = 52.0,
+            enemy_base: float = 1.57,
+            enemy_move: float = 0.0,
+            enemy_threat: float = 1.0,
+            enemy_mode: str = "raw-range",
+            exposure_mode: str = "threat-and-los",
+        ) -> DeploymentExposureState:
+            calls.append((packet_id, deployment_zone_id, friendly_x, enemy_x, exposure_mode))
+            return DeploymentExposureState(
+                packet=packet,
+                packet_groups=real_service.packet_select_groups(),
+                packet_selector=real_service.packet_selector_state(packet_id=packet.id),
+                deployment_zone_options=[
+                    DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+                    for zone in packet.deployment_zones
+                ],
+                deployment_zone_id=deployment_zone_id,
+                friendly_x=friendly_x,
+                friendly_y=friendly_y,
+                friendly_base=friendly_base,
+                enemy_x=enemy_x,
+                enemy_y=enemy_y,
+                enemy_base=enemy_base,
+                enemy_move=enemy_move,
+                enemy_threat=enemy_threat,
+                enemy_mode=enemy_mode,
+                exposure_mode=exposure_mode,
+                enemy_threat_modes=["raw-range", "fixed-move-plus-range"],
+                exposure_modes=["threat-only", "los-only", "threat-or-los", "threat-and-los"],
+                not_exposed_under_assumptions=True,
+                threat_probability_at_center=0.0,
+                placement_reason_details=[],
+                warning_details=[
+                    "Estimated deployment exposure diagnostic uses manual 2D geometry.",
+                    "This is not a placement planner; mission constraints are not modeled.",
+                ],
+                map_svg=(
+                    '<svg class="map-svg" role="img" aria-label="fake deployment exposure">'
+                    '<image class="coverage-image"/>'
+                    '<image class="threat-projection-image"/>'
+                    '<polyline class="safe-zone-outline"/>'
+                    '<circle class="model-base"/>'
+                    '<circle class="threat-source-base"/>'
+                    "</svg>"
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/deployment-exposure?packet_id={packet.id}&deployment_zone_id=attacker"
+        "&friendly_x=10&friendly_y=5&friendly_base=1.57"
+        "&enemy_x=38&enemy_y=52&enemy_base=1.57&enemy_move=0&enemy_threat=1"
+        "&enemy_mode=raw-range&exposure_mode=threat-and-los"
+    )
+    normalized = " ".join(response.text.split()).lower()
+    normalized_without_classes = normalized.replace("safe-zone-outline", "")
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, "attacker", 10.0, 38.0, "threat-and-los")]
+    assert "Deployment Exposure" in response.text
+    assert 'name="deployment_zone_id"' in response.text
+    assert 'name="friendly_x"' in response.text
+    assert 'name="enemy_x"' in response.text
+    assert 'name="enemy_mode"' in response.text
+    assert 'name="exposure_mode"' in response.text
+    assert 'value="threat-and-los" selected' in response.text
+    assert "not exposed under selected assumptions" in normalized
+    assert "estimated deployment exposure diagnostic" in normalized
+    assert "not a placement planner" in normalized
+    assert "0.0%" in response.text
+    assert "safe-zone-outline" in response.text
+    assert "coverage-image" in response.text
+    assert "threat-projection-image" in response.text
+    assert "<script" not in response.text
+    for forbidden in ("legal", " safe", "recommended", "optimal", "likely", "guaranteed"):
+        assert forbidden not in normalized_without_classes
+
+
+def test_deployment_exposure_post_redirect_preserves_manual_values(monkeypatch) -> None:
+    packet = server.repository.default_packet()
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/deployment-exposure",
+        data={
+            "packet_id": packet.id,
+            "player_a": "Take and Hold",
+            "player_b": "Reconnaissance",
+            "layout_variant": "B",
+            "deployment_zone_id": "attacker",
+            "friendly_x": "10",
+            "friendly_y": "5",
+            "friendly_base": "1.57",
+            "enemy_x": "38",
+            "enemy_y": "52",
+            "enemy_base": "1.57",
+            "enemy_move": "0",
+            "enemy_threat": "1",
+            "enemy_mode": "raw-range",
+            "exposure_mode": "threat-and-los",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert resolved_calls == [(packet.id, "Take and Hold", "Reconnaissance", "B")]
+    assert response.headers["location"] == (
+        f"/deployment-exposure?packet_id={packet.id}&deployment_zone_id=attacker"
+        "&friendly_x=10.0&friendly_y=5.0&friendly_base=1.57"
+        "&enemy_x=38.0&enemy_y=52.0&enemy_base=1.57&enemy_move=0.0"
+        "&enemy_threat=1.0&enemy_mode=raw-range&exposure_mode=threat-and-los"
     )
 
 

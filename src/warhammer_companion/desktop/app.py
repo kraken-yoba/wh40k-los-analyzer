@@ -68,6 +68,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
     los = service.los_checker_state(packet_id=viewer.packet.id)
     movement_reach = service.movement_reach_state(packet_id=viewer.packet.id)
     threat_range = service.threat_range_state(packet_id=viewer.packet.id)
+    deployment_exposure = service.deployment_exposure_state(packet_id=viewer.packet.id)
     hidden_coverage = service.hidden_coverage_state(packet_id=viewer.packet.id)
     return {
         "status": "ok",
@@ -84,6 +85,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
         "los_svg": "<svg" in los.map_svg,
         "movement_reach_svg": "<svg" in movement_reach.map_svg,
         "threat_range_svg": "<svg" in threat_range.map_svg,
+        "deployment_exposure_svg": "<svg" in deployment_exposure.map_svg,
         "hidden_coverage_svg": "<svg" in hidden_coverage.map_svg,
         "dense_features": len(viewer.packet.dense_features),
         "light_features": len(viewer.packet.light_features),

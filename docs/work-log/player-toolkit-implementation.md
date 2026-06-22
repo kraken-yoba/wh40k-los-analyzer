@@ -1451,7 +1451,7 @@ Verification completed:
 - Desktop smoke passed with `status: ok`, 45 packets, and `threat_range_svg: true`.
 - `git diff --check` passed; Git printed only normal LF-to-CRLF warnings for touched files.
 - Restricted protected-path scan over the Phase 6 candidate file set passed: no blocked
-  generated/raw/binary paths and no credential/API-key hits. `AGENTS.md` remained untracked and
+  generated/raw/binary paths and no credential-pattern hits. `AGENTS.md` remained untracked and
   excluded from staging.
 
 Browser QA:
@@ -1552,3 +1552,109 @@ Browser QA:
 Remaining blocker status:
 
 - Phase 6.5 consultant and adversarial reviewers approved. No blockers remain.
+
+## Phase 7 - Deployment Exposure Toolkit
+
+Purpose:
+
+- Add the first deployment-position diagnostic slice without building a placement optimizer or
+  source-backed legal placement planner.
+- Let a player enter one friendly circular base, one enemy source base, enemy threat assumptions,
+  a deployment zone, and an exposure mode.
+- Render candidate staging centers, enemy threat, enemy LOS, the friendly base, and the enemy source
+  base through the shared service layer for both web and desktop surfaces.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-deployment-exposure-toolkit-spec.md`
+- `docs/superpowers/plans/2026-06-22-deployment-exposure-toolkit.md`
+- `docs/superpowers/qa/2026-06-22-deployment-exposure-toolkit-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-7-consultant-deployment-exposure.md`
+- `docs/superpowers/reviews/2026-06-22-phase-7-adversarial-deployment-exposure.md`
+- `src/warhammer_companion/domain/exposure.py`
+- `src/warhammer_companion/los/exposure.py`
+- `src/warhammer_companion/application/deployment_exposure.py`
+- `src/warhammer_companion/web/templates/deployment_exposure.html`
+- `src/warhammer_companion/desktop/screens/deployment_exposure.py`
+
+Design decisions:
+
+- Product-facing naming is "Deployment Exposure" rather than a safe or legal placement planner.
+- Readiness remains `estimated` for valid manual assumptions and `blocked` for invalid manual
+  inputs.
+- Candidate staging centers are deployment-center diagnostics constrained by smoothed deployment
+  geometry, board fit, dense-feature collision estimates, and selected threat/LOS risk.
+- Visible copy avoids `legal`, `safe`, `recommended`, `optimal`, `likely`, and `guaranteed`; the
+  existing SVG class `safe-zone-outline` remains only a renderer implementation class.
+- Web and desktop adapters call `WarhammerCompanionService`; no custom frontend JavaScript was
+  added.
+
+TDD and implementation results:
+
+- Red step: toolkit tests failed on the missing `warhammer_companion.application.deployment_exposure`
+  module and missing typed exposure payloads.
+- Green step: `domain/exposure.py`, `los/exposure.py`, and `application/deployment_exposure.py`
+  added the deterministic payload, candidate-center geometry, selected risk modes, and
+  `ToolkitResult` builder.
+- Integration red step: service/rendering/web/desktop tests failed on missing state, SVG overlay
+  arguments, `/deployment-exposure`, navigation, and desktop smoke wiring.
+- Green step: shared service state, server-rendered route/template, desktop screen, and smoke
+  summary were added.
+- Adversarial review then found two blockers. Regression tests were added first for curved
+  deployment-zone consistency and all four exposure modes. The fix changed placement diagnostics to
+  use the same smoothed/eroded candidate-center basis and separated selected exposure from LOS/threat
+  component facts.
+
+Verification completed:
+
+- Initial focused Phase 7 toolkit suite passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_exposure_toolkit.py -q`
+  returned 4 passed.
+- Initial app/rendering batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py tests\test_rendering_svg.py -q`
+  returned 29 passed.
+- Initial web suite passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_web_server.py -q`
+  returned 18 passed with the existing Starlette `TestClient` deprecation warning.
+- Initial desktop suite passed after extending timeout:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_desktop_app.py -q`
+  returned 13 passed.
+- After adversarial fixes, `tests/test_deployment_exposure_toolkit.py -q` returned 6 passed.
+- After adversarial fixes, the broader Phase 7 batch
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py tests\test_rendering_svg.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 60 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 115 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed after the final fixes: 360 passed with the
+  existing Starlette `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok` and `deployment_exposure_svg: true`.
+- `git diff --check` passed; Git printed only normal LF-to-CRLF warnings for touched files.
+
+Browser QA:
+
+- `Start-Process` hit the known Windows `Path`/`PATH` duplication issue, so the local app was
+  launched through a detached Node child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/deployment-exposure`, a manual threat-and-LOS query route, the
+  mandatory page 9 route, and the mandatory page 52 route.
+- Each route rendered one SVG map, one form, zero `<script>` tags, at least one
+  `safe-zone-outline`, one `threat-projection-image`, one `coverage-image`, one friendly
+  `model-base`, one `threat-source-base`, estimated/not-planner warning copy, no traceback text, no
+  forbidden visible claim wording, and no warning/error console logs.
+- Interactive Browser QA filled friendly X/Y, submitted the form, preserved values in the redirect,
+  and rendered expected overlays with no console warning/error logs.
+- Browser QA was rerun after adversarial fixes with the same passing result. The temporary QA server
+  process was terminated after each run.
+
+Review and blocker status:
+
+- Consultant design review approved after scoping the phase to Deployment Exposure Diagnostics.
+- Adversarial design review approved after page 9 and page 52 Browser regression routes were added.
+- Consultant implementation review approved. CodeRabbit review was unavailable because `coderabbit`
+  was not found in PowerShell or WSL and a WSL install attempt timed out.
+- Adversarial implementation review initially required changes for curved deployment-zone geometry
+  and selected-vs-component exposure wording. Both were fixed with failing tests first; adversarial
+  re-review approved.
+- Protected-path scan passed: no generated/raw/binary/credential paths and no secret-pattern hits.
+  `AGENTS.md` remained untracked and excluded from staging.

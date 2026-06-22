@@ -9,6 +9,10 @@ import numpy as np
 from PIL import Image
 
 from warhammer_companion.domain.models import DeploymentZone
+from warhammer_companion.los.exposure import (
+    candidate_staging_center_region,
+    exposure_risk_region,
+)
 from warhammer_companion.los.geometry import (
     heatmap_exclusion_zone,
     heatmap_visibility_polygons_from_deployment_zone,
@@ -159,6 +163,48 @@ def test_threat_projection_renders_probability_raster_and_markers() -> None:
     positive_alpha = alpha[alpha > 0]
     assert int(alpha.min()) == 0
     assert int(positive_alpha.max()) > int(positive_alpha.min())
+
+
+def test_deployment_exposure_projection_reuses_existing_overlay_primitives() -> None:
+    packet = SAMPLE_PACKETS[0]
+    threat_regions = threat_projection_regions(
+        packet,
+        source_center=(38.0, 52.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=1.0,
+        mode="raw-range",
+    )
+    threat_region = threat_regions[0].geometry
+    los_region = visibility_polygon_from_base(packet, center=(38.0, 52.0), base_diameter=1.57)
+    risk_region = exposure_risk_region(
+        threat_region=threat_region,
+        los_region=los_region,
+        exposure_mode="threat-and-los",
+    )
+    candidate_region = candidate_staging_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=1.57 / 2.0,
+        risk_region=risk_region,
+    )
+
+    svg = render_map_svg(
+        packet,
+        coverage_polygon=los_region,
+        safe_regions=candidate_region,
+        base_center=(10.0, 5.0),
+        base_diameter=1.57,
+        threat_regions=threat_regions,
+        threat_source_center=(38.0, 52.0),
+        threat_base_diameter=1.57,
+    )
+
+    assert 'class="safe-zone-outline"' in svg
+    assert 'class="coverage-image"' in svg
+    assert 'class="threat-projection-image"' in svg
+    assert 'class="model-base"' in svg
+    assert 'class="threat-source-base"' in svg
 
 
 def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:

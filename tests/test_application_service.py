@@ -398,3 +398,74 @@ def test_threat_range_state_matches_direct_rendering_path() -> None:
     assert state.measurement_convention == "source-base-edge-to-target-point"
     assert state.target_probability > 0.0
     assert state.map_svg == expected_svg
+
+
+def test_deployment_exposure_toolkit_result_wraps_analysis_before_svg_projection() -> None:
+    packet = SAMPLE_PACKETS[0]
+    before = packet.model_dump()
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.deployment_exposure_toolkit_result(
+        packet_id=packet.id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+    )
+
+    assert result.tool_id == "deployment_exposure"
+    assert result.readiness == "estimated"
+    assert result.payload.packet is packet
+    assert [overlay.layer_kind for overlay in result.overlays] == [
+        "deployment_candidate_staging",
+        "enemy_threat_projection",
+        "enemy_los_projection",
+    ]
+    assert result.payload.placement.not_exposed_under_assumptions
+    assert not result.allows_recommendation_language()
+    assert packet.model_dump() == before
+
+
+def test_deployment_exposure_state_renders_candidate_threat_los_and_base_overlays() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.deployment_exposure_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+    )
+
+    assert state.packet.id == SAMPLE_PACKETS[0].id
+    assert state.deployment_zone_id == "attacker"
+    assert state.not_exposed_under_assumptions
+    assert state.threat_probability_at_center == 0.0
+    assert "not a placement planner" in " ".join(state.warning_details).lower()
+    assert 'class="safe-zone-outline"' in state.map_svg
+    assert 'class="coverage-image"' in state.map_svg
+    assert 'class="threat-projection-image"' in state.map_svg
+    assert 'class="model-base"' in state.map_svg
+    assert 'class="threat-source-base"' in state.map_svg

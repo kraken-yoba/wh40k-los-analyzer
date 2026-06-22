@@ -5,6 +5,9 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
+from warhammer_companion.application.deployment_exposure import (
+    build_deployment_exposure_toolkit_result,
+)
 from warhammer_companion.application.los_toolkit import (
     LosCheckerToolkitPayload,
     build_los_checker_toolkit_result,
@@ -13,6 +16,8 @@ from warhammer_companion.application.movement_reach import build_movement_reach_
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
+    DeploymentExposureState,
+    DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
     LosCheckerState,
@@ -27,6 +32,7 @@ from warhammer_companion.application.view_models import (
     ThreatRangeState,
     ViewerState,
 )
+from warhammer_companion.domain.exposure import EXPOSURE_MODES, DeploymentExposurePayload
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
 from warhammer_companion.domain.repository import MapRepository
@@ -404,6 +410,128 @@ class WarhammerCompanionService:
             mode=mode,
         )
 
+    def deployment_exposure_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        deployment_zone_id: str = "attacker",
+        friendly_x: float = 19.24,
+        friendly_y: float = 51.48,
+        friendly_base: float = 1.57,
+        enemy_x: float = 24.77,
+        enemy_y: float = 8.46,
+        enemy_base: float = 1.57,
+        enemy_move: float = 0.0,
+        enemy_threat: float = 1.0,
+        enemy_mode: str = "raw-range",
+        exposure_mode: str = "threat-and-los",
+    ) -> DeploymentExposureState:
+        result = self.deployment_exposure_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            deployment_zone_id=deployment_zone_id,
+            friendly_x=friendly_x,
+            friendly_y=friendly_y,
+            friendly_base=friendly_base,
+            enemy_x=enemy_x,
+            enemy_y=enemy_y,
+            enemy_base=enemy_base,
+            enemy_move=enemy_move,
+            enemy_threat=enemy_threat,
+            enemy_mode=enemy_mode,
+            exposure_mode=exposure_mode,
+        )
+        payload = result.payload
+        if result.is_blocked:
+            map_svg = render_map_svg(payload.packet)
+            placement_details = [reason.detail for reason in result.block_reasons]
+        else:
+            map_svg = render_map_svg(
+                payload.packet,
+                coverage_polygon=payload.enemy_los_region
+                if _exposure_mode_includes_los(payload.exposure_mode)
+                else None,
+                safe_regions=payload.candidate_center_region,
+                base_center=payload.friendly_center,
+                base_diameter=payload.friendly_base_diameter,
+                threat_regions=payload.enemy_threat_regions
+                if _exposure_mode_includes_threat(payload.exposure_mode)
+                else None,
+                threat_source_center=payload.enemy_source_center,
+                threat_base_diameter=payload.enemy_base_diameter,
+            )
+            placement_details = [reason.detail for reason in payload.placement.reasons]
+        return DeploymentExposureState(
+            packet=payload.packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=payload.packet.id),
+            deployment_zone_options=[
+                DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+                for zone in payload.packet.deployment_zones
+            ],
+            deployment_zone_id=payload.deployment_zone_id,
+            friendly_x=payload.friendly_center[0],
+            friendly_y=payload.friendly_center[1],
+            friendly_base=payload.friendly_base_diameter,
+            enemy_x=payload.enemy_source_center[0],
+            enemy_y=payload.enemy_source_center[1],
+            enemy_base=payload.enemy_base_diameter,
+            enemy_move=payload.enemy_move_distance,
+            enemy_threat=payload.enemy_threat_range,
+            enemy_mode=payload.enemy_threat_mode,
+            exposure_mode=payload.exposure_mode,
+            enemy_threat_modes=list(THREAT_MODES),
+            exposure_modes=list(EXPOSURE_MODES),
+            not_exposed_under_assumptions=payload.placement.not_exposed_under_assumptions,
+            threat_probability_at_center=payload.threat_probability_at_center,
+            placement_reason_details=placement_details,
+            warning_details=[warning.detail for warning in result.warnings],
+            map_svg=map_svg,
+        )
+
+    def deployment_exposure_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        deployment_zone_id: str = "attacker",
+        friendly_x: float = 19.24,
+        friendly_y: float = 51.48,
+        friendly_base: float = 1.57,
+        enemy_x: float = 24.77,
+        enemy_y: float = 8.46,
+        enemy_base: float = 1.57,
+        enemy_move: float = 0.0,
+        enemy_threat: float = 1.0,
+        enemy_mode: str = "raw-range",
+        exposure_mode: str = "threat-and-los",
+    ) -> ToolkitResult[DeploymentExposurePayload]:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        return build_deployment_exposure_toolkit_result(
+            packet,
+            deployment_zone_id=deployment_zone_id,
+            friendly_center=(friendly_x, friendly_y),
+            friendly_base_diameter=friendly_base,
+            enemy_source_center=(enemy_x, enemy_y),
+            enemy_base_diameter=enemy_base,
+            enemy_move_distance=enemy_move,
+            enemy_threat_range=enemy_threat,
+            enemy_threat_mode=enemy_mode,
+            exposure_mode=exposure_mode,
+        )
+
     def hidden_coverage_state(
         self,
         *,
@@ -717,6 +845,14 @@ def _packet_sort_key(packet: MapPacket) -> tuple[int, int, str]:
     if metadata is None:
         return (1, 0, packet.name)
     return (0, metadata.source_page, metadata.layout_variant)
+
+
+def _exposure_mode_includes_los(exposure_mode: str) -> bool:
+    return exposure_mode in {"los-only", "threat-or-los", "threat-and-los"}
+
+
+def _exposure_mode_includes_threat(exposure_mode: str) -> bool:
+    return exposure_mode in {"threat-only", "threat-or-los", "threat-and-los"}
 
 
 def _packet_group_label(packet: MapPacket) -> str:

@@ -366,6 +366,73 @@ def hidden_coverage(
     )
 
 
+@app.get("/deployment-exposure", response_class=HTMLResponse)
+def deployment_exposure(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    deployment_zone_id: str = "attacker",
+    friendly_x: float = 19.24,
+    friendly_y: float = 51.48,
+    friendly_base: float = 1.57,
+    enemy_x: float = 24.77,
+    enemy_y: float = 8.46,
+    enemy_base: float = 1.57,
+    enemy_move: float = 0.0,
+    enemy_threat: float = 1.0,
+    enemy_mode: str = "raw-range",
+    exposure_mode: str = "threat-and-los",
+) -> HTMLResponse:
+    state = service.deployment_exposure_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        deployment_zone_id=deployment_zone_id,
+        friendly_x=friendly_x,
+        friendly_y=friendly_y,
+        friendly_base=friendly_base,
+        enemy_x=enemy_x,
+        enemy_y=enemy_y,
+        enemy_base=enemy_base,
+        enemy_move=enemy_move,
+        enemy_threat=enemy_threat,
+        enemy_mode=enemy_mode,
+        exposure_mode=exposure_mode,
+    )
+    return templates.TemplateResponse(
+        request,
+        "deployment_exposure.html",
+        {
+            "active_page": "deployment-exposure",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "deployment_zone_options": state.deployment_zone_options,
+            "deployment_zone_id": state.deployment_zone_id,
+            "friendly_x": state.friendly_x,
+            "friendly_y": state.friendly_y,
+            "friendly_base": state.friendly_base,
+            "enemy_x": state.enemy_x,
+            "enemy_y": state.enemy_y,
+            "enemy_base": state.enemy_base,
+            "enemy_move": state.enemy_move,
+            "enemy_threat": state.enemy_threat,
+            "enemy_mode": state.enemy_mode,
+            "exposure_mode": state.exposure_mode,
+            "enemy_threat_modes": state.enemy_threat_modes,
+            "exposure_modes": state.exposure_modes,
+            "not_exposed_under_assumptions": state.not_exposed_under_assumptions,
+            "threat_probability_at_center": state.threat_probability_at_center,
+            "placement_reason_details": state.placement_reason_details,
+            "warning_details": state.warning_details,
+            "map_svg": state.map_svg,
+        },
+    )
+
+
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
     packet_id: str | None = Form(None),
@@ -420,6 +487,52 @@ def update_movement_reach(
                 "base": base,
                 "move": move,
                 "mode": mode,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/deployment-exposure", response_class=HTMLResponse)
+def update_deployment_exposure(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    deployment_zone_id: str = Form("attacker"),
+    friendly_x: float = Form(...),
+    friendly_y: float = Form(...),
+    friendly_base: float = Form(...),
+    enemy_x: float = Form(...),
+    enemy_y: float = Form(...),
+    enemy_base: float = Form(...),
+    enemy_move: float = Form(...),
+    enemy_threat: float = Form(...),
+    enemy_mode: str = Form("raw-range"),
+    exposure_mode: str = Form("threat-and-los"),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    return RedirectResponse(
+        "/deployment-exposure?"
+        + urlencode(
+            {
+                "packet_id": resolved_packet_id,
+                "deployment_zone_id": deployment_zone_id,
+                "friendly_x": friendly_x,
+                "friendly_y": friendly_y,
+                "friendly_base": friendly_base,
+                "enemy_x": enemy_x,
+                "enemy_y": enemy_y,
+                "enemy_base": enemy_base,
+                "enemy_move": enemy_move,
+                "enemy_threat": enemy_threat,
+                "enemy_mode": enemy_mode,
+                "exposure_mode": exposure_mode,
             }
         ),
         status_code=303,

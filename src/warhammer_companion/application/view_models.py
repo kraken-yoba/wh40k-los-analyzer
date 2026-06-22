@@ -49,6 +49,12 @@ class TerrainSelectOption:
 
 
 @dataclass(frozen=True)
+class DeploymentZoneSelectOption:
+    id: str
+    label: str
+
+
+@dataclass(frozen=True)
 class SettingsState:
     app_backend_status: str
     app_backend_detail: str
@@ -130,6 +136,32 @@ class ThreatRangeState:
     measurement_convention: str
     target_probability: float
     distribution: list[ThreatDiceOutcome]
+    warning_details: list[str]
+    map_svg: str
+
+
+@dataclass(frozen=True)
+class DeploymentExposureState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    deployment_zone_options: list[DeploymentZoneSelectOption]
+    deployment_zone_id: str
+    friendly_x: float
+    friendly_y: float
+    friendly_base: float
+    enemy_x: float
+    enemy_y: float
+    enemy_base: float
+    enemy_move: float
+    enemy_threat: float
+    enemy_mode: str
+    exposure_mode: str
+    enemy_threat_modes: list[str]
+    exposure_modes: list[str]
+    not_exposed_under_assumptions: bool
+    threat_probability_at_center: float
+    placement_reason_details: list[str]
     warning_details: list[str]
     map_svg: str
 

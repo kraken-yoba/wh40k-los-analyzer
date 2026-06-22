@@ -31,6 +31,10 @@ Steps:
 4. Open Map Viewer.
 5. Open LOS Heatmap.
 6. Open LOS Checker.
+7. Open Movement Reach.
+8. Open Hidden Coverage.
+9. Open Threat Range.
+10. Open Deployment Exposure.
 
 Expected result:
 
@@ -237,11 +241,45 @@ Manual check:
 
 - Visual ray plausibility around merged/touching footprints.
 
-## Scenario 9: Cross-Workflow Consistency
+## Scenario 9: Deployment Exposure Diagnostics
 
 Steps:
 
-1. Load the same packet in Viewer, Heatmap, and LOS Checker.
+1. Open Deployment Exposure.
+2. Select page 9.
+3. Use the attacker deployment zone with a friendly 1.57 inch base and enemy 1.57 inch base.
+4. Generate a threat-and-LOS diagnostic.
+5. Repeat for page 52 with the defender deployment zone.
+6. Test an invalid friendly base diameter.
+
+Expected result:
+
+- The map renders candidate staging centers, enemy threat projection, enemy LOS projection, the
+  friendly base, and the enemy source base.
+- The placement summary uses cautious diagnostic wording and does not claim legal, recommended,
+  guaranteed, or optimized placement.
+- Invalid manual inputs are blocked with user-facing messages and no diagnostic overlays.
+- Page 9 and page 52 both render without losing deployment-zone, dense-feature, terrain, or overlay
+  geometry.
+
+Automation:
+
+- Service and web tests for readiness, warning copy, selected controls, overlay classes, and POST
+  preservation.
+- Desktop smoke checks for screen presence and rendered SVG.
+- Browser QA checks `/deployment-exposure` plus mandatory page 9 and page 52 regression query
+  paths.
+
+Manual check:
+
+- Visual plausibility of candidate staging regions, enemy threat/LOS overlap, and warning copy.
+
+## Scenario 10: Cross-Workflow Consistency
+
+Steps:
+
+1. Load the same packet in Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat
+   Range, and Deployment Exposure.
 2. Compare packet labels, page metadata, board dimensions, terrain shapes, deployment zones, and blocker counts.
 3. Repeat for page 9 and page 52.
 
@@ -249,7 +287,8 @@ Expected result:
 
 - The same packet model drives every workflow.
 - Terrain and dense feature geometry do not diverge between screens.
-- Heatmap and LOS checker use the same blocker semantics.
+- Heatmap, LOS checker, movement, threat, hidden coverage, and deployment exposure tools use the
+  documented blocker semantics for their selected assumptions.
 
 Automation:
 
@@ -260,14 +299,15 @@ Manual check:
 
 - Side-by-side web/desktop rendering comparison for known complex layouts.
 
-## Scenario 10: Packaged Windows Desktop Smoke
+## Scenario 11: Packaged Windows Desktop Smoke
 
 Steps:
 
 1. Install or unzip the Windows desktop build on a clean profile with no Python installed.
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
-4. Open Viewer, Heatmap, and LOS Checker with bundled or generated packet data.
+4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, and Deployment
+   Exposure with bundled or generated packet data.
 5. Trigger a non-destructive settings/status check.
 
 Expected result:
