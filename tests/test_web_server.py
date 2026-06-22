@@ -15,7 +15,6 @@ from warhammer_companion.application.view_models import (
     DeploymentExposureState,
     DeploymentScorecardState,
     DeploymentZoneSelectOption,
-    HeatmapState,
     HiddenCoverageState,
     MissionPackState,
     MovementReachState,
@@ -119,52 +118,129 @@ def test_map_data_delete_removes_generated_packet_and_reloads(
     assert repository.list_packets() == SAMPLE_PACKETS
 
 
-def test_heatmap_route_uses_edge_offset_controls(monkeypatch) -> None:
-    calls: list[tuple[str, str, str, int]] = []
+def test_los_analysis_route_renders_heatmap_mode() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/los?mode=heatmap&zone_id=attacker&source=edge&offset_inches=6")
+    normalized = " ".join(response.text.split())
+
+    assert response.status_code == 200
+    assert "Line of Sight" in response.text
+    assert "LOS Heatmap" in response.text
+    assert 'name="mode"' in response.text
+    assert 'name="source"' in response.text
+    assert 'name="offset_inches"' in response.text
+    assert 'value="6"' in response.text
+    assert 'class="heatmap-image"' in response.text
+    assert 'class="coverage-image"' not in response.text
+    assert 'href="/los"' in response.text
+    assert "LOS Heatmap</a>" not in normalized
+    assert "LOS Checker</a>" not in normalized
+    assert "<script" not in response.text
+
+
+def test_los_analysis_route_renders_checker_mode() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/los?mode=checker&x=30.5&y=24&base=1.57")
+
+    assert response.status_code == 200
+    assert "Line of Sight" in response.text
+    assert "LOS Checker" in response.text
+    assert 'name="mode"' in response.text
+    assert 'name="x"' in response.text
+    assert 'name="y"' in response.text
+    assert 'name="base"' in response.text
+    assert 'value="30.5"' in response.text
+    assert 'value="24.0"' in response.text
+    assert 'class="coverage-image"' in response.text
+    assert 'class="heatmap-image"' not in response.text
+    assert "<script" not in response.text
+
+
+def test_legacy_los_routes_redirect_to_canonical_los_surface() -> None:
+    client = TestClient(server.app)
+
+    heatmap = client.get(
+        "/heatmap?zone_id=defender&source=interior&offset_inches=0",
+        follow_redirects=False,
+    )
+    checker = client.get(
+        "/los-checker?x=30.5&y=24&base=1.57",
+        follow_redirects=False,
+    )
+
+    heatmap_location = urlparse(heatmap.headers["location"])
+    heatmap_params = parse_qs(heatmap_location.query)
+    checker_location = urlparse(checker.headers["location"])
+    checker_params = parse_qs(checker_location.query)
+
+    assert heatmap.status_code == 303
+    assert heatmap_location.path == "/los"
+    assert heatmap_params["mode"] == ["heatmap"]
+    assert heatmap_params["zone_id"] == ["defender"]
+    assert heatmap_params["source"] == ["interior"]
+    assert heatmap_params["offset_inches"] == ["0"]
+    assert checker.status_code == 303
+    assert checker_location.path == "/los"
+    assert checker_params["mode"] == ["checker"]
+    assert checker_params["x"] == ["30.5"]
+    assert checker_params["y"] == ["24.0"]
+    assert checker_params["base"] == ["1.57"]
+
+
+def test_los_analysis_post_preserves_mode_values(monkeypatch) -> None:
     packet = server.repository.default_packet()
-    packet_selector = WarhammerCompanionService(
-        paths=server.ingestion_paths,
-        repository=StaticMapRepository([packet]),
-        codex_backend=server.codex_backend,
-    ).packet_selector_state(packet_id=packet.id)
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
 
     class FakeService:
-        def heatmap_state(
+        def resolve_packet_id(
             self,
             *,
             packet_id: str | None = None,
             player_a: str | None = None,
             player_b: str | None = None,
             layout_variant: str | None = None,
-            zone_id: str = "attacker",
-            source: str = "edge",
-            offset_inches: int = 0,
-        ) -> HeatmapState:
-            resolved_packet_id = packet_id or packet.id
-            calls.append((resolved_packet_id, zone_id, source, offset_inches))
-            return HeatmapState(
-                packet=packet,
-                packet_groups=[],
-                packet_selector=packet_selector,
-                selected_zone_id=zone_id,
-                selected_source=source,
-                selected_offset_inches=offset_inches,
-                offset_options=list(range(0, 13)),
-                map_svg='<svg class="map-svg" role="img" aria-label="fake map"></svg>',
-            )
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
 
     monkeypatch.setattr(server, "service", FakeService())
     client = TestClient(server.app)
 
-    response = client.get(
-        f"/heatmap?packet_id={packet.id}&zone_id=attacker&source=edge&offset_inches=6"
+    heatmap = client.post(
+        "/los",
+        data={
+            "mode": "heatmap",
+            "packet_id": packet.id,
+            "zone_id": "defender",
+            "source": "interior",
+            "offset_inches": "0",
+        },
+        follow_redirects=False,
+    )
+    checker = client.post(
+        "/los",
+        data={
+            "mode": "checker",
+            "packet_id": packet.id,
+            "x": "30.5",
+            "y": "24",
+            "base": "1.57",
+        },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert calls == [(packet.id, "attacker", "edge", 6)]
-    assert 'name="source"' in response.text
-    assert 'name="offset_inches"' in response.text
-    assert 'value="6"' in response.text
+    assert heatmap.status_code == 303
+    assert heatmap.headers["location"] == (
+        f"/los?mode=heatmap&packet_id={packet.id}&zone_id=defender"
+        "&source=interior&offset_inches=0"
+    )
+    assert checker.status_code == 303
+    assert checker.headers["location"] == (
+        f"/los?mode=checker&packet_id={packet.id}&x=30.5&y=24.0&base=1.57"
+    )
+    assert resolved_calls == [(packet.id, None, None, None), (packet.id, None, None, None)]
 
 
 def test_hidden_coverage_route_uses_terrain_and_range_controls(monkeypatch) -> None:

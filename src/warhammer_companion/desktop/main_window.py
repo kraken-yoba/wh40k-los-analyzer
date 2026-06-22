@@ -14,9 +14,8 @@ from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.desktop.screens.damage_profile import DamageProfileScreen
 from warhammer_companion.desktop.screens.deployment_exposure import DeploymentExposureScreen
 from warhammer_companion.desktop.screens.deployment_scorecard import DeploymentScorecardScreen
-from warhammer_companion.desktop.screens.heatmap import HeatmapScreen
 from warhammer_companion.desktop.screens.hidden_coverage import HiddenCoverageScreen
-from warhammer_companion.desktop.screens.los_checker import LosCheckerScreen
+from warhammer_companion.desktop.screens.los_analysis import LineOfSightScreen
 from warhammer_companion.desktop.screens.map_data import MapDataScreen
 from warhammer_companion.desktop.screens.mission_pack import MissionPackScreen
 from warhammer_companion.desktop.screens.movement_reach import MovementReachScreen
@@ -46,8 +45,7 @@ class MainWindow(QMainWindow):
         self._add_screen("Settings", SettingsScreen(service))
         self._add_screen("Map Data", MapDataScreen(service))
         self._add_screen("Map Viewer", ViewerScreen(service))
-        self._add_screen("LOS Heatmap", HeatmapScreen(service))
-        self._add_screen("LOS Checker", LosCheckerScreen(service))
+        self._add_screen("Line of Sight", LineOfSightScreen(service))
         self._add_screen("Movement Reach", MovementReachScreen(service))
         self._add_screen("Threat Range", ThreatRangeScreen(service))
         self._add_screen("Deployment Exposure", DeploymentExposureScreen(service))

@@ -116,6 +116,18 @@ class LosCheckerState:
 
 
 @dataclass(frozen=True)
+class LosAnalysisState:
+    mode: str
+    modes: list[str]
+    heatmap: HeatmapState | None
+    checker: LosCheckerState | None
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    map_svg: str
+
+
+@dataclass(frozen=True)
 class MovementReachState:
     packet: MapPacket
     packet_groups: list[PacketSelectGroup]

@@ -131,6 +131,40 @@ def test_desktop_viewer_screen_renders_map_pixmap() -> None:
     app.processEvents()
 
 
+def test_desktop_line_of_sight_screen_renders_both_modes() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Line of Sight" in labels
+    assert "LOS Heatmap" not in labels
+    assert "LOS Checker" not in labels
+    los_screen = window.stack.widget(labels.index("Line of Sight"))
+
+    los_screen.mode_combo.setCurrentIndex(los_screen.mode_combo.findData("heatmap"))
+    los_screen.refresh()
+    heatmap_pixmap = los_screen.map.rendered_pixmap()
+    assert heatmap_pixmap is not None
+    assert not heatmap_pixmap.isNull()
+
+    los_screen.mode_combo.setCurrentIndex(los_screen.mode_combo.findData("checker"))
+    los_screen.x_input.setValue(30.5)
+    los_screen.y_input.setValue(24.0)
+    los_screen.refresh()
+    checker_pixmap = los_screen.map.rendered_pixmap()
+    assert checker_pixmap is not None
+    assert not checker_pixmap.isNull()
+
+    window.close()
+    app.processEvents()
+
+
 def test_desktop_hidden_coverage_screen_renders_map_pixmap() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Line of Sight</h1>
+    <p class="lede">
+      Switch between deployment visibility density and a circular-base LOS check.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar los-analysis-form" method="post" action="/los" data-board-width="{{ packet.board.width }}" data-board-height="{{ packet.board.height }}">
+    {% include "_packet_selector.html" %}
+    <label>
+      LOS mode
+      <select name="mode">
+        <option value="heatmap" {{ "selected" if mode == "heatmap" else "" }}>LOS Heatmap</option>
+        <option value="checker" {{ "selected" if mode == "checker" else "" }}>LOS Checker</option>
+      </select>
+    </label>
+    {% if mode == "checker" and checker %}
+    <label>
+      X inches
+      <input name="x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ checker.x }}">
+    </label>
+    <label>
+      Y inches
+      <input name="y" type="number" min="0" max="{{ packet.board.height }}" step="0.01" value="{{ checker.y }}">
+    </label>
+    <label>
+      Base diameter
+      <input name="base" type="number" min="0.5" max="6" step="0.01" value="{{ checker.base }}">
+    </label>
+    <button type="submit">Check LOS</button>
+    {% elif heatmap %}
+    <label>
+      Deployment zone
+      <select name="zone_id">
+        {% for zone in packet.deployment_zones %}
+        <option value="{{ zone.id }}" {{ "selected" if zone.id == heatmap.selected_zone_id else "" }}>{{ zone.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Sample source
+      <select name="source">
+        <option value="edge" {{ "selected" if heatmap.selected_source == "edge" else "" }}>
+          Deployment edge
+        </option>
+        <option value="interior" {{ "selected" if heatmap.selected_source == "interior" else "" }}>
+          Full deployment zone
+        </option>
+      </select>
+    </label>
+    <label class="range-label">
+      Edge offset
+      <span class="range-value">{{ heatmap.selected_offset_inches }} in</span>
+      <input
+        name="offset_inches"
+        type="range"
+        min="0"
+        max="12"
+        step="1"
+        value="{{ heatmap.selected_offset_inches }}"
+        list="offset-markers"
+        {{ "disabled" if heatmap.selected_source == "interior" else "" }}
+      >
+      <datalist id="offset-markers">
+        {% for value in heatmap.offset_options %}
+        <option value="{{ value }}"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <button type="submit">Generate</button>
+    {% endif %}
+  </form>
+
+  {% if mode == "checker" %}
+  <div class="heatmap-legend" aria-label="LOS overlay legend">
+    <span><i class="legend-swatch coverage-swatch"></i>Visible area</span>
+    <span><i class="legend-line clear-line"></i>Clear sampled ray</span>
+    <span><i class="legend-line blocked-line"></i>Blocked sampled ray</span>
+  </div>
+  {% else %}
+  <div class="heatmap-legend" aria-label="Heatmap color legend">
+    <span><i class="legend-swatch heat-low"></i>Low</span>
+    <span><i class="legend-swatch heat-mid-low"></i>Limited</span>
+    <span><i class="legend-swatch heat-mid"></i>Contested</span>
+    <span><i class="legend-swatch heat-mid-high"></i>Good</span>
+    <span><i class="legend-swatch heat-high"></i>High</span>
+    <span><i class="legend-line safe-line"></i>Fully obscured</span>
+  </div>
+  {% endif %}
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+{% endblock %}

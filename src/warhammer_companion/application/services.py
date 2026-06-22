@@ -30,6 +30,7 @@ from warhammer_companion.application.view_models import (
     DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
+    LosAnalysisState,
     LosCheckerState,
     MapDataState,
     MissionPackState,
@@ -257,6 +258,62 @@ class WarhammerCompanionService:
             packet,
             center=center,
             base_diameter=base,
+        )
+
+    def los_analysis_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        mode: str = "heatmap",
+        zone_id: str = "attacker",
+        source: str = "edge",
+        offset_inches: int = 0,
+        x: float = 22.0,
+        y: float = 10.0,
+        base: float = 1.57,
+    ) -> LosAnalysisState:
+        normalized_mode = "checker" if mode == "checker" else "heatmap"
+        if normalized_mode == "checker":
+            checker = self.los_checker_state(
+                packet_id=packet_id,
+                player_a=player_a,
+                player_b=player_b,
+                layout_variant=layout_variant,
+                x=x,
+                y=y,
+                base=base,
+            )
+            return LosAnalysisState(
+                mode=normalized_mode,
+                modes=["heatmap", "checker"],
+                heatmap=None,
+                checker=checker,
+                packet=checker.packet,
+                packet_groups=checker.packet_groups,
+                packet_selector=checker.packet_selector,
+                map_svg=checker.map_svg,
+            )
+        heatmap = self.heatmap_state(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            zone_id=zone_id,
+            source=source,
+            offset_inches=offset_inches,
+        )
+        return LosAnalysisState(
+            mode=normalized_mode,
+            modes=["heatmap", "checker"],
+            heatmap=heatmap,
+            checker=None,
+            packet=heatmap.packet,
+            packet_groups=heatmap.packet_groups,
+            packet_selector=heatmap.packet_selector,
+            map_svg=heatmap.map_svg,
         )
 
     def movement_reach_state(

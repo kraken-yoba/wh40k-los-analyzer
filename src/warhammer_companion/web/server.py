@@ -157,7 +157,6 @@ def viewer(
 
 @app.get("/heatmap", response_class=HTMLResponse)
 def heatmap(
-    request: Request,
     packet_id: str | None = None,
     player_a: str | None = None,
     player_b: str | None = None,
@@ -165,28 +164,67 @@ def heatmap(
     zone_id: str = "attacker",
     source: str = "edge",
     offset_inches: int = 0,
+) -> RedirectResponse:
+    return RedirectResponse(
+        "/los?"
+        + urlencode(
+            _without_none(
+                {
+                    "mode": "heatmap",
+                    "packet_id": packet_id,
+                    "player_a": player_a,
+                    "player_b": player_b,
+                    "layout_variant": layout_variant,
+                    "zone_id": zone_id,
+                    "source": source,
+                    "offset_inches": offset_inches,
+                }
+            )
+        ),
+        status_code=303,
+    )
+
+
+@app.get("/los", response_class=HTMLResponse)
+def los_analysis(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    mode: str = "heatmap",
+    zone_id: str = "attacker",
+    source: str = "edge",
+    offset_inches: int = 0,
+    x: float = 22.0,
+    y: float = 10.0,
+    base: float = 1.57,
 ) -> HTMLResponse:
-    state = service.heatmap_state(
+    state = service.los_analysis_state(
         packet_id=packet_id,
         player_a=player_a,
         player_b=player_b,
         layout_variant=layout_variant,
+        mode=mode,
         zone_id=zone_id,
         source=source,
         offset_inches=offset_inches,
+        x=x,
+        y=y,
+        base=base,
     )
     return templates.TemplateResponse(
         request,
-        "heatmap.html",
+        "los_analysis.html",
         {
-            "active_page": "heatmap",
+            "active_page": "los",
             "packet": state.packet,
             "packet_groups": state.packet_groups,
             "packet_selector": state.packet_selector,
-            "selected_zone_id": state.selected_zone_id,
-            "selected_source": state.selected_source,
-            "selected_offset_inches": state.selected_offset_inches,
-            "offset_options": state.offset_options,
+            "mode": state.mode,
+            "modes": state.modes,
+            "heatmap": state.heatmap,
+            "checker": state.checker,
             "map_svg": state.map_svg,
         },
     )
@@ -194,7 +232,6 @@ def heatmap(
 
 @app.get("/los-checker", response_class=HTMLResponse)
 def los_checker(
-    request: Request,
     packet_id: str | None = None,
     player_a: str | None = None,
     player_b: str | None = None,
@@ -202,29 +239,24 @@ def los_checker(
     x: float = 22.0,
     y: float = 10.0,
     base: float = 1.57,
-) -> HTMLResponse:
-    state = service.los_checker_state(
-        packet_id=packet_id,
-        player_a=player_a,
-        player_b=player_b,
-        layout_variant=layout_variant,
-        x=x,
-        y=y,
-        base=base,
-    )
-    return templates.TemplateResponse(
-        request,
-        "los_checker.html",
-        {
-            "active_page": "los-checker",
-            "packet": state.packet,
-            "packet_groups": state.packet_groups,
-            "packet_selector": state.packet_selector,
-            "x": state.x,
-            "y": state.y,
-            "base": state.base,
-            "map_svg": state.map_svg,
-        },
+) -> RedirectResponse:
+    return RedirectResponse(
+        "/los?"
+        + urlencode(
+            _without_none(
+                {
+                    "mode": "checker",
+                    "packet_id": packet_id,
+                    "player_a": player_a,
+                    "player_b": player_b,
+                    "layout_variant": layout_variant,
+                    "x": x,
+                    "y": y,
+                    "base": base,
+                }
+            )
+        ),
+        status_code=303,
     )
 
 
@@ -666,7 +698,58 @@ def update_los_checker(
         layout_variant=layout_variant,
     )
     return RedirectResponse(
-        f"/los-checker?packet_id={resolved_packet_id}&x={x}&y={y}&base={base}",
+        "/los?"
+        + urlencode(
+            {
+                "mode": "checker",
+                "packet_id": resolved_packet_id,
+                "x": x,
+                "y": y,
+                "base": base,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/los", response_class=HTMLResponse)
+def update_los_analysis(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    mode: str = Form("heatmap"),
+    zone_id: str = Form("attacker"),
+    source: str = Form("edge"),
+    offset_inches: int = Form(0),
+    x: float = Form(22.0),
+    y: float = Form(10.0),
+    base: float = Form(1.57),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    if mode == "checker":
+        params = {
+            "mode": "checker",
+            "packet_id": resolved_packet_id,
+            "x": x,
+            "y": y,
+            "base": base,
+        }
+    else:
+        params = {
+            "mode": "heatmap",
+            "packet_id": resolved_packet_id,
+            "zone_id": zone_id,
+            "source": source,
+            "offset_inches": offset_inches,
+        }
+    return RedirectResponse(
+        "/los?" + urlencode(params),
         status_code=303,
     )
 
@@ -917,3 +1000,7 @@ def _settings_codex_error_redirect(exc: Exception) -> RedirectResponse:
         ),
         status_code=303,
     )
+
+
+def _without_none(values: dict[str, object | None]) -> dict[str, object]:
+    return {key: value for key, value in values.items() if value is not None}

@@ -155,6 +155,84 @@ def test_heatmap_state_clamps_and_caches_rendered_svg() -> None:
     ]
 
 
+def test_los_analysis_state_delegates_to_heatmap_without_rendering_checker() -> None:
+    calls: list[str] = []
+
+    class CountingService(WarhammerCompanionService):
+        def _render_heatmap_svg(
+            self,
+            packet_id: str,
+            zone_id: str,
+            source: str,
+            offset_inches: int,
+        ) -> str:
+            calls.append(f"heatmap:{packet_id}:{zone_id}:{source}:{offset_inches}")
+            return '<svg class="map-svg"><image class="heatmap-image"/></svg>'
+
+        def los_checker_toolkit_result(self, **kwargs):  # type: ignore[no-untyped-def]
+            calls.append("checker")
+            return super().los_checker_toolkit_result(**kwargs)
+
+    service = CountingService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.los_analysis_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        mode="heatmap",
+        zone_id="attacker",
+        source="edge",
+        offset_inches=6,
+    )
+
+    assert state.mode == "heatmap"
+    assert state.heatmap is not None
+    assert state.checker is None
+    assert state.map_svg == state.heatmap.map_svg
+    assert calls == [f"heatmap:{SAMPLE_PACKETS[0].id}:attacker:edge:6"]
+
+
+def test_los_analysis_state_delegates_to_checker_without_rendering_heatmap() -> None:
+    calls: list[str] = []
+
+    class CountingService(WarhammerCompanionService):
+        def _render_heatmap_svg(
+            self,
+            packet_id: str,
+            zone_id: str,
+            source: str,
+            offset_inches: int,
+        ) -> str:
+            calls.append("heatmap")
+            return '<svg class="map-svg"><image class="heatmap-image"/></svg>'
+
+        def los_checker_toolkit_result(self, **kwargs):  # type: ignore[no-untyped-def]
+            calls.append("checker")
+            return super().los_checker_toolkit_result(**kwargs)
+
+    service = CountingService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.los_analysis_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        mode="checker",
+        x=30.5,
+        y=24.0,
+        base=1.57,
+    )
+
+    assert state.mode == "checker"
+    assert state.heatmap is None
+    assert state.checker is not None
+    assert state.map_svg == state.checker.map_svg
+    assert calls == ["checker"]
+
+
 def test_hidden_coverage_state_selects_terrain_and_detection_range() -> None:
     service = WarhammerCompanionService(
         paths=IngestionPaths(),
