@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 import pytest
 
 from warhammer_companion.application.services import WarhammerCompanionService
@@ -7,6 +10,7 @@ from warhammer_companion.domain.damage import (
     DEFAULT_DAMAGE_PROFILE_INPUT,
     DEFAULT_TARGET_PROFILE_INPUT,
 )
+from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.domain.repository import StaticMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
@@ -571,6 +575,53 @@ def test_deployment_scorecard_service_wraps_exposure_and_mission_context() -> No
     assert 'class="threat-projection-image"' in state.map_svg
 
 
+def test_deployment_scorecard_and_exposure_maps_match_characterized_official_layouts() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(_official_seed_packets()),
+        codex_backend=server.codex_backend,
+    )
+    common_inputs = {
+        "deployment_zone_id": "attacker",
+        "friendly_x": 19.24,
+        "friendly_y": 51.48,
+        "friendly_base": 1.57,
+        "enemy_x": 24.77,
+        "enemy_y": 8.46,
+        "enemy_base": 1.57,
+        "enemy_move": 8.0,
+        "enemy_threat": 12.0,
+        "enemy_mode": "fixed-move-plus-range",
+        "exposure_mode": "threat-and-los",
+    }
+    expected_hashes = {
+        "official-event-companion-page-9": (
+            "5f8b4c3342dec7eb5b0c37ccac2a4509f7b29be2636bfe3b5615146651365c49"
+        ),
+        "official-event-companion-page-52": (
+            "aeef9a1ae4bde05f22a277dc1658667eb97fec21231ccf0bc43351cf241566e0"
+        ),
+    }
+
+    for packet_id, expected_hash in expected_hashes.items():
+        exposure = service.deployment_exposure_state(packet_id=packet_id, **common_inputs)
+        scorecard = service.deployment_scorecard_state(
+            packet_id=packet_id,
+            turn_order="going-first",
+            **common_inputs,
+        )
+
+        assert scorecard.map_svg == exposure.map_svg
+        assert hashlib.sha256(exposure.map_svg.encode("utf-8")).hexdigest() == expected_hash
+        assert '<svg class="map-svg"' in exposure.map_svg
+        assert 'viewBox="0 0 528 720"' in exposure.map_svg
+        assert 'class="safe-zone-outline"' in exposure.map_svg
+        assert 'class="coverage-image"' in exposure.map_svg
+        assert 'class="threat-projection-image"' in exposure.map_svg
+        assert 'class="model-base"' in exposure.map_svg
+        assert 'class="threat-source-base"' in exposure.map_svg
+
+
 def test_deployment_scorecard_state_blocks_invalid_turn_order_without_tactical_overlays() -> None:
     service = WarhammerCompanionService(
         paths=IngestionPaths(),
@@ -600,6 +651,17 @@ def test_deployment_scorecard_state_blocks_invalid_turn_order_without_tactical_o
     assert 'class="safe-zone-outline"' not in state.map_svg
     assert 'class="coverage-image"' not in state.map_svg
     assert 'class="threat-projection-image"' not in state.map_svg
+
+
+def _official_seed_packets():
+    seed_dir = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "warhammer_companion"
+        / "seed_data"
+        / "map-packets"
+    )
+    return load_packet_directory(seed_dir)
 
 
 def test_damage_profile_toolkit_result_wraps_manual_estimate() -> None:

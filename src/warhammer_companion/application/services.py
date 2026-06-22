@@ -470,24 +470,13 @@ class WarhammerCompanionService:
             exposure_mode=exposure_mode,
         )
         payload = result.payload
+        map_svg = self._deployment_exposure_map_svg(
+            payload,
+            include_overlays=not result.is_blocked,
+        )
         if result.is_blocked:
-            map_svg = render_map_svg(payload.packet)
             placement_details = [reason.detail for reason in result.block_reasons]
         else:
-            map_svg = render_map_svg(
-                payload.packet,
-                coverage_polygon=payload.enemy_los_region
-                if exposure_mode_includes_los(payload.exposure_mode)
-                else None,
-                safe_regions=payload.candidate_center_region,
-                base_center=payload.friendly_center,
-                base_diameter=payload.friendly_base_diameter,
-                threat_regions=payload.enemy_threat_regions
-                if exposure_mode_includes_threat(payload.exposure_mode)
-                else None,
-                threat_source_center=payload.enemy_source_center,
-                threat_base_diameter=payload.enemy_base_diameter,
-            )
             placement_details = [reason.detail for reason in payload.placement.reasons]
         return DeploymentExposureState(
             packet=payload.packet,
@@ -594,24 +583,10 @@ class WarhammerCompanionService:
             turn_order=turn_order,
         )
         payload = result.payload
-        exposure = payload.deployment_exposure
-        if result.is_blocked:
-            map_svg = render_map_svg(payload.packet)
-        else:
-            map_svg = render_map_svg(
-                payload.packet,
-                coverage_polygon=exposure.enemy_los_region
-                if exposure_mode_includes_los(exposure.exposure_mode)
-                else None,
-                safe_regions=exposure.candidate_center_region,
-                base_center=exposure.friendly_center,
-                base_diameter=exposure.friendly_base_diameter,
-                threat_regions=exposure.enemy_threat_regions
-                if exposure_mode_includes_threat(exposure.exposure_mode)
-                else None,
-                threat_source_center=exposure.enemy_source_center,
-                threat_base_diameter=exposure.enemy_base_diameter,
-            )
+        map_svg = self._deployment_exposure_map_svg(
+            payload.deployment_exposure,
+            include_overlays=not result.is_blocked,
+        )
         return DeploymentScorecardState(
             packet=payload.packet,
             packet_groups=self.packet_select_groups(),
@@ -685,6 +660,29 @@ class WarhammerCompanionService:
             enemy_threat_mode=enemy_mode,
             exposure_mode=exposure_mode,
             turn_order=turn_order,
+        )
+
+    @staticmethod
+    def _deployment_exposure_map_svg(
+        payload: DeploymentExposurePayload,
+        *,
+        include_overlays: bool,
+    ) -> str:
+        if not include_overlays:
+            return render_map_svg(payload.packet)
+        return render_map_svg(
+            payload.packet,
+            coverage_polygon=payload.enemy_los_region
+            if exposure_mode_includes_los(payload.exposure_mode)
+            else None,
+            safe_regions=payload.candidate_center_region,
+            base_center=payload.friendly_center,
+            base_diameter=payload.friendly_base_diameter,
+            threat_regions=payload.enemy_threat_regions
+            if exposure_mode_includes_threat(payload.exposure_mode)
+            else None,
+            threat_source_center=payload.enemy_source_center,
+            threat_base_diameter=payload.enemy_base_diameter,
         )
 
     def damage_profile_state(

@@ -250,16 +250,21 @@ def test_desktop_deployment_scorecard_screen_reports_components_and_blockers() -
     assert "source-pending" in status_text.lower()
     assert "Mission readiness" in component_text
     assert "Turn order assumption" in component_text
+    pixmap = scorecard_screen.map.rendered_pixmap()
+    assert pixmap is not None
+    assert not pixmap.isNull()
 
-    scorecard_screen._set_state(  # noqa: SLF001
-        service.deployment_scorecard_state(turn_order="alpha-strike")
-    )
+    blocked_state = service.deployment_scorecard_state(turn_order="alpha-strike")
+    scorecard_screen._set_state(blocked_state)  # noqa: SLF001
 
     assert "blocked" in scorecard_screen.status_label.text().lower()
     assert "invalid-turn-order" in scorecard_screen.status_label.text()
     assert "Turn order must be going-first or going-second" in (
         scorecard_screen.component_list_label.text()
     )
+    assert 'class="safe-zone-outline"' not in blocked_state.map_svg
+    assert 'class="coverage-image"' not in blocked_state.map_svg
+    assert 'class="threat-projection-image"' not in blocked_state.map_svg
     window.close()
     app.processEvents()
 

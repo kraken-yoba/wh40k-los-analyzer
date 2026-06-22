@@ -2248,3 +2248,73 @@ Review and blocker status:
 - Post-review reruns passed: exact failed desktop test 1 passed, focused Phase 10A app batch
   69 passed, Ruff format/check passed, Ruff check passed, mypy passed, full pytest 417 passed, and
   desktop smoke reported `deployment_scorecard_estimate: true`.
+
+## 2026-06-22 - Phase 10.5 Deployment Map Rendering Housekeeping
+
+Scope:
+
+- Centralized Deployment Exposure and Deployment Scorecard map SVG projection through one private
+  service-layer helper.
+- Preserved existing behavior by keeping geometry, renderer inputs, overlay gating, web routes,
+  templates, and desktop copy unchanged.
+- Added characterization coverage for official event companion page 9 and page 52 deployment maps.
+
+Design decisions:
+
+- Treat this as a behavior-preserving cleanup only; do not change scorecard semantics, overlay
+  classes, tactical calculations, mission context, or user-facing route behavior.
+- Keep the helper in `WarhammerCompanionService` because both affected product states already live
+  there and should not move rendering orchestration into web or desktop adapters.
+- Lock page 9 and page 52 output by SHA-256 hashes so future rendering changes must be deliberate.
+
+Implementation results:
+
+- Added a private `_deployment_exposure_map_svg(...)` helper that renders either a bare packet map
+  for blocked states or the same candidate, LOS, threat, friendly-base, and enemy-source overlays
+  for valid states.
+- Reused the helper from both `deployment_exposure_state(...)` and
+  `deployment_scorecard_state(...)`.
+- Added service tests proving scorecard/exposure SVG equality for matching valid inputs, page 9
+  and page 52 characterized hashes, required overlay classes, and blocked scorecard overlay
+  absence.
+- Extended desktop scorecard coverage to assert a valid map pixmap is rendered and an invalid
+  turn-order scorecard state omits tactical overlay classes.
+
+Verification completed:
+
+- Pre-refactor characterization initially failed on an incorrect test assumption about the SVG root
+  class, then passed after correcting the assertion to the current `map-svg` output.
+- Post-refactor focused command passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py::test_deployment_scorecard_and_exposure_maps_match_characterized_official_layouts tests\test_application_service.py::test_deployment_exposure_state_renders_candidate_threat_los_and_base_overlays tests\test_application_service.py::test_deployment_scorecard_state_blocks_invalid_turn_order_without_tactical_overlays tests\test_desktop_app.py::test_desktop_deployment_scorecard_screen_reports_components_and_blockers -q`
+  returned 4 passed.
+- Focused app batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 65 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 127 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 418 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and
+  `deployment_scorecard_estimate: true`.
+
+Manual QA:
+
+- The built-in Browser binding was unavailable in this resumed continuation with
+  `browser is not defined`; `tool_search` found Browser plugin metadata but no callable Browser
+  control tool, and Computer/Firefox control was not exposed.
+- Fallback local HTTP QA against the running app passed for the valid page 9 Deployment Exposure
+  route, valid page 9 Deployment Scorecard route, valid page 52 Deployment Scorecard route, and
+  invalid-base Deployment Scorecard route.
+- The fallback checks verified expected headings, zero `<script>` tags, no traceback/internal-error
+  text, overlay presence on valid routes, and overlay absence on the blocked invalid-base route.
+- The temporary QA server process was closed after the fallback route checks.
+
+Review status:
+
+- Consultant design review approved the narrow service-layer helper scope.
+- Adversarial design review required stronger preservation evidence, page 52 coverage, exact
+  Browser/manual QA URLs, and desktop overlay assertions; the spec, plan, QA pathway, and review
+  notes were patched.
+- Focused adversarial re-review approved the hardened Phase 10.5 plan before implementation.
