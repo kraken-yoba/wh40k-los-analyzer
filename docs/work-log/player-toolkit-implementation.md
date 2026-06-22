@@ -2399,3 +2399,64 @@ Manual QA:
 - The fallback checks verified heading/readiness text, zero `<script>` tags, no traceback/internal
   error text, matrix-cell presence/absence, forbidden authority phrase absence, source leak
   absence, normalized labels, escaped script-shaped label text, and expected blocker ids.
+
+## 2026-06-22 - Phase 11.5 Pairing Label Normalization Housekeeping
+
+Scope:
+
+- Extracted Team Pairing Matrix label normalization from `application/matchup_matrix.py` into
+  `application/pairing_labels.py`.
+- Kept the slice behavior-preserving: no route changes, no desktop workflow changes, no readiness
+  changes, no component assembly changes, and no source/privacy boundary changes.
+- Added characterization tests for valid and blocked label identities before relying on the
+  extraction.
+
+Design decisions:
+
+- Keep the helper in `warhammer_companion.application` because it normalizes UI/service input for a
+  toolkit result and should remain reusable by web and desktop adapters.
+- Preserve the existing `LabelInput = str | Sequence[str]` contract and side-specific blocker ids.
+- Preserve comma/newline splitting, whitespace collapse, control-character removal, empty-fragment
+  dropping, duplicate detection, max-count blocking, max-length blocking, ordering, and generated
+  list ids.
+
+Review status:
+
+- Consultant design review required blocked-case hash/result-id characterization in addition to the
+  valid default identity case.
+- Adversarial design review required script-shaped and overflow route QA in the manual path.
+- Consultant implementation review initially required a formatter fix, then approved after the
+  strict format gate passed.
+- Adversarial implementation review found no behavior drift, but required final acceptance evidence
+  and this work-log artifact before commit.
+
+Verification completed:
+
+- Pre-refactor characterization locked valid, missing, overflow, duplicate, and overlong
+  `input_hash`/`result_id` values plus blocker ids.
+- Post-refactor focused matchup tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_matchup_matrix_toolkit.py -q`
+  returned 17 passed.
+- Focused app batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_matchup_matrix_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 89 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests --no-cache` passed: 132 files
+  already formatted.
+- `.\.venv\Scripts\python.exe -m ruff check . --no-cache` passed.
+- `.\.venv\Scripts\mypy.exe --no-incremental src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 442 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and
+  `team_pairing_matrix_degraded: true`.
+
+Manual QA:
+
+- Built-in Browser/Computer controls were not callable in this resumed session:
+  `typeof browser=undefined`, `typeof computer=undefined`, and `typeof playwright=undefined`.
+- `tool_search` exposed thread/app and subagent tools, but no callable Browser or Computer control
+  tool.
+- Fallback in-process FastAPI route QA passed for the default Team Pairing route, a script-shaped
+  label route, and an overflow-label blocked route.
+- The fallback checks verified expected page text, matrix-cell presence for valid routes, matrix-cell
+  absence for overflow, escaped script-shaped label text, absence of unescaped script text, absence
+  of public Google Sheet ids/URLs, and absence of `win probability` claims.

@@ -130,6 +130,76 @@ def test_team_pairing_matrix_identity_changes_with_labels_and_source_inputs() ->
     assert base.result_id.endswith(base.input_hash.removeprefix("sha256:")[:12])
 
 
+def test_team_pairing_matrix_housekeeping_preserves_characterized_identities() -> None:
+    cases = {
+        "valid": (
+            ("Alpha", "Beta"),
+            ("Gamma", "Delta"),
+            "sha256:b740bd349e0df60ce3813a73962ccb7441bc5b2811ca2cee4734f5f798609998",
+            "manual:team-pairing-matrix:b740bd349e0d",
+            [],
+        ),
+        "missing": (
+            "",
+            "Gamma",
+            "sha256:33c693d610bd1284ac38553343fbb4a5705b9333f00c6bbfee275fb1392e4343",
+            "manual:team-pairing-matrix:33c693d610bd",
+            ["missing-friendly-lists"],
+        ),
+        "overflow": (
+            "A\nB\nC\nD\nE\nF\nG\nH\nI",
+            "Gamma",
+            "sha256:551b8244b64bec06cdd00e39fbc39d0a01e2d758c033cf5c932d3da0c719df53",
+            "manual:team-pairing-matrix:551b8244b64b",
+            ["too-many-friendly-lists"],
+        ),
+        "duplicate": (
+            "Alpha\n Alpha ",
+            "Gamma",
+            "sha256:fa38113d7195d4d47599e9a2d032abf2a0a04fbc6b46d9c3fb12bfde9a2445c9",
+            "manual:team-pairing-matrix:fa38113d7195",
+            ["duplicate-friendly-list-label"],
+        ),
+        "overlong": (
+            "A" * 81,
+            "Gamma",
+            "sha256:e70c3fcd82ed7ee567db24d0459df84e8e0640af382e5868250cda3f0a6d1c4e",
+            "manual:team-pairing-matrix:e70c3fcd82ed",
+            ["friendly-list-label-too-long"],
+        ),
+    }
+
+    for friendly, opponent, input_hash, result_id, reason_ids in cases.values():
+        result = _build_matrix(friendly_labels=friendly, opponent_labels=opponent)
+
+        assert result.input_hash == input_hash
+        assert result.result_id == result_id
+        assert [reason.reason_id for reason in result.block_reasons] == reason_ids
+
+
+def test_team_pairing_matrix_housekeeping_preserves_normalized_label_outputs() -> None:
+    result = _build_matrix(
+        friendly_labels="Alpha  Prime,,  Beta\nControl\x07Name",
+        opponent_labels="Gamma,, Delta",
+    )
+
+    assert [entry.label for entry in result.payload.friendly_lists] == [
+        "Alpha Prime",
+        "Beta",
+        "ControlName",
+    ]
+    assert [entry.label for entry in result.payload.opponent_lists] == ["Gamma", "Delta"]
+    assert [entry.list_id for entry in result.payload.friendly_lists] == [
+        "friendly-1",
+        "friendly-2",
+        "friendly-3",
+    ]
+    assert [entry.list_id for entry in result.payload.opponent_lists] == [
+        "opponent-1",
+        "opponent-2",
+    ]
+
+
 def test_team_pairing_matrix_scenario_ranges_are_deterministic_shared_values() -> None:
     deployment_results = _deployment_results()
     result = _build_matrix(deployment_results=deployment_results)
