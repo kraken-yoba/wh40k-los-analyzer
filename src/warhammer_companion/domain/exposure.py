@@ -58,3 +58,13 @@ def coerce_exposure_mode(value: str) -> ExposureMode:
     if value in EXPOSURE_MODES:
         return value
     return "threat-or-los"
+
+
+def exposure_mode_includes_los(exposure_mode: ExposureMode) -> bool:
+    """Return whether an exposure mode should render/use the LOS component."""
+    return exposure_mode in {"los-only", "threat-or-los", "threat-and-los"}
+
+
+def exposure_mode_includes_threat(exposure_mode: ExposureMode) -> bool:
+    """Return whether an exposure mode should render/use the threat component."""
+    return exposure_mode in {"threat-only", "threat-or-los", "threat-and-los"}

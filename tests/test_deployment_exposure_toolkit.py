@@ -5,8 +5,23 @@ from shapely.geometry import Point
 from warhammer_companion.application.deployment_exposure import (
     build_deployment_exposure_toolkit_result,
 )
+from warhammer_companion.domain.exposure import (
+    exposure_mode_includes_los,
+    exposure_mode_includes_threat,
+)
 from warhammer_companion.domain.models import DeploymentZone, MapPacket
 from warhammer_companion.sample_data import SAMPLE_PACKETS
+
+
+def test_exposure_mode_helpers_cover_all_supported_component_modes() -> None:
+    assert exposure_mode_includes_los("threat-only") is False
+    assert exposure_mode_includes_threat("threat-only") is True
+    assert exposure_mode_includes_los("los-only") is True
+    assert exposure_mode_includes_threat("los-only") is False
+    assert exposure_mode_includes_los("threat-or-los") is True
+    assert exposure_mode_includes_threat("threat-or-los") is True
+    assert exposure_mode_includes_los("threat-and-los") is True
+    assert exposure_mode_includes_threat("threat-and-los") is True
 
 
 def test_deployment_exposure_result_is_estimated_and_non_recommending() -> None:
@@ -61,6 +76,25 @@ def test_deployment_exposure_blocks_invalid_manual_inputs_without_overlays() -> 
     assert [reason.reason_id for reason in result.block_reasons] == [
         "invalid-friendly-base-diameter"
     ]
+
+
+def test_deployment_exposure_blocks_unsupported_raw_exposure_mode() -> None:
+    result = build_deployment_exposure_toolkit_result(
+        SAMPLE_PACKETS[0],
+        deployment_zone_id="attacker",
+        friendly_center=(10.0, 5.0),
+        friendly_base_diameter=1.57,
+        enemy_source_center=(38.0, 52.0),
+        enemy_base_diameter=1.57,
+        enemy_move_distance=0.0,
+        enemy_threat_range=1.0,
+        enemy_threat_mode="raw-range",
+        exposure_mode="unsupported",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert [reason.reason_id for reason in result.block_reasons] == ["invalid-exposure-mode"]
 
 
 def test_deployment_exposure_marks_friendly_base_exposed_to_selected_threat() -> None:

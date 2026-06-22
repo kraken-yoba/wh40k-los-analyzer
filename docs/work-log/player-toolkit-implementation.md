@@ -1658,3 +1658,93 @@ Review and blocker status:
   re-review approved.
 - Protected-path scan passed: no generated/raw/binary/credential paths and no secret-pattern hits.
   `AGENTS.md` remained untracked and excluded from staging.
+
+## Phase 7.5 - Exposure Mode Housekeeping
+
+Purpose:
+
+- Run a behavior-preserving housekeeping slice after Deployment Exposure and before Phase 8.
+- Remove duplicated exposure-mode component predicate logic from the application builder and service
+  adapter.
+- Keep Deployment Exposure route, desktop screen, rendering, geometry, user-facing copy, and
+  selected-risk semantics unchanged.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-7-5-exposure-mode-housekeeping.md`
+- `docs/superpowers/plans/2026-06-22-phase-7-5-exposure-mode-housekeeping.md`
+- `docs/superpowers/qa/2026-06-22-phase-7-5-exposure-mode-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-7-5-consultant-exposure-mode-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-22-phase-7-5-adversarial-exposure-mode-housekeeping.md`
+- `src/warhammer_companion/domain/exposure.py`
+- `src/warhammer_companion/application/deployment_exposure.py`
+- `src/warhammer_companion/application/services.py`
+- `tests/test_deployment_exposure_toolkit.py`
+- `tests/test_application_service.py`
+
+Design decisions:
+
+- `domain/exposure.py` now owns exposure-mode component predicate semantics because it already owns
+  `ExposureMode`, `EXPOSURE_MODES`, payload records, and `coerce_exposure_mode(...)`.
+- The shared helpers are `exposure_mode_includes_los(...)` and
+  `exposure_mode_includes_threat(...)`.
+- The helpers mean component diagnostic/overlay inclusion only. They do not define selected-risk
+  geometry. `threat-and-los` still includes both component overlays while selected risk remains the
+  intersection handled by `los/exposure.py`.
+- Unsupported raw exposure modes still block through the result builder with
+  `invalid-exposure-mode`; this slice does not make unsupported strings valid.
+
+TDD and implementation results:
+
+- Red step: `tests/test_deployment_exposure_toolkit.py` imported the new domain helpers before they
+  existed and failed with the expected import error.
+- Green step: `domain/exposure.py` added the two helper predicates with component-semantics
+  docstrings; the helper truth-table test passed.
+- Guardrail step: unsupported raw mode blocking and all-four-mode service rendering tests were added
+  and passed before refactoring, proving current behavior.
+- Refactor step: `application/deployment_exposure.py` and `application/services.py` now import the
+  shared helpers; private duplicate predicate functions were removed. `_placement_diagnostic(...)`
+  now takes an `ExposureMode`.
+
+Verification completed:
+
+- Helper red/green command passed after implementation:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_exposure_toolkit.py::test_exposure_mode_helpers_cover_all_supported_component_modes -q`
+  returned 1 passed.
+- Guardrail behavior command passed before refactor:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_exposure_toolkit.py::test_deployment_exposure_blocks_unsupported_raw_exposure_mode tests\test_application_service.py::test_deployment_exposure_state_renders_component_overlays_by_mode -q`
+  returned 5 passed.
+- Focused Phase 7.5 batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_exposure_toolkit.py tests\test_application_service.py tests\test_rendering_svg.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 72 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 115 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 366 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok` and `deployment_exposure_svg: true`.
+- `git diff --check` passed; Git printed only normal LF-to-CRLF warnings for touched files.
+
+Browser QA:
+
+- The local app was launched through a detached Node child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/deployment-exposure`, the mandatory page 9 Deployment Exposure
+  route, and the mandatory page 52 Deployment Exposure route.
+- Each route rendered one SVG map, one form, zero `<script>` tags, at least one
+  `safe-zone-outline`, one `threat-projection-image`, one `coverage-image`, one friendly
+  `model-base`, one `threat-source-base`, estimated/not-planner warning copy, no traceback text, no
+  forbidden visible claim wording, and no warning/error console logs.
+- The temporary QA server process was terminated after Browser QA.
+
+Review and blocker status:
+
+- Consultant reviewer approved this as a narrow Phase 7.5 housekeeping slice and recommended keeping
+  selected-risk behavior tests separate from the helper truth table.
+- Adversarial reviewer first required stronger QA for all four service-rendering modes, unsupported
+  raw mode blocking, component-vs-risk semantics, correct service test construction, and
+  `ExposureMode` typing. The spec/plan/QA were updated before source edits.
+- Implementation re-review found no Python blockers, but initially blocked commit because this
+  Phase 7.5 work-log entry was missing.
+- Protected-path scan passed: no generated/raw/binary/credential paths and no secret-pattern hits.
+  `AGENTS.md` remained untracked and excluded from staging.

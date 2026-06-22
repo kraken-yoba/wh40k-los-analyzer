@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.domain.repository import StaticMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
@@ -469,3 +471,42 @@ def test_deployment_exposure_state_renders_candidate_threat_los_and_base_overlay
     assert 'class="threat-projection-image"' in state.map_svg
     assert 'class="model-base"' in state.map_svg
     assert 'class="threat-source-base"' in state.map_svg
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_los", "expected_threat"),
+    [
+        ("threat-only", False, True),
+        ("los-only", True, False),
+        ("threat-or-los", True, True),
+        ("threat-and-los", True, True),
+    ],
+)
+def test_deployment_exposure_state_renders_component_overlays_by_mode(
+    mode: str,
+    expected_los: bool,
+    expected_threat: bool,
+) -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.deployment_exposure_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=6.0,
+        enemy_threat=2.0,
+        enemy_mode="fixed-move-plus-range",
+        exposure_mode=mode,
+    )
+
+    assert ('class="coverage-image"' in state.map_svg) is expected_los
+    assert ('class="threat-projection-image"' in state.map_svg) is expected_threat

@@ -32,7 +32,12 @@ from warhammer_companion.application.view_models import (
     ThreatRangeState,
     ViewerState,
 )
-from warhammer_companion.domain.exposure import EXPOSURE_MODES, DeploymentExposurePayload
+from warhammer_companion.domain.exposure import (
+    EXPOSURE_MODES,
+    DeploymentExposurePayload,
+    exposure_mode_includes_los,
+    exposure_mode_includes_threat,
+)
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
 from warhammer_companion.domain.repository import MapRepository
@@ -454,13 +459,13 @@ class WarhammerCompanionService:
             map_svg = render_map_svg(
                 payload.packet,
                 coverage_polygon=payload.enemy_los_region
-                if _exposure_mode_includes_los(payload.exposure_mode)
+                if exposure_mode_includes_los(payload.exposure_mode)
                 else None,
                 safe_regions=payload.candidate_center_region,
                 base_center=payload.friendly_center,
                 base_diameter=payload.friendly_base_diameter,
                 threat_regions=payload.enemy_threat_regions
-                if _exposure_mode_includes_threat(payload.exposure_mode)
+                if exposure_mode_includes_threat(payload.exposure_mode)
                 else None,
                 threat_source_center=payload.enemy_source_center,
                 threat_base_diameter=payload.enemy_base_diameter,
@@ -845,14 +850,6 @@ def _packet_sort_key(packet: MapPacket) -> tuple[int, int, str]:
     if metadata is None:
         return (1, 0, packet.name)
     return (0, metadata.source_page, metadata.layout_variant)
-
-
-def _exposure_mode_includes_los(exposure_mode: str) -> bool:
-    return exposure_mode in {"los-only", "threat-or-los", "threat-and-los"}
-
-
-def _exposure_mode_includes_threat(exposure_mode: str) -> bool:
-    return exposure_mode in {"threat-only", "threat-or-los", "threat-and-los"}
 
 
 def _packet_group_label(packet: MapPacket) -> str:

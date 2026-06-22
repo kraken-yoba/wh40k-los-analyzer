@@ -13,8 +13,11 @@ from warhammer_companion.domain.exposure import (
     EXPOSURE_MODES,
     DeploymentExposurePayload,
     ExposureDiagnosticReason,
+    ExposureMode,
     ExposurePlacementDiagnostic,
     coerce_exposure_mode,
+    exposure_mode_includes_los,
+    exposure_mode_includes_threat,
 )
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.overlays import MapOverlayLayer, ToolkitAssumption, ToolkitWarning
@@ -332,7 +335,7 @@ def _placement_diagnostic(
     risk_region: BaseGeometry,
     allowed_center_region: BaseGeometry,
     candidate_center_region: BaseGeometry,
-    exposure_mode: str,
+    exposure_mode: ExposureMode,
 ) -> ExposurePlacementDiagnostic:
     board_center = base_center_region(packet, friendly_radius)
     dense_collision = dense_movement_collision_regions(packet, friendly_radius)
@@ -366,14 +369,14 @@ def _placement_diagnostic(
                 "Friendly base overlaps a dense feature in the 2D estimate.",
             )
         )
-    if _mode_includes_los(exposure_mode) and exposed_los:
+    if exposure_mode_includes_los(exposure_mode) and exposed_los:
         reasons.append(
             ExposureDiagnosticReason(
                 "intersects-los-component",
                 "Friendly base intersects the enemy LOS component estimate.",
             )
         )
-    if _mode_includes_threat(exposure_mode) and exposed_threat:
+    if exposure_mode_includes_threat(exposure_mode) and exposed_threat:
         reasons.append(
             ExposureDiagnosticReason(
                 "intersects-threat-component",
@@ -396,14 +399,6 @@ def _placement_diagnostic(
         not_exposed_under_assumptions=candidate_center_region.covers(point),
         reasons=tuple(reasons),
     )
-
-
-def _mode_includes_los(exposure_mode: str) -> bool:
-    return exposure_mode in {"los-only", "threat-or-los", "threat-and-los"}
-
-
-def _mode_includes_threat(exposure_mode: str) -> bool:
-    return exposure_mode in {"threat-only", "threat-or-los", "threat-and-los"}
 
 
 def _deployment_exposure_hash(
