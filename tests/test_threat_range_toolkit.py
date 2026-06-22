@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
+from warhammer_companion.domain.models import (
+    BoardSize,
+    DenseTerrainFeature,
+    DeploymentZone,
+    MapPacket,
+    TerrainArea,
+    TerrainKind,
+)
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 
@@ -63,6 +71,26 @@ def test_threat_range_toolkit_blocks_source_base_that_overhangs_board() -> None:
     assert result.readiness == "blocked"
     assert not result.overlays
     assert [reason.reason_id for reason in result.block_reasons] == ["source-base-outside-board"]
+
+
+def test_threat_range_toolkit_blocks_oversized_routing_grid_without_raising() -> None:
+    result = build_threat_range_toolkit_result(
+        _oversized_route_packet(),
+        source_center=(20.0, 100.0),
+        target_point=(180.0, 100.0),
+        base_diameter=1.0,
+        move_distance=180.0,
+        threat_range=0.5,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-non-mobile",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert [reason.reason_id for reason in result.block_reasons] == [
+        "movement-routing-node-budget-exceeded"
+    ]
+    assert "too large" in result.warnings[0].detail.lower()
 
 
 def test_threat_range_toolkit_invalid_mode_hash_does_not_collide_with_raw_range() -> None:
@@ -172,3 +200,34 @@ def test_threat_range_toolkit_identity_includes_manual_inputs_and_measurement() 
     suffix = base.input_hash.removeprefix("sha256:")[:12]
     assert base.result_id.endswith(suffix)
     assert base.overlays[0].layer_id.endswith(suffix)
+
+
+def _oversized_route_packet() -> MapPacket:
+    terrain = TerrainArea(
+        id="wall",
+        label="Wall",
+        kind=TerrainKind.RUINS,
+        footprint=[(99.0, 0.0), (101.0, 0.0), (101.0, 200.0), (99.0, 200.0)],
+    )
+    dense = DenseTerrainFeature(
+        id="dense-wall",
+        terrain_area_id=terrain.id,
+        label="Dense wall",
+        footprint=terrain.footprint,
+        profile="solid-los-blocker",
+    )
+    return MapPacket(
+        id="oversized-route",
+        name="Oversized Route",
+        source="Synthetic oversized route fixture.",
+        board=BoardSize(width=200.0, height=200.0),
+        terrain_areas=[terrain],
+        dense_features=[dense],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0.0, 0.0), (200.0, 0.0), (200.0, 20.0), (0.0, 20.0)],
+            )
+        ],
+    )

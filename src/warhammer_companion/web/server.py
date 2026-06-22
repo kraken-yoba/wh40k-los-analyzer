@@ -242,6 +242,7 @@ def movement_reach(
     base: float = 1.57,
     move: float = 6.0,
     mode: str = "normal",
+    movement_profile: str = "ground-non-mobile",
 ) -> HTMLResponse:
     state = service.movement_reach_state(
         packet_id=packet_id,
@@ -255,6 +256,7 @@ def movement_reach(
         base=base,
         move=move,
         mode=mode,
+        movement_profile=movement_profile,
     )
     return templates.TemplateResponse(
         request,
@@ -272,6 +274,11 @@ def movement_reach(
             "move": state.move,
             "mode": state.mode,
             "movement_modes": state.movement_modes,
+            "movement_profile": state.movement_profile,
+            "movement_profiles": state.movement_profiles,
+            "movement_profile_label": state.movement_profile_label,
+            "effective_move": state.effective_move,
+            "input_hash": state.input_hash,
             "endpoint_estimated_reachable": state.endpoint_estimated_reachable,
             "endpoint_reason_details": state.endpoint_reason_details,
             "map_svg": state.map_svg,
@@ -294,6 +301,7 @@ def threat_range(
     move: float = 6.0,
     threat: float = 2.0,
     mode: str = "fixed-move-plus-range",
+    movement_profile: str = "ground-non-mobile",
 ) -> HTMLResponse:
     state = service.threat_range_state(
         packet_id=packet_id,
@@ -308,6 +316,7 @@ def threat_range(
         move=move,
         threat=threat,
         mode=mode,
+        movement_profile=movement_profile,
     )
     return templates.TemplateResponse(
         request,
@@ -326,6 +335,11 @@ def threat_range(
             "threat": state.threat,
             "mode": state.mode,
             "threat_modes": state.threat_modes,
+            "movement_profile": state.movement_profile,
+            "movement_profiles": state.movement_profiles,
+            "movement_profile_label": state.movement_profile_label,
+            "effective_move": state.effective_move,
+            "input_hash": state.input_hash,
             "measurement_convention": state.measurement_convention,
             "target_probability": state.target_probability,
             "distribution": state.distribution,
@@ -387,6 +401,7 @@ def deployment_exposure(
     enemy_move: float = 0.0,
     enemy_threat: float = 1.0,
     enemy_mode: str = "raw-range",
+    enemy_movement_profile: str = "ground-non-mobile",
     exposure_mode: str = "threat-and-los",
 ) -> HTMLResponse:
     state = service.deployment_exposure_state(
@@ -404,6 +419,7 @@ def deployment_exposure(
         enemy_move=enemy_move,
         enemy_threat=enemy_threat,
         enemy_mode=enemy_mode,
+        enemy_movement_profile=enemy_movement_profile,
         exposure_mode=exposure_mode,
     )
     return templates.TemplateResponse(
@@ -425,6 +441,10 @@ def deployment_exposure(
             "enemy_move": state.enemy_move,
             "enemy_threat": state.enemy_threat,
             "enemy_mode": state.enemy_mode,
+            "enemy_movement_profile": state.enemy_movement_profile,
+            "enemy_movement_profiles": state.enemy_movement_profiles,
+            "enemy_movement_profile_label": state.enemy_movement_profile_label,
+            "enemy_effective_move": state.enemy_effective_move,
             "exposure_mode": state.exposure_mode,
             "enemy_threat_modes": state.enemy_threat_modes,
             "exposure_modes": state.exposure_modes,
@@ -432,6 +452,7 @@ def deployment_exposure(
             "threat_probability_at_center": state.threat_probability_at_center,
             "placement_reason_details": state.placement_reason_details,
             "warning_details": state.warning_details,
+            "input_hash": state.input_hash,
             "map_svg": state.map_svg,
         },
     )
@@ -454,6 +475,7 @@ def deployment_scorecard(
     enemy_move: float = 0.0,
     enemy_threat: float = 1.0,
     enemy_mode: str = "raw-range",
+    enemy_movement_profile: str = "ground-non-mobile",
     exposure_mode: str = "threat-and-los",
     turn_order: str = "going-first",
 ) -> HTMLResponse:
@@ -472,6 +494,7 @@ def deployment_scorecard(
         enemy_move=enemy_move,
         enemy_threat=enemy_threat,
         enemy_mode=enemy_mode,
+        enemy_movement_profile=enemy_movement_profile,
         exposure_mode=exposure_mode,
         turn_order=turn_order,
     )
@@ -494,6 +517,10 @@ def deployment_scorecard(
             "enemy_move": state.enemy_move,
             "enemy_threat": state.enemy_threat,
             "enemy_mode": state.enemy_mode,
+            "enemy_movement_profile": state.enemy_movement_profile,
+            "enemy_movement_profiles": state.enemy_movement_profiles,
+            "enemy_movement_profile_label": state.enemy_movement_profile_label,
+            "enemy_effective_move": state.enemy_effective_move,
             "exposure_mode": state.exposure_mode,
             "turn_order": state.turn_order,
             "enemy_threat_modes": state.enemy_threat_modes,
@@ -506,6 +533,7 @@ def deployment_scorecard(
             "components": state.components,
             "block_reason_details": state.block_reason_details,
             "warning_details": state.warning_details,
+            "input_hash": state.input_hash,
             "map_svg": state.map_svg,
         },
     )
@@ -656,6 +684,7 @@ def update_movement_reach(
     base: float = Form(...),
     move: float = Form(...),
     mode: str = Form("normal"),
+    movement_profile: str = Form("ground-non-mobile"),
 ) -> RedirectResponse:
     resolved_packet_id = service.resolve_packet_id(
         packet_id=packet_id,
@@ -675,6 +704,7 @@ def update_movement_reach(
                 "base": base,
                 "move": move,
                 "mode": mode,
+                "movement_profile": movement_profile,
             }
         ),
         status_code=303,
@@ -697,6 +727,7 @@ def update_deployment_exposure(
     enemy_move: float = Form(...),
     enemy_threat: float = Form(...),
     enemy_mode: str = Form("raw-range"),
+    enemy_movement_profile: str = Form("ground-non-mobile"),
     exposure_mode: str = Form("threat-and-los"),
 ) -> RedirectResponse:
     resolved_packet_id = service.resolve_packet_id(
@@ -720,6 +751,7 @@ def update_deployment_exposure(
                 "enemy_move": enemy_move,
                 "enemy_threat": enemy_threat,
                 "enemy_mode": enemy_mode,
+                "enemy_movement_profile": enemy_movement_profile,
                 "exposure_mode": exposure_mode,
             }
         ),
@@ -743,6 +775,7 @@ def update_deployment_scorecard(
     enemy_move: float = Form(...),
     enemy_threat: float = Form(...),
     enemy_mode: str = Form("raw-range"),
+    enemy_movement_profile: str = Form("ground-non-mobile"),
     exposure_mode: str = Form("threat-and-los"),
     turn_order: str = Form("going-first"),
 ) -> RedirectResponse:
@@ -767,6 +800,7 @@ def update_deployment_scorecard(
                 "enemy_move": enemy_move,
                 "enemy_threat": enemy_threat,
                 "enemy_mode": enemy_mode,
+                "enemy_movement_profile": enemy_movement_profile,
                 "exposure_mode": exposure_mode,
                 "turn_order": turn_order,
             }
@@ -844,6 +878,7 @@ def update_threat_range(
     move: float = Form(...),
     threat: float = Form(...),
     mode: str = Form("fixed-move-plus-range"),
+    movement_profile: str = Form("ground-non-mobile"),
 ) -> RedirectResponse:
     resolved_packet_id = service.resolve_packet_id(
         packet_id=packet_id,
@@ -864,6 +899,7 @@ def update_threat_range(
                 "move": move,
                 "threat": threat,
                 "mode": mode,
+                "movement_profile": movement_profile,
             }
         ),
         status_code=303,

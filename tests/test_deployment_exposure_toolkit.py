@@ -9,7 +9,14 @@ from warhammer_companion.domain.exposure import (
     exposure_mode_includes_los,
     exposure_mode_includes_threat,
 )
-from warhammer_companion.domain.models import DeploymentZone, MapPacket
+from warhammer_companion.domain.models import (
+    BoardSize,
+    DenseTerrainFeature,
+    DeploymentZone,
+    MapPacket,
+    TerrainArea,
+    TerrainKind,
+)
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
 
@@ -95,6 +102,29 @@ def test_deployment_exposure_blocks_unsupported_raw_exposure_mode() -> None:
     assert result.readiness == "blocked"
     assert not result.overlays
     assert [reason.reason_id for reason in result.block_reasons] == ["invalid-exposure-mode"]
+
+
+def test_deployment_exposure_blocks_oversized_enemy_routing_grid_without_raising() -> None:
+    result = build_deployment_exposure_toolkit_result(
+        _oversized_route_packet(),
+        deployment_zone_id="attacker",
+        friendly_center=(180.0, 100.0),
+        friendly_base_diameter=1.0,
+        enemy_source_center=(20.0, 100.0),
+        enemy_base_diameter=1.0,
+        enemy_move_distance=180.0,
+        enemy_threat_range=0.5,
+        enemy_threat_mode="fixed-move-plus-range",
+        enemy_movement_profile_id="ground-non-mobile",
+        exposure_mode="threat-only",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert [reason.reason_id for reason in result.block_reasons] == [
+        "movement-routing-node-budget-exceeded"
+    ]
+    assert "too large" in result.warnings[0].detail.lower()
 
 
 def test_deployment_exposure_marks_friendly_base_exposed_to_selected_threat() -> None:
@@ -332,6 +362,37 @@ def _open_board_packet() -> MapPacket:
                 id="attacker",
                 label="Attacker",
                 footprint=[(0.0, 0.0), (44.0, 0.0), (44.0, 60.0), (0.0, 60.0)],
+            )
+        ],
+    )
+
+
+def _oversized_route_packet() -> MapPacket:
+    terrain = TerrainArea(
+        id="wall",
+        label="Wall",
+        kind=TerrainKind.RUINS,
+        footprint=[(99.0, 0.0), (101.0, 0.0), (101.0, 200.0), (99.0, 200.0)],
+    )
+    dense = DenseTerrainFeature(
+        id="dense-wall",
+        terrain_area_id=terrain.id,
+        label="Dense wall",
+        footprint=terrain.footprint,
+        profile="solid-los-blocker",
+    )
+    return MapPacket(
+        id="oversized-route",
+        name="Oversized Route",
+        source="Synthetic oversized route fixture.",
+        board=BoardSize(width=200.0, height=200.0),
+        terrain_areas=[terrain],
+        dense_features=[dense],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0.0, 0.0), (200.0, 0.0), (200.0, 20.0), (0.0, 20.0)],
             )
         ],
     )

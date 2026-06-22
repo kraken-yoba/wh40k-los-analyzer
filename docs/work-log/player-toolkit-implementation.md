@@ -2460,3 +2460,123 @@ Manual QA:
 - The fallback checks verified expected page text, matrix-cell presence for valid routes, matrix-cell
   absence for overflow, escaped script-shaped label text, absence of unescaped script text, absence
   of public Google Sheet ids/URLs, and absence of `win probability` claims.
+
+## 2026-06-22 - Mobile/Fly Movement Routing Repair
+
+Scope:
+
+- Repaired the movement engine so Movement Reach, Threat Range, Deployment Exposure, and Deployment
+  Scorecard distinguish selected movement assumptions.
+- Added profiles for ground non-mobile, ground mobile / infantry, Fly Take to the Skies, and
+  Hover/no-cost Take to the Skies.
+- Replaced endpoint Euclidean-only checks with estimated route distance around dense feature
+  traversal blockers for non-mobile ground movement.
+- Preserved dense feature endpoint occupancy blocking for all initial profiles.
+- Added web and desktop movement-profile controls and effective movement summaries.
+
+Design decisions:
+
+- Dense terrain feature polygons, not broad terrain areas, control traversal blocking.
+- Ground mobile / infantry, Fly Take to the Skies, and Hover/no-cost Take to the Skies ignore dense
+  traversal blockers in this 2D estimate.
+- Fly Take to the Skies applies a 2 inch movement penalty; Hover/no-cost Take to the Skies does not.
+- Route-aware movement uses a deterministic inch-grid route estimate for non-mobile dense traversal
+  blockers and records routing metadata in payloads and input hashes.
+- `raw-range` Threat Range remains profile-invariant.
+- Browser/desktop copy uses selected-assumption and route-connected wording rather than legal,
+  safe, optimal, recommendation, guarantee, or charge-legality claims.
+
+Plan and review:
+
+- Plan artifact: `docs/superpowers/plans/2026-06-22-mobile-fly-movement-routing.md`.
+- Consultant plan review initially required phase gates, page 9/page 52 performance checks, grid
+  tolerance semantics, explicit desktop downstream handling, earlier review gates, full hash
+  metadata, threat performance smoke coverage, prohibited wording, and protected-artifact scope.
+- Adversarial plan review initially required Browser QA to prove geometry/probability changes, a
+  deterministic dense-blocker fixture, feature-vs-area tests, point-threat assertions, visible
+  downstream output changes, desktop behavior assertions, and visible Hover/no-cost Fly behavior.
+- Final consultant and adversarial plan re-reviews approved after hardening.
+
+TDD and implementation results:
+
+- Red tests confirmed missing `movement_profile_id` arguments in movement and threat geometry.
+- Added geometry coverage for non-mobile route-around success/failure, mobile dense traversal,
+  dense endpoint occupancy blocking, Fly penalty, Hover/no-cost movement, terrain-area-vs-feature
+  traversal, raw-range invariance, point-threat probability changes, and effective movement in
+  threat distributions.
+- Implemented typed movement profile records, routing metadata, route diagnostics, route-path
+  rendering, movement-profile-aware threat projection, and downstream enemy movement profile
+  propagation.
+- Added small route/envelope caches to avoid repeated identical route-field work during desktop
+  smoke and integration tests.
+- Adversarial implementation review found two route-core blockers after initial implementation:
+  Dijkstra edges could cross a dense traversal blocker between unblocked nodes, and route-grid node
+  budget overflow could escape as an uncaught exception.
+- Fixed route edges by rejecting neighbor segments intersecting traversal blockers.
+- Added user-facing blocked results for route-grid overflow in Movement Reach, Threat Range, and
+  Deployment Exposure; Deployment Scorecard inherits the exposure blocker.
+
+Verification completed so far:
+
+- Focused movement/threat geometry passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_threat_range_geometry.py -q`
+  returned 23 passed.
+- Focused geometry/toolkit batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_threat_range_geometry.py tests\test_movement_reach_toolkit.py tests\test_threat_range_toolkit.py tests\test_deployment_exposure_toolkit.py -q`
+  returned 40 passed.
+- Focused application/web/desktop batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 72 passed with the existing Starlette `TestClient` deprecation warning.
+- The focused application/web/desktop batch currently takes about 4m54s because the desktop tests
+  instantiate full windows and render official-packet maps repeatedly.
+- Full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 451 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Final full pytest after reviewer fixes passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 461 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Packet validation passed for all 45 packaged official Event Companion packets:
+  `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets`.
+- The exact Phase 7 page smoke selector now has executable tests and passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_threat_range_geometry.py -q -k "page_9 or page_52"`
+  returned 2 passed, 24 deselected.
+- Desktop smoke passed:
+  `.\.venv\Scripts\python.exe -m warhammer_companion.desktop.app --smoke-test` returned
+  `status: ok` with movement reach, threat range, deployment exposure, and deployment scorecard
+  surfaces present.
+- `git diff --check` passed.
+- Desktop profile-sensitive tests passed as part of full pytest and directly:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_desktop_app.py -q` returned 20 passed.
+- Reviewer re-checks approved:
+  implementation review approved route-edge filtering and node-budget handling after
+  `40 passed`; QA review approved the desktop profile assertions, scorecard identity coverage, and
+  executable page 9/page 52 smoke gate.
+- Server-rendered fallback QA used page 9 Dense 12 with start/source `(14.0, 32.75)`,
+  target/friendly `(22.5, 32.75)`, base `1.57`, move `9.0`, and threat `0.5`.
+- Movement Reach rendered `Ground non-mobile` as not route-connected, `Ground mobile / infantry`
+  as route-connected, `Fly: Take to the Skies` as not route-connected with effective movement
+  `7.00 in`, and `Fly: Hover / no-cost Take to the Skies` as route-connected with effective
+  movement `9.00 in`.
+- Threat Range rendered target probability `0.0%` for `Ground non-mobile`, `100.0%` for
+  `Ground mobile / infantry`, `0.0%` for `Fly: Take to the Skies`, and `100.0%` for
+  `Fly: Hover / no-cost Take to the Skies`.
+- Deployment Exposure and Deployment Scorecard rendered the same enemy movement profile selector
+  and 0%/100% threat-probability split for the same page 9 scenario.
+- `raw-range` Threat Range kept the same rendered result hash across all four movement profiles in
+  fallback QA.
+
+Manual QA status:
+
+- Built-in Browser control was available at the start of this goal and reproduced the original bug:
+  `/movement-reach` and `/threat-range` did not expose movement-profile controls.
+- Full post-fix Browser QA is blocked in the current Codex app session. The in-app Browser runtime
+  reports single-tab mode with no attached tab, and fresh visible-tab attempts time out while
+  waiting for the Browser webview to attach.
+- Computer Use with Firefox was attempted as the documented fallback and was stopped by the
+  automation runtime because URL-policy enforcement is not supported for the current Windows
+  browser.
+- Until Browser or Computer Use is restored, the authoritative fallback evidence is the FastAPI
+  route rendering above plus automated web, service, geometry, and desktop smoke tests.

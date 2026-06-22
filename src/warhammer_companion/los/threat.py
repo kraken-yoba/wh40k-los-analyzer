@@ -7,6 +7,10 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import (
+    DEFAULT_MOVEMENT_PROFILE_ID,
+    effective_move_distance,
+)
 from warhammer_companion.domain.threat import (
     ThreatDiceOutcome,
     ThreatProjectionRegion,
@@ -23,6 +27,7 @@ def threat_projection(
     move_distance: float,
     threat_range: float,
     mode: str,
+    movement_profile_id: str = DEFAULT_MOVEMENT_PROFILE_ID,
 ) -> BaseGeometry:
     regions = threat_projection_regions(
         packet,
@@ -31,6 +36,7 @@ def threat_projection(
         move_distance=move_distance,
         threat_range=threat_range,
         mode=mode,
+        movement_profile_id=movement_profile_id,
     )
     if not regions:
         return _empty_geometry()
@@ -45,6 +51,7 @@ def threat_projection_regions(
     move_distance: float,
     threat_range: float,
     mode: str,
+    movement_profile_id: str = DEFAULT_MOVEMENT_PROFILE_ID,
 ) -> tuple[ThreatProjectionRegion, ...]:
     _require_finite_point("source_center", source_center)
     _require_non_negative("move_distance", move_distance)
@@ -58,12 +65,13 @@ def threat_projection_regions(
         move_distance=move_distance,
         threat_range=threat_range,
         base_diameter=base_diameter,
+        movement_profile_id=movement_profile_id,
     )
     regions: list[ThreatProjectionRegion] = []
     for outcome in distribution:
         if threat_mode == "raw-range":
             region = Point(source_center).buffer(base_radius + threat_range).intersection(board)
-        elif move_distance + outcome.variable_inches <= 0:
+        elif outcome.effective_move_distance <= 0:
             region = Point(source_center).buffer(base_radius + threat_range).intersection(board)
         else:
             centers = movement_envelope(
@@ -71,6 +79,7 @@ def threat_projection_regions(
                 start_center=source_center,
                 base_diameter=base_diameter,
                 move_distance=move_distance + outcome.variable_inches,
+                movement_profile_id=movement_profile_id,
             )
             region = centers.buffer(base_radius + threat_range).intersection(board)
         regions.append(ThreatProjectionRegion(outcome=outcome, geometry=region.buffer(0)))
@@ -83,18 +92,19 @@ def threat_distribution(
     move_distance: float,
     threat_range: float,
     base_diameter: float,
+    movement_profile_id: str = DEFAULT_MOVEMENT_PROFILE_ID,
 ) -> tuple[ThreatDiceOutcome, ...]:
     _require_non_negative("move_distance", move_distance)
     _require_non_negative("threat_range", threat_range)
     _require_positive("base_diameter", base_diameter)
     threat_mode = coerce_threat_mode(mode)
     base_radius = base_diameter / 2.0
-    fixed_reach = (
-        threat_range + base_radius
-        if threat_mode == "raw-range"
-        else move_distance + threat_range + base_radius
-    )
     if threat_mode in {"raw-range", "fixed-move-plus-range"}:
+        fixed_move = (
+            0.0
+            if threat_mode == "raw-range"
+            else effective_move_distance(move_distance, movement_profile_id)
+        )
         return (
             ThreatDiceOutcome(
                 dice_label="fixed",
@@ -102,14 +112,34 @@ def threat_distribution(
                 numerator=1,
                 denominator=1,
                 probability=1.0,
-                total_reach=fixed_reach,
+                total_reach=fixed_move + threat_range + base_radius,
+                effective_move_distance=fixed_move,
             ),
         )
     if threat_mode == "d6-move-plus-range":
-        return tuple(_outcome("D6", total, 1, 6, fixed_reach + total) for total in range(1, 7))
+        return tuple(
+            _outcome(
+                "D6",
+                total,
+                1,
+                6,
+                effective_move_distance(move_distance + total, movement_profile_id),
+                threat_range,
+                base_radius,
+            )
+            for total in range(1, 7)
+        )
     counts = (1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1)
     return tuple(
-        _outcome("2D6", total, count, 36, fixed_reach + total)
+        _outcome(
+            "2D6",
+            total,
+            count,
+            36,
+            effective_move_distance(move_distance + total, movement_profile_id),
+            threat_range,
+            base_radius,
+        )
         for total, count in zip(range(2, 13), counts, strict=True)
     )
 
@@ -144,7 +174,9 @@ def _outcome(
     variable_inches: int,
     numerator: int,
     denominator: int,
-    total_reach: float,
+    effective_move: float,
+    threat_range: float,
+    base_radius: float,
 ) -> ThreatDiceOutcome:
     return ThreatDiceOutcome(
         dice_label=dice_label,
@@ -152,7 +184,8 @@ def _outcome(
         numerator=numerator,
         denominator=denominator,
         probability=numerator / denominator,
-        total_reach=total_reach,
+        total_reach=effective_move + threat_range + base_radius,
+        effective_move_distance=effective_move,
     )
 
 

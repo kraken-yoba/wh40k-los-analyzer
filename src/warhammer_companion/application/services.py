@@ -62,7 +62,11 @@ from warhammer_companion.domain.exposure import (
 from warhammer_companion.domain.matchups import PairingMatrixPayload
 from warhammer_companion.domain.missions import MissionPackPayload
 from warhammer_companion.domain.models import MapPacket
-from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
+from warhammer_companion.domain.movement import (
+    MOVEMENT_MODES,
+    MOVEMENT_PROFILES,
+    MovementReachPayload,
+)
 from warhammer_companion.domain.repository import MapRepository
 from warhammer_companion.domain.threat import THREAT_MODES, ThreatRangePayload
 from warhammer_companion.ingestion.artifacts import IngestionPaths
@@ -269,6 +273,7 @@ class WarhammerCompanionService:
         base: float = 1.57,
         move: float = 6.0,
         mode: str = "normal",
+        movement_profile: str = "ground-non-mobile",
     ) -> MovementReachState:
         result = self.movement_reach_toolkit_result(
             packet_id=packet_id,
@@ -282,6 +287,7 @@ class WarhammerCompanionService:
             base=base,
             move=move,
             mode=mode,
+            movement_profile=movement_profile,
         )
         payload = result.payload
         if result.is_blocked:
@@ -312,6 +318,11 @@ class WarhammerCompanionService:
             endpoint_estimated_reachable=payload.endpoint.estimated_reachable,
             endpoint_reason_details=endpoint_details,
             map_svg=map_svg,
+            movement_profile=payload.movement_profile_id,
+            movement_profiles=list(MOVEMENT_PROFILES),
+            movement_profile_label=payload.movement_profile_label,
+            effective_move=payload.effective_move_distance,
+            input_hash=result.input_hash,
         )
 
     def movement_reach_toolkit_result(
@@ -328,6 +339,7 @@ class WarhammerCompanionService:
         base: float = 1.57,
         move: float = 6.0,
         mode: str = "normal",
+        movement_profile: str = "ground-non-mobile",
     ) -> ToolkitResult[MovementReachPayload]:
         packet = self._selected_packet_by_selector(
             packet_id=packet_id,
@@ -342,6 +354,7 @@ class WarhammerCompanionService:
             base_diameter=base,
             move_distance=move,
             mode=mode,
+            movement_profile_id=movement_profile,
         )
 
     def threat_range_state(
@@ -359,6 +372,7 @@ class WarhammerCompanionService:
         move: float = 6.0,
         threat: float = 2.0,
         mode: str = "fixed-move-plus-range",
+        movement_profile: str = "ground-non-mobile",
     ) -> ThreatRangeState:
         result = self.threat_range_toolkit_result(
             packet_id=packet_id,
@@ -373,6 +387,7 @@ class WarhammerCompanionService:
             move=move,
             threat=threat,
             mode=mode,
+            movement_profile=movement_profile,
         )
         payload = result.payload
         map_svg = (
@@ -404,6 +419,11 @@ class WarhammerCompanionService:
             distribution=list(payload.distribution),
             warning_details=[warning.detail for warning in result.warnings],
             map_svg=map_svg,
+            movement_profile=payload.movement_profile_id,
+            movement_profiles=list(MOVEMENT_PROFILES),
+            movement_profile_label=payload.movement_profile_label,
+            effective_move=payload.effective_move_distance,
+            input_hash=result.input_hash,
         )
 
     def threat_range_toolkit_result(
@@ -421,6 +441,7 @@ class WarhammerCompanionService:
         move: float = 6.0,
         threat: float = 2.0,
         mode: str = "fixed-move-plus-range",
+        movement_profile: str = "ground-non-mobile",
     ) -> ToolkitResult[ThreatRangePayload]:
         packet = self._selected_packet_by_selector(
             packet_id=packet_id,
@@ -436,6 +457,7 @@ class WarhammerCompanionService:
             move_distance=move,
             threat_range=threat,
             mode=mode,
+            movement_profile_id=movement_profile,
         )
 
     def deployment_exposure_state(
@@ -455,6 +477,7 @@ class WarhammerCompanionService:
         enemy_move: float = 0.0,
         enemy_threat: float = 1.0,
         enemy_mode: str = "raw-range",
+        enemy_movement_profile: str = "ground-non-mobile",
         exposure_mode: str = "threat-and-los",
     ) -> DeploymentExposureState:
         result = self.deployment_exposure_toolkit_result(
@@ -472,6 +495,7 @@ class WarhammerCompanionService:
             enemy_move=enemy_move,
             enemy_threat=enemy_threat,
             enemy_mode=enemy_mode,
+            enemy_movement_profile=enemy_movement_profile,
             exposure_mode=exposure_mode,
         )
         payload = result.payload
@@ -509,6 +533,11 @@ class WarhammerCompanionService:
             placement_reason_details=placement_details,
             warning_details=[warning.detail for warning in result.warnings],
             map_svg=map_svg,
+            enemy_movement_profile=payload.enemy_movement_profile_id,
+            enemy_movement_profiles=list(MOVEMENT_PROFILES),
+            enemy_movement_profile_label=payload.enemy_movement_profile_label,
+            enemy_effective_move=payload.enemy_effective_move_distance,
+            input_hash=result.input_hash,
         )
 
     def deployment_exposure_toolkit_result(
@@ -528,6 +557,7 @@ class WarhammerCompanionService:
         enemy_move: float = 0.0,
         enemy_threat: float = 1.0,
         enemy_mode: str = "raw-range",
+        enemy_movement_profile: str = "ground-non-mobile",
         exposure_mode: str = "threat-and-los",
     ) -> ToolkitResult[DeploymentExposurePayload]:
         packet = self._selected_packet_by_selector(
@@ -546,6 +576,7 @@ class WarhammerCompanionService:
             enemy_move_distance=enemy_move,
             enemy_threat_range=enemy_threat,
             enemy_threat_mode=enemy_mode,
+            enemy_movement_profile_id=enemy_movement_profile,
             exposure_mode=exposure_mode,
         )
 
@@ -566,6 +597,7 @@ class WarhammerCompanionService:
         enemy_move: float = 0.0,
         enemy_threat: float = 1.0,
         enemy_mode: str = "raw-range",
+        enemy_movement_profile: str = "ground-non-mobile",
         exposure_mode: str = "threat-and-los",
         turn_order: str = "going-first",
     ) -> DeploymentScorecardState:
@@ -584,6 +616,7 @@ class WarhammerCompanionService:
             enemy_move=enemy_move,
             enemy_threat=enemy_threat,
             enemy_mode=enemy_mode,
+            enemy_movement_profile=enemy_movement_profile,
             exposure_mode=exposure_mode,
             turn_order=turn_order,
         )
@@ -625,6 +658,11 @@ class WarhammerCompanionService:
             ],
             warning_details=[warning.detail for warning in result.warnings],
             map_svg=map_svg,
+            enemy_movement_profile=payload.enemy_movement_profile_id,
+            enemy_movement_profiles=list(MOVEMENT_PROFILES),
+            enemy_movement_profile_label=payload.enemy_movement_profile_label,
+            enemy_effective_move=payload.enemy_effective_move_distance,
+            input_hash=result.input_hash,
         )
 
     def deployment_scorecard_toolkit_result(
@@ -644,6 +682,7 @@ class WarhammerCompanionService:
         enemy_move: float = 0.0,
         enemy_threat: float = 1.0,
         enemy_mode: str = "raw-range",
+        enemy_movement_profile: str = "ground-non-mobile",
         exposure_mode: str = "threat-and-los",
         turn_order: str = "going-first",
     ) -> ToolkitResult[DeploymentScorecardPayload]:
@@ -663,6 +702,7 @@ class WarhammerCompanionService:
             enemy_move_distance=enemy_move,
             enemy_threat_range=enemy_threat,
             enemy_threat_mode=enemy_mode,
+            enemy_movement_profile_id=enemy_movement_profile,
             exposure_mode=exposure_mode,
             turn_order=turn_order,
         )

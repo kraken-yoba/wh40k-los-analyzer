@@ -37,8 +37,9 @@ def build_deployment_scorecard_toolkit_result(
     enemy_move_distance: float,
     enemy_threat_range: float,
     enemy_threat_mode: str,
-    exposure_mode: str,
-    turn_order: str,
+    enemy_movement_profile_id: str = "ground-non-mobile",
+    exposure_mode: str = "threat-and-los",
+    turn_order: str = "going-first",
 ) -> ToolkitResult[DeploymentScorecardPayload]:
     exposure_result = build_deployment_exposure_toolkit_result(
         packet,
@@ -50,6 +51,7 @@ def build_deployment_scorecard_toolkit_result(
         enemy_move_distance=enemy_move_distance,
         enemy_threat_range=enemy_threat_range,
         enemy_threat_mode=enemy_threat_mode,
+        enemy_movement_profile_id=enemy_movement_profile_id,
         exposure_mode=exposure_mode,
     )
     mission_result = build_mission_pack_toolkit_result()
@@ -74,6 +76,9 @@ def build_deployment_scorecard_toolkit_result(
         enemy_move_distance=enemy_move_distance,
         enemy_threat_range=enemy_threat_range,
         enemy_threat_mode=exposure_result.payload.enemy_threat_mode,
+        enemy_movement_profile_id=exposure_result.payload.enemy_movement_profile_id,
+        enemy_movement_profile_label=exposure_result.payload.enemy_movement_profile_label,
+        enemy_effective_move_distance=exposure_result.payload.enemy_effective_move_distance,
         exposure_mode=exposure_result.payload.exposure_mode,
         turn_order=turn_order,
         deployment_exposure_result_id=exposure_result.result_id,

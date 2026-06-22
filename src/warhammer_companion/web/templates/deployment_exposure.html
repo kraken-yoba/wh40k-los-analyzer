@@ -63,6 +63,14 @@
       </select>
     </label>
     <label>
+      Enemy movement profile
+      <select name="enemy_movement_profile">
+        {% for option in enemy_movement_profiles %}
+        <option value="{{ option.profile_id }}" {{ "selected" if option.profile_id == enemy_movement_profile else "" }}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
       Exposure mode
       <select name="exposure_mode">
         {% for option in exposure_modes %}
@@ -72,7 +80,11 @@
     </label>
     <button type="submit">Generate</button>
   </form>
-  <div class="diagnostic-summary" aria-label="Deployment exposure diagnostic">
+  <div class="diagnostic-summary" aria-label="Deployment exposure diagnostic" data-result-hash="{{ input_hash }}">
+    <strong>Enemy movement profile</strong>
+    <span>{{ enemy_movement_profile_label }}</span>
+    <strong>Enemy effective movement</strong>
+    <span>{{ "%.2f"|format(enemy_effective_move) }} in</span>
     <strong>Placement status</strong>
     <span>
       {{ "Not exposed under selected assumptions" if not_exposed_under_assumptions else "Exposed or blocked under selected assumptions" }}

@@ -277,6 +277,58 @@ Manual check:
 
 - Visual plausibility of candidate staging regions, enemy threat/LOS overlap, and warning copy.
 
+## Scenario 9M: Movement Profiles, Dense Traversal, And Fly
+
+Steps:
+
+1. Open Movement Reach.
+2. Use page 9 with start/source `(14.0, 32.75)`, target/friendly `(22.5, 32.75)`,
+   base `1.57`, move `9.0`, and Dense 12 between the points.
+3. Submit `Ground non-mobile`, `Ground mobile / infantry`, `Fly: Take to the Skies`, and
+   `Fly: Hover / no-cost Take to the Skies`.
+4. Open Threat Range with the same source/target relationship, threat `0.5`, and repeat the
+   profile changes.
+5. Open Deployment Exposure and Deployment Scorecard and repeat the enemy movement profile changes
+   for a move-plus-range enemy threat mode.
+6. Repeat page 9 and page 52 smoke routes for movement, threat, exposure, and scorecard.
+
+Expected result:
+
+- Movement Reach exposes a movement profile selector, selected-profile summary, effective movement
+  distance, result hash, estimated movement envelope, and endpoint route diagnostic.
+- In the page 9 Dense 12 smoke route, Movement Reach reports `Ground non-mobile` and penalized
+  `Fly: Take to the Skies` as outside the selected route distance, while `Ground mobile / infantry`
+  and `Fly: Hover / no-cost Take to the Skies` are route-connected.
+- Non-mobile ground movement uses route distance around dense feature traversal blockers.
+- Ground mobile / infantry movement ignores dense feature traversal blockers but still blocks final
+  base occupancy overlapping dense features.
+- Fly Take to the Skies ignores dense traversal and reduces the movement component by 2 inches.
+- Hover/no-cost Take to the Skies ignores dense traversal without the 2 inch reduction.
+- Threat Range, Deployment Exposure, and Deployment Scorecard inherit the selected movement
+  assumptions for move-plus-range modes.
+- In the page 9 Dense 12 smoke route, Threat Range and downstream deployment tools show 0% target
+  probability for `Ground non-mobile` and penalized `Fly: Take to the Skies`, and 100% for
+  `Ground mobile / infantry` and `Fly: Hover / no-cost Take to the Skies`.
+- `raw-range` Threat Range output remains movement-profile invariant.
+- UI copy uses route-connected and selected-assumption wording; it does not claim legal movement,
+  safety, optimality, recommendations, guarantees, or charge legality.
+
+Automation:
+
+- Geometry tests cover route-around success/failure, mobile pass-through, Fly penalty, Hover
+  no-cost movement, dense-feature-vs-terrain-area traversal, raw-range invariance, and point-threat
+  probability flips.
+- Service, web, and desktop tests cover profile controls, selected values, effective movement text,
+  result hashes, route rendering, POST preservation, and downstream propagation.
+- Page 9 and page 52 deployment map hashes are characterized for route-aware threat geometry.
+
+Manual check:
+
+- Browser QA must verify Movement Reach, Threat Range, Deployment Exposure, and Deployment
+  Scorecard profile controls plus visible geometry/probability/status changes. If Browser control
+  is unavailable, use Computer Use with Firefox; if both are unavailable, record the blocker and run
+  equivalent FastAPI route checks.
+
 ## Scenario 9A: Deployment Scorecard
 
 Steps:

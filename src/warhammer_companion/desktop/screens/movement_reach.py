@@ -27,6 +27,7 @@ class MovementReachScreen(QWidget):
         self.base_input = double_spin_box(0.1, 8.0, 1.57)
         self.move_input = double_spin_box(0.1, 30.0, 6.0)
         self.mode_combo = QComboBox()
+        self.profile_combo = QComboBox()
         self.generate_button = QPushButton("Generate")
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
@@ -52,6 +53,8 @@ class MovementReachScreen(QWidget):
         controls.addWidget(self.move_input)
         controls.addWidget(QLabel("Mode"))
         controls.addWidget(self.mode_combo)
+        controls.addWidget(QLabel("Profile"))
+        controls.addWidget(self.profile_combo)
         controls.addWidget(self.generate_button)
         layout.addLayout(controls)
         layout.addWidget(self.status_label)
@@ -71,10 +74,12 @@ class MovementReachScreen(QWidget):
             base=self.base_input.value(),
             move=self.move_input.value(),
             mode=str(self.mode_combo.currentData() or "normal"),
+            movement_profile=str(self.profile_combo.currentData() or "ground-non-mobile"),
         )
         self.packet_selector.apply_state(state.packet_selector)
         self._apply_inputs(state)
         self._populate_mode(state)
+        self._populate_profile(state)
         self._set_status(state)
         self.map.set_svg(state.map_svg)
 
@@ -97,9 +102,26 @@ class MovementReachScreen(QWidget):
         self.mode_combo.setCurrentIndex(selected_index)
         self.mode_combo.blockSignals(False)
 
+    def _populate_profile(self, state: MovementReachState) -> None:
+        self.profile_combo.blockSignals(True)
+        self.profile_combo.clear()
+        selected_index = 0
+        for profile in state.movement_profiles:
+            self.profile_combo.addItem(profile.label, profile.profile_id)
+            if profile.profile_id == state.movement_profile:
+                selected_index = self.profile_combo.count() - 1
+        self.profile_combo.setCurrentIndex(selected_index)
+        self.profile_combo.blockSignals(False)
+
     def _set_status(self, state: MovementReachState) -> None:
+        prefix = (
+            f"Profile: {state.movement_profile_label}. "
+            f"Effective movement: {state.effective_move:.2f} in. "
+        )
         if state.endpoint_estimated_reachable:
-            self.status_label.setText("Endpoint diagnostic: no straight-corridor blocker found.")
+            self.status_label.setText(
+                f"{prefix}Endpoint diagnostic: route-connected under selected assumptions."
+            )
             return
         detail = "; ".join(state.endpoint_reason_details) or "Manual inputs need adjustment."
-        self.status_label.setText(f"Endpoint diagnostic: {detail}")
+        self.status_label.setText(f"{prefix}Endpoint diagnostic: {detail}")

@@ -177,6 +177,73 @@ def test_desktop_movement_reach_screen_renders_map_pixmap() -> None:
     app.processEvents()
 
 
+def test_desktop_movement_reach_screen_reports_profile_sensitive_status() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+    movement_screen = window.stack.widget(labels.index("Movement Reach"))
+
+    movement_screen.start_x_input.setValue(14.0)
+    movement_screen.start_y_input.setValue(32.75)
+    movement_screen.target_x_input.setValue(22.5)
+    movement_screen.target_y_input.setValue(32.75)
+    movement_screen.move_input.setValue(9.0)
+
+    profile_ids = {
+        movement_screen.profile_combo.itemData(index)
+        for index in range(movement_screen.profile_combo.count())
+    }
+    assert profile_ids >= {
+        "ground-non-mobile",
+        "ground-mobile",
+        "fly-take-to-skies",
+        "fly-hover-take-to-skies",
+    }
+
+    movement_screen.profile_combo.setCurrentIndex(
+        movement_screen.profile_combo.findData("ground-non-mobile")
+    )
+    movement_screen.refresh()
+    non_mobile_status = movement_screen.status_label.text()
+    assert "Ground non-mobile" in non_mobile_status
+    assert "outside the estimated route distance" in non_mobile_status
+
+    movement_screen.profile_combo.setCurrentIndex(
+        movement_screen.profile_combo.findData("ground-mobile")
+    )
+    movement_screen.refresh()
+    mobile_status = movement_screen.status_label.text()
+    assert "Ground mobile / infantry" in mobile_status
+    assert "route-connected under selected assumptions" in mobile_status
+
+    movement_screen.profile_combo.setCurrentIndex(
+        movement_screen.profile_combo.findData("fly-take-to-skies")
+    )
+    movement_screen.refresh()
+    penalized_fly_status = movement_screen.status_label.text()
+    assert "Fly: Take to the Skies" in penalized_fly_status
+    assert "Effective movement: 7.00 in" in penalized_fly_status
+    assert "outside the estimated route distance" in penalized_fly_status
+
+    movement_screen.profile_combo.setCurrentIndex(
+        movement_screen.profile_combo.findData("fly-hover-take-to-skies")
+    )
+    movement_screen.refresh()
+    hover_fly_status = movement_screen.status_label.text()
+    assert "Fly: Hover / no-cost Take to the Skies" in hover_fly_status
+    assert "Effective movement: 9.00 in" in hover_fly_status
+    assert "route-connected under selected assumptions" in hover_fly_status
+
+    window.close()
+    app.processEvents()
+
+
 def test_desktop_threat_range_screen_renders_map_pixmap() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
@@ -203,6 +270,74 @@ def test_desktop_threat_range_screen_renders_map_pixmap() -> None:
     app.processEvents()
 
 
+def test_desktop_threat_range_screen_reports_profile_sensitive_probability() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+    threat_screen = window.stack.widget(labels.index("Threat Range"))
+
+    threat_screen.source_x_input.setValue(14.0)
+    threat_screen.source_y_input.setValue(32.75)
+    threat_screen.target_x_input.setValue(22.5)
+    threat_screen.target_y_input.setValue(32.75)
+    threat_screen.move_input.setValue(9.0)
+    threat_screen.threat_input.setValue(0.5)
+
+    profile_ids = {
+        threat_screen.profile_combo.itemData(index)
+        for index in range(threat_screen.profile_combo.count())
+    }
+    assert profile_ids >= {
+        "ground-non-mobile",
+        "ground-mobile",
+        "fly-take-to-skies",
+        "fly-hover-take-to-skies",
+    }
+
+    threat_screen.profile_combo.setCurrentIndex(
+        threat_screen.profile_combo.findData("ground-non-mobile")
+    )
+    threat_screen.refresh()
+    non_mobile_status = threat_screen.status_label.text()
+    assert "Ground non-mobile" in non_mobile_status
+    assert "Target point probability: 0.0%" in non_mobile_status
+
+    threat_screen.profile_combo.setCurrentIndex(
+        threat_screen.profile_combo.findData("ground-mobile")
+    )
+    threat_screen.refresh()
+    mobile_status = threat_screen.status_label.text()
+    assert "Ground mobile / infantry" in mobile_status
+    assert "Target point probability: 100.0%" in mobile_status
+
+    threat_screen.profile_combo.setCurrentIndex(
+        threat_screen.profile_combo.findData("fly-take-to-skies")
+    )
+    threat_screen.refresh()
+    penalized_fly_status = threat_screen.status_label.text()
+    assert "Fly: Take to the Skies" in penalized_fly_status
+    assert "Effective movement: 7.00 in" in penalized_fly_status
+    assert "Target point probability: 0.0%" in penalized_fly_status
+
+    threat_screen.profile_combo.setCurrentIndex(
+        threat_screen.profile_combo.findData("fly-hover-take-to-skies")
+    )
+    threat_screen.refresh()
+    hover_fly_status = threat_screen.status_label.text()
+    assert "Fly: Hover / no-cost Take to the Skies" in hover_fly_status
+    assert "Effective movement: 9.00 in" in hover_fly_status
+    assert "Target point probability: 100.0%" in hover_fly_status
+
+    window.close()
+    app.processEvents()
+
+
 def test_desktop_deployment_exposure_screen_renders_map_pixmap() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
@@ -225,6 +360,29 @@ def test_desktop_deployment_exposure_screen_renders_map_pixmap() -> None:
     status_text = deployment_screen.status_label.text()
     assert "not a placement planner" in status_text
     assert "Not exposed under selected assumptions" in status_text
+    window.close()
+    app.processEvents()
+
+
+def test_desktop_deployment_screens_report_enemy_profile_sensitive_probability() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    exposure_screen = window.stack.widget(labels.index("Deployment Exposure"))
+    _configure_desktop_deployment_profile_case(exposure_screen)
+    _assert_enemy_profile_status_changes(exposure_screen)
+
+    scorecard_screen = window.stack.widget(labels.index("Deployment Scorecard"))
+    _configure_desktop_deployment_profile_case(scorecard_screen)
+    _assert_enemy_profile_status_changes(scorecard_screen)
+
     window.close()
     app.processEvents()
 
@@ -267,6 +425,64 @@ def test_desktop_deployment_scorecard_screen_reports_components_and_blockers() -
     assert 'class="threat-projection-image"' not in blocked_state.map_svg
     window.close()
     app.processEvents()
+
+
+def _configure_desktop_deployment_profile_case(screen) -> None:
+    screen.friendly_x_input.setValue(22.5)
+    screen.friendly_y_input.setValue(32.75)
+    screen.enemy_x_input.setValue(14.0)
+    screen.enemy_y_input.setValue(32.75)
+    screen.enemy_move_input.setValue(9.0)
+    screen.enemy_threat_input.setValue(0.5)
+    screen.enemy_mode_combo.setCurrentIndex(
+        screen.enemy_mode_combo.findData("fixed-move-plus-range")
+    )
+    screen.exposure_mode_combo.setCurrentIndex(screen.exposure_mode_combo.findData("threat-only"))
+
+    profile_ids = {
+        screen.enemy_profile_combo.itemData(index)
+        for index in range(screen.enemy_profile_combo.count())
+    }
+    assert profile_ids >= {
+        "ground-non-mobile",
+        "ground-mobile",
+        "fly-take-to-skies",
+        "fly-hover-take-to-skies",
+    }
+
+
+def _assert_enemy_profile_status_changes(screen) -> None:
+    screen.enemy_profile_combo.setCurrentIndex(
+        screen.enemy_profile_combo.findData("ground-non-mobile")
+    )
+    screen.refresh()
+    non_mobile_status = screen.status_label.text()
+    assert "Ground non-mobile" in non_mobile_status
+    assert "Threat probability at center: 0.0%" in non_mobile_status
+
+    screen.enemy_profile_combo.setCurrentIndex(screen.enemy_profile_combo.findData("ground-mobile"))
+    screen.refresh()
+    mobile_status = screen.status_label.text()
+    assert "Ground mobile / infantry" in mobile_status
+    assert "Threat probability at center: 100.0%" in mobile_status
+
+    screen.enemy_profile_combo.setCurrentIndex(
+        screen.enemy_profile_combo.findData("fly-take-to-skies")
+    )
+    screen.refresh()
+    penalized_fly_status = screen.status_label.text()
+    assert "Fly: Take to the Skies" in penalized_fly_status
+    assert "Enemy effective movement: 7.00 in" in penalized_fly_status
+    assert "Threat probability at center: 0.0%" in penalized_fly_status
+
+    screen.enemy_profile_combo.setCurrentIndex(
+        screen.enemy_profile_combo.findData("fly-hover-take-to-skies")
+    )
+    screen.refresh()
+    hover_fly_status = screen.status_label.text()
+    assert "Fly: Hover / no-cost Take to the Skies" in hover_fly_status
+    assert "Enemy effective movement: 9.00 in" in hover_fly_status
+    assert "Threat probability at center: 100.0%" in hover_fly_status
 
 
 def test_desktop_damage_profile_screen_reports_manual_estimate() -> None:

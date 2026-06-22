@@ -30,6 +30,7 @@ class DeploymentScorecardScreen(QWidget):
         self.enemy_move_input = double_spin_box(0.0, 30.0, 0.0)
         self.enemy_threat_input = double_spin_box(0.0, 30.0, 1.0)
         self.enemy_mode_combo = QComboBox()
+        self.enemy_profile_combo = QComboBox()
         self.exposure_mode_combo = QComboBox()
         self.turn_order_combo = QComboBox()
         self.generate_button = QPushButton("Generate")
@@ -65,6 +66,8 @@ class DeploymentScorecardScreen(QWidget):
         controls.addWidget(self.enemy_threat_input)
         controls.addWidget(QLabel("Enemy mode"))
         controls.addWidget(self.enemy_mode_combo)
+        controls.addWidget(QLabel("Enemy profile"))
+        controls.addWidget(self.enemy_profile_combo)
         controls.addWidget(QLabel("Exposure"))
         controls.addWidget(self.exposure_mode_combo)
         controls.addWidget(QLabel("Turn order"))
@@ -92,6 +95,9 @@ class DeploymentScorecardScreen(QWidget):
             enemy_move=self.enemy_move_input.value(),
             enemy_threat=self.enemy_threat_input.value(),
             enemy_mode=str(self.enemy_mode_combo.currentData() or "raw-range"),
+            enemy_movement_profile=str(
+                self.enemy_profile_combo.currentData() or "ground-non-mobile"
+            ),
             exposure_mode=str(self.exposure_mode_combo.currentData() or "threat-and-los"),
             turn_order=str(self.turn_order_combo.currentData() or "going-first"),
         )
@@ -128,6 +134,15 @@ class DeploymentScorecardScreen(QWidget):
 
     def _populate_modes(self, state: DeploymentScorecardState) -> None:
         self._populate_combo(self.enemy_mode_combo, state.enemy_threat_modes, state.enemy_mode)
+        self.enemy_profile_combo.blockSignals(True)
+        self.enemy_profile_combo.clear()
+        selected_index = 0
+        for profile in state.enemy_movement_profiles:
+            self.enemy_profile_combo.addItem(profile.label, profile.profile_id)
+            if profile.profile_id == state.enemy_movement_profile:
+                selected_index = self.enemy_profile_combo.count() - 1
+        self.enemy_profile_combo.setCurrentIndex(selected_index)
+        self.enemy_profile_combo.blockSignals(False)
         self._populate_combo(self.exposure_mode_combo, state.exposure_modes, state.exposure_mode)
         self._populate_combo(self.turn_order_combo, state.turn_order_options, state.turn_order)
 
@@ -135,6 +150,8 @@ class DeploymentScorecardScreen(QWidget):
         warnings = " ".join(state.warning_details)
         blockers = " ".join(state.block_reason_details)
         self.status_label.setText(
+            f"Enemy profile: {state.enemy_movement_profile_label}. "
+            f"Enemy effective movement: {state.enemy_effective_move:.2f} in. "
             f"Readiness: {state.readiness}. Turn order: {state.turn_order}. "
             f"Threat probability at center: {state.threat_probability_at_center * 100.0:.1f}%. "
             f"{warnings} {blockers}"

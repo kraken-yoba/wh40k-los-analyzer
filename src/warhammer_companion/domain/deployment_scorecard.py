@@ -6,6 +6,11 @@ from typing import Literal, get_args
 from warhammer_companion.domain.exposure import DeploymentExposurePayload
 from warhammer_companion.domain.missions import MissionSourceRef
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import (
+    DEFAULT_MOVEMENT_PROFILE_ID,
+    MOVEMENT_PROFILES_BY_ID,
+    MovementProfileId,
+)
 
 TurnOrderAssumption = Literal["going-first", "going-second"]
 TURN_ORDER_ASSUMPTIONS: tuple[TurnOrderAssumption, ...] = get_args(TurnOrderAssumption)
@@ -63,3 +68,6 @@ class DeploymentScorecardPayload:
     components: tuple[DeploymentScorecardComponent, ...]
     not_exposed_under_assumptions: bool
     threat_probability_at_center: float
+    enemy_movement_profile_id: MovementProfileId = DEFAULT_MOVEMENT_PROFILE_ID
+    enemy_movement_profile_label: str = MOVEMENT_PROFILES_BY_ID[DEFAULT_MOVEMENT_PROFILE_ID].label
+    enemy_effective_move_distance: float = 0.0

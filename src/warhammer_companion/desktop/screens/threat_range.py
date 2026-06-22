@@ -28,6 +28,7 @@ class ThreatRangeScreen(QWidget):
         self.move_input = double_spin_box(0.0, 30.0, 6.0)
         self.threat_input = double_spin_box(0.0, 30.0, 2.0)
         self.mode_combo = QComboBox()
+        self.profile_combo = QComboBox()
         self.generate_button = QPushButton("Generate")
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
@@ -55,6 +56,8 @@ class ThreatRangeScreen(QWidget):
         controls.addWidget(self.threat_input)
         controls.addWidget(QLabel("Mode"))
         controls.addWidget(self.mode_combo)
+        controls.addWidget(QLabel("Profile"))
+        controls.addWidget(self.profile_combo)
         controls.addWidget(self.generate_button)
         layout.addLayout(controls)
         layout.addWidget(self.status_label)
@@ -75,10 +78,12 @@ class ThreatRangeScreen(QWidget):
             move=self.move_input.value(),
             threat=self.threat_input.value(),
             mode=str(self.mode_combo.currentData() or "fixed-move-plus-range"),
+            movement_profile=str(self.profile_combo.currentData() or "ground-non-mobile"),
         )
         self.packet_selector.apply_state(state.packet_selector)
         self._apply_inputs(state)
         self._populate_mode(state)
+        self._populate_profile(state)
         self._set_status(state)
         self.map.set_svg(state.map_svg)
 
@@ -102,10 +107,24 @@ class ThreatRangeScreen(QWidget):
         self.mode_combo.setCurrentIndex(selected_index)
         self.mode_combo.blockSignals(False)
 
+    def _populate_profile(self, state: ThreatRangeState) -> None:
+        self.profile_combo.blockSignals(True)
+        self.profile_combo.clear()
+        selected_index = 0
+        for profile in state.movement_profiles:
+            self.profile_combo.addItem(profile.label, profile.profile_id)
+            if profile.profile_id == state.movement_profile:
+                selected_index = self.profile_combo.count() - 1
+        self.profile_combo.setCurrentIndex(selected_index)
+        self.profile_combo.blockSignals(False)
+
     def _set_status(self, state: ThreatRangeState) -> None:
         probability = state.target_probability * 100.0
         measurement = state.measurement_convention.replace("-", " ")
         warnings = " ".join(state.warning_details)
         self.status_label.setText(
-            f"Target point probability: {probability:.1f}%. Measurement: {measurement}. {warnings}"
+            f"Profile: {state.movement_profile_label}. "
+            f"Effective movement: {state.effective_move:.2f} in. "
+            f"Target point probability: {probability:.1f}%. "
+            f"Measurement: {measurement}. {warnings}"
         )

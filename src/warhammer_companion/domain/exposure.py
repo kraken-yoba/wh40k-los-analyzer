@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, get_args
 
 from shapely.geometry.base import BaseGeometry
 
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import (
+    DEFAULT_MOVEMENT_PROFILE_ID,
+    MOVEMENT_PROFILES_BY_ID,
+    MovementProfileId,
+    MovementRoutingMetadata,
+)
 from warhammer_companion.domain.threat import ThreatMode, ThreatProjectionRegion
 
 ExposureMode = Literal["threat-only", "los-only", "threat-or-los", "threat-and-los"]
@@ -52,6 +58,10 @@ class DeploymentExposurePayload:
     candidate_center_region: BaseGeometry
     placement: ExposurePlacementDiagnostic
     threat_probability_at_center: float
+    enemy_movement_profile_id: MovementProfileId = DEFAULT_MOVEMENT_PROFILE_ID
+    enemy_movement_profile_label: str = MOVEMENT_PROFILES_BY_ID[DEFAULT_MOVEMENT_PROFILE_ID].label
+    enemy_effective_move_distance: float = 0.0
+    enemy_routing_metadata: MovementRoutingMetadata = field(default_factory=MovementRoutingMetadata)
 
 
 def coerce_exposure_mode(value: str) -> ExposureMode:

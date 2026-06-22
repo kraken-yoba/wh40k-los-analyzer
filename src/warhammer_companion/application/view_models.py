@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from warhammer_companion.domain.damage import DamageProbabilityRow
 from warhammer_companion.domain.deployment_scorecard import DeploymentScorecardComponent
@@ -13,6 +13,11 @@ from warhammer_companion.domain.matchups import (
 )
 from warhammer_companion.domain.missions import MissionPack, MissionRecord, MissionSourceRef
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import (
+    DEFAULT_MOVEMENT_PROFILE_ID,
+    MOVEMENT_PROFILES,
+    MovementProfile,
+)
 from warhammer_companion.domain.threat import ThreatDiceOutcome
 from warhammer_companion.ingestion.packet_builder import IngestionReport
 from warhammer_companion.ingestion.pipeline import PipelineStage
@@ -126,6 +131,13 @@ class MovementReachState:
     endpoint_estimated_reachable: bool
     endpoint_reason_details: list[str]
     map_svg: str
+    movement_profile: str = DEFAULT_MOVEMENT_PROFILE_ID
+    movement_profiles: list[MovementProfile] = field(
+        default_factory=lambda: list(MOVEMENT_PROFILES)
+    )
+    movement_profile_label: str = "Ground non-mobile"
+    effective_move: float = 0.0
+    input_hash: str = ""
 
 
 @dataclass(frozen=True)
@@ -147,6 +159,13 @@ class ThreatRangeState:
     distribution: list[ThreatDiceOutcome]
     warning_details: list[str]
     map_svg: str
+    movement_profile: str = DEFAULT_MOVEMENT_PROFILE_ID
+    movement_profiles: list[MovementProfile] = field(
+        default_factory=lambda: list(MOVEMENT_PROFILES)
+    )
+    movement_profile_label: str = "Ground non-mobile"
+    effective_move: float = 0.0
+    input_hash: str = ""
 
 
 @dataclass(frozen=True)
@@ -173,6 +192,13 @@ class DeploymentExposureState:
     placement_reason_details: list[str]
     warning_details: list[str]
     map_svg: str
+    enemy_movement_profile: str = DEFAULT_MOVEMENT_PROFILE_ID
+    enemy_movement_profiles: list[MovementProfile] = field(
+        default_factory=lambda: list(MOVEMENT_PROFILES)
+    )
+    enemy_movement_profile_label: str = "Ground non-mobile"
+    enemy_effective_move: float = 0.0
+    input_hash: str = ""
 
 
 @dataclass(frozen=True)
@@ -204,6 +230,13 @@ class DeploymentScorecardState:
     block_reason_details: list[str]
     warning_details: list[str]
     map_svg: str
+    enemy_movement_profile: str = DEFAULT_MOVEMENT_PROFILE_ID
+    enemy_movement_profiles: list[MovementProfile] = field(
+        default_factory=lambda: list(MOVEMENT_PROFILES)
+    )
+    enemy_movement_profile_label: str = "Ground non-mobile"
+    enemy_effective_move: float = 0.0
+    input_hash: str = ""
 
 
 @dataclass(frozen=True)

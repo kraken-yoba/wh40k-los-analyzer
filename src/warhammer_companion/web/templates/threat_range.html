@@ -50,9 +50,21 @@
         {% endfor %}
       </select>
     </label>
+    <label>
+      Movement profile
+      <select name="movement_profile">
+        {% for option in movement_profiles %}
+        <option value="{{ option.profile_id }}" {{ "selected" if option.profile_id == movement_profile else "" }}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <button type="submit">Generate</button>
   </form>
-  <div class="diagnostic-summary" aria-label="Threat projection diagnostic">
+  <div class="diagnostic-summary" aria-label="Threat projection diagnostic" data-result-hash="{{ input_hash }}">
+    <strong>Movement profile</strong>
+    <span>{{ movement_profile_label }}</span>
+    <strong>Effective movement</strong>
+    <span>{{ "%.2f"|format(effective_move) }} in</span>
     <strong>Target point probability</strong>
     <span>{{ "%.1f"|format(target_probability * 100) }}%</span>
     <strong>Measurement</strong>

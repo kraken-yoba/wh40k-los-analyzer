@@ -96,10 +96,44 @@ def test_deployment_scorecard_identity_changes_with_manual_footprint() -> None:
     assert moved.result_id.endswith(moved.input_hash.removeprefix("sha256:")[:12])
 
 
+def test_deployment_scorecard_identity_changes_with_enemy_movement_profile() -> None:
+    non_mobile = _build_scorecard(
+        enemy_move_distance=9.0,
+        enemy_threat_range=0.5,
+        enemy_threat_mode="fixed-move-plus-range",
+        enemy_movement_profile_id="ground-non-mobile",
+    )
+    mobile = _build_scorecard(
+        enemy_move_distance=9.0,
+        enemy_threat_range=0.5,
+        enemy_threat_mode="fixed-move-plus-range",
+        enemy_movement_profile_id="ground-mobile",
+    )
+    hover_fly = _build_scorecard(
+        enemy_move_distance=9.0,
+        enemy_threat_range=0.5,
+        enemy_threat_mode="fixed-move-plus-range",
+        enemy_movement_profile_id="fly-hover-take-to-skies",
+    )
+
+    assert non_mobile.input_hash != mobile.input_hash
+    assert non_mobile.input_hash != hover_fly.input_hash
+    assert mobile.input_hash != hover_fly.input_hash
+    assert non_mobile.payload.deployment_exposure.enemy_movement_profile_id == ("ground-non-mobile")
+    assert mobile.payload.deployment_exposure.enemy_movement_profile_id == "ground-mobile"
+    assert hover_fly.payload.deployment_exposure.enemy_movement_profile_id == (
+        "fly-hover-take-to-skies"
+    )
+
+
 def _build_scorecard(
     *,
     friendly_center: tuple[float, float] = (10.0, 5.0),
     friendly_base_diameter: float = 1.57,
+    enemy_move_distance: float = 0.0,
+    enemy_threat_range: float = 1.0,
+    enemy_threat_mode: str = "raw-range",
+    enemy_movement_profile_id: str = "ground-non-mobile",
     turn_order: str = "going-first",
 ):
     return build_deployment_scorecard_toolkit_result(
@@ -109,9 +143,10 @@ def _build_scorecard(
         friendly_base_diameter=friendly_base_diameter,
         enemy_source_center=(38.0, 52.0),
         enemy_base_diameter=1.57,
-        enemy_move_distance=0.0,
-        enemy_threat_range=1.0,
-        enemy_threat_mode="raw-range",
+        enemy_move_distance=enemy_move_distance,
+        enemy_threat_range=enemy_threat_range,
+        enemy_threat_mode=enemy_threat_mode,
+        enemy_movement_profile_id=enemy_movement_profile_id,
         exposure_mode="threat-only",
         turn_order=turn_order,
     )

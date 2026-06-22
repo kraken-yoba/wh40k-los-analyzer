@@ -597,10 +597,10 @@ def test_deployment_scorecard_and_exposure_maps_match_characterized_official_lay
     }
     expected_hashes = {
         "official-event-companion-page-9": (
-            "5f8b4c3342dec7eb5b0c37ccac2a4509f7b29be2636bfe3b5615146651365c49"
+            "6868006625ccefc2759f55c968274da3428b01467d8dadc0b20aaf7fe54413b9"
         ),
         "official-event-companion-page-52": (
-            "aeef9a1ae4bde05f22a277dc1658667eb97fec21231ccf0bc43351cf241566e0"
+            "87e9290b9f430044d63d2c370a7f5bbe8f3401a42b8de5c3e4b4d41baefbd315"
         ),
     }
 

@@ -20,8 +20,17 @@ from warhammer_companion.domain.exposure import (
     exposure_mode_includes_threat,
 )
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.movement import (
+    MOVEMENT_ROUTING_ALGORITHM_VERSION,
+    MOVEMENT_ROUTING_TOLERANCE_INCHES,
+    MovementProfileId,
+    MovementRoutingMetadata,
+    coerce_movement_profile_id,
+    effective_move_distance,
+    movement_profile_for_id,
+)
 from warhammer_companion.domain.overlays import MapOverlayLayer, ToolkitAssumption, ToolkitWarning
-from warhammer_companion.domain.threat import THREAT_MODES, coerce_threat_mode
+from warhammer_companion.domain.threat import THREAT_MODES, ThreatMode, coerce_threat_mode
 from warhammer_companion.los.exposure import (
     allowed_deployment_center_region,
     candidate_staging_center_region,
@@ -29,6 +38,7 @@ from warhammer_companion.los.exposure import (
 )
 from warhammer_companion.los.geometry import circular_base, visibility_polygon_from_base
 from warhammer_companion.los.movement import (
+    MovementRoutingBudgetExceeded,
     base_center_region,
     dense_movement_collision_regions,
 )
@@ -52,10 +62,18 @@ def build_deployment_exposure_toolkit_result(
     enemy_move_distance: float,
     enemy_threat_range: float,
     enemy_threat_mode: str,
-    exposure_mode: str,
+    enemy_movement_profile_id: str = "ground-non-mobile",
+    exposure_mode: str = "threat-and-los",
 ) -> ToolkitResult[DeploymentExposurePayload]:
     coerced_threat_mode = coerce_threat_mode(enemy_threat_mode)
     coerced_exposure_mode = coerce_exposure_mode(exposure_mode)
+    enemy_profile = movement_profile_for_id(enemy_movement_profile_id)
+    coerced_enemy_profile_id = enemy_profile.profile_id
+    enemy_effective_move = (
+        0.0
+        if coerced_threat_mode == "raw-range"
+        else effective_move_distance(enemy_move_distance, coerced_enemy_profile_id)
+    )
     input_hash = _deployment_exposure_hash(
         packet=packet,
         deployment_zone_id=deployment_zone_id,
@@ -66,6 +84,8 @@ def build_deployment_exposure_toolkit_result(
         enemy_move_distance=enemy_move_distance,
         enemy_threat_range=enemy_threat_range,
         enemy_threat_mode=enemy_threat_mode,
+        enemy_movement_profile_id=coerced_enemy_profile_id,
+        enemy_effective_move_distance=enemy_effective_move,
         exposure_mode=exposure_mode,
     )
     suffix = input_hash.removeprefix("sha256:")[:12]
@@ -79,6 +99,7 @@ def build_deployment_exposure_toolkit_result(
         enemy_move_distance=enemy_move_distance,
         enemy_threat_range=enemy_threat_range,
         enemy_threat_mode=enemy_threat_mode,
+        enemy_movement_profile_id=enemy_movement_profile_id,
         exposure_mode=exposure_mode,
     )
     if block_reasons:
@@ -105,6 +126,10 @@ def build_deployment_exposure_toolkit_result(
                 candidate_center_region=Polygon(),
                 placement=_blocked_placement(),
                 threat_probability_at_center=0.0,
+                enemy_movement_profile_id=coerced_enemy_profile_id,
+                enemy_movement_profile_label=enemy_profile.label,
+                enemy_effective_move_distance=enemy_effective_move,
+                enemy_routing_metadata=_routing_metadata_for_hash(coerced_enemy_profile_id),
             ),
             warnings=(
                 ToolkitWarning(
@@ -119,22 +144,46 @@ def build_deployment_exposure_toolkit_result(
 
     friendly_radius = friendly_base_diameter / 2.0
     friendly_base = circular_base(friendly_center, friendly_base_diameter)
-    threat_regions = threat_projection_regions(
-        packet,
-        source_center=enemy_source_center,
-        base_diameter=enemy_base_diameter,
-        move_distance=enemy_move_distance,
-        threat_range=enemy_threat_range,
-        mode=coerced_threat_mode,
-    )
-    max_threat_region = threat_projection(
-        packet,
-        source_center=enemy_source_center,
-        base_diameter=enemy_base_diameter,
-        move_distance=enemy_move_distance,
-        threat_range=enemy_threat_range,
-        mode=coerced_threat_mode,
-    )
+    try:
+        threat_regions = threat_projection_regions(
+            packet,
+            source_center=enemy_source_center,
+            base_diameter=enemy_base_diameter,
+            move_distance=enemy_move_distance,
+            threat_range=enemy_threat_range,
+            mode=coerced_threat_mode,
+            movement_profile_id=coerced_enemy_profile_id,
+        )
+        max_threat_region = threat_projection(
+            packet,
+            source_center=enemy_source_center,
+            base_diameter=enemy_base_diameter,
+            move_distance=enemy_move_distance,
+            threat_range=enemy_threat_range,
+            mode=coerced_threat_mode,
+            movement_profile_id=coerced_enemy_profile_id,
+        )
+    except MovementRoutingBudgetExceeded as exc:
+        return _routing_budget_blocked_result(
+            packet=packet,
+            input_hash=input_hash,
+            suffix=suffix,
+            deployment_zone_id=deployment_zone_id,
+            friendly_center=friendly_center,
+            friendly_base_diameter=friendly_base_diameter,
+            enemy_source_center=enemy_source_center,
+            enemy_base_diameter=enemy_base_diameter,
+            enemy_move_distance=enemy_move_distance,
+            enemy_threat_range=enemy_threat_range,
+            enemy_threat_mode=coerced_threat_mode,
+            exposure_mode=coerced_exposure_mode,
+            enemy_movement_profile_id=coerced_enemy_profile_id,
+            enemy_movement_profile_label=enemy_profile.label,
+            enemy_effective_move=enemy_effective_move,
+            enemy_routing_metadata=_routing_metadata_for_hash(coerced_enemy_profile_id),
+            node_count=exc.node_count,
+            node_limit=exc.node_limit,
+        )
     enemy_los_region = visibility_polygon_from_base(
         packet,
         center=enemy_source_center,
@@ -187,6 +236,10 @@ def build_deployment_exposure_toolkit_result(
         candidate_center_region=candidate_center_region,
         placement=placement,
         threat_probability_at_center=threat_probability,
+        enemy_movement_profile_id=coerced_enemy_profile_id,
+        enemy_movement_profile_label=enemy_profile.label,
+        enemy_effective_move_distance=enemy_effective_move,
+        enemy_routing_metadata=_routing_metadata_for_hash(coerced_enemy_profile_id),
     )
     return ToolkitResult(
         result_id=f"{packet.id}:deployment-exposure:{suffix}",
@@ -232,6 +285,10 @@ def build_deployment_exposure_toolkit_result(
                 assumption_id="selected-risk-assumption",
                 detail="Candidate staging centers depend on the selected threat/LOS mode.",
             ),
+            ToolkitAssumption(
+                assumption_id="selected-enemy-movement-profile",
+                detail=f"Enemy threat uses selected movement assumptions: {enemy_profile.label}.",
+            ),
         ),
         warnings=(
             ToolkitWarning(
@@ -250,6 +307,74 @@ def build_deployment_exposure_toolkit_result(
     )
 
 
+def _routing_budget_blocked_result(
+    *,
+    packet: MapPacket,
+    input_hash: str,
+    suffix: str,
+    deployment_zone_id: str,
+    friendly_center: tuple[float, float],
+    friendly_base_diameter: float,
+    enemy_source_center: tuple[float, float],
+    enemy_base_diameter: float,
+    enemy_move_distance: float,
+    enemy_threat_range: float,
+    enemy_threat_mode: ThreatMode,
+    exposure_mode: ExposureMode,
+    enemy_movement_profile_id: MovementProfileId,
+    enemy_movement_profile_label: str,
+    enemy_effective_move: float,
+    enemy_routing_metadata: MovementRoutingMetadata,
+    node_count: int,
+    node_limit: int,
+) -> ToolkitResult[DeploymentExposurePayload]:
+    detail = (
+        "Enemy movement routing grid is too large for the bounded exposure estimator "
+        f"({node_count} nodes exceeds the {node_limit} node limit)."
+    )
+    return ToolkitResult(
+        result_id=f"{packet.id}:deployment-exposure:{suffix}",
+        tool_id="deployment_exposure",
+        input_hash=input_hash,
+        readiness="blocked",
+        payload=DeploymentExposurePayload(
+            packet=packet,
+            deployment_zone_id=deployment_zone_id,
+            friendly_center=friendly_center,
+            friendly_base_diameter=friendly_base_diameter,
+            enemy_source_center=enemy_source_center,
+            enemy_base_diameter=enemy_base_diameter,
+            enemy_move_distance=enemy_move_distance,
+            enemy_threat_range=enemy_threat_range,
+            enemy_threat_mode=enemy_threat_mode,
+            exposure_mode=exposure_mode,
+            enemy_threat_regions=(),
+            enemy_los_region=Polygon(),
+            allowed_center_region=Polygon(),
+            risk_region=Polygon(),
+            candidate_center_region=Polygon(),
+            placement=_blocked_placement(),
+            threat_probability_at_center=0.0,
+            enemy_movement_profile_id=enemy_movement_profile_id,
+            enemy_movement_profile_label=enemy_movement_profile_label,
+            enemy_effective_move_distance=enemy_effective_move,
+            enemy_routing_metadata=enemy_routing_metadata,
+        ),
+        warnings=(
+            ToolkitWarning(
+                warning_id="movement-routing-node-budget-exceeded",
+                detail=detail,
+            ),
+        ),
+        block_reasons=(
+            BlockReason(
+                reason_id="movement-routing-node-budget-exceeded",
+                detail=detail,
+            ),
+        ),
+    )
+
+
 def _input_block_reasons(
     *,
     packet: MapPacket,
@@ -261,7 +386,8 @@ def _input_block_reasons(
     enemy_move_distance: float,
     enemy_threat_range: float,
     enemy_threat_mode: str,
-    exposure_mode: str,
+    enemy_movement_profile_id: str,
+    exposure_mode: str = "threat-and-los",
 ) -> tuple[BlockReason, ...]:
     reasons: list[BlockReason] = []
     if deployment_zone_id not in {zone.id for zone in packet.deployment_zones}:
@@ -318,6 +444,13 @@ def _input_block_reasons(
     if enemy_threat_mode not in THREAT_MODES:
         reasons.append(
             BlockReason("invalid-enemy-threat-mode", "Enemy threat mode is not supported.")
+        )
+    if enemy_movement_profile_id != coerce_movement_profile_id(enemy_movement_profile_id):
+        reasons.append(
+            BlockReason(
+                "invalid-enemy-movement-profile",
+                "Enemy movement profile is not supported.",
+            )
         )
     if exposure_mode not in EXPOSURE_MODES:
         reasons.append(BlockReason("invalid-exposure-mode", "Exposure mode is not supported."))
@@ -412,21 +545,43 @@ def _deployment_exposure_hash(
     enemy_move_distance: float,
     enemy_threat_range: float,
     enemy_threat_mode: str,
+    enemy_movement_profile_id: MovementProfileId,
+    enemy_effective_move_distance: float,
     exposure_mode: str,
 ) -> str:
+    profile = movement_profile_for_id(enemy_movement_profile_id)
     payload = {
         "deployment_zone_id": deployment_zone_id,
         "enemy_base_diameter": _canonical_float(enemy_base_diameter),
+        "enemy_effective_move_distance": _canonical_float(enemy_effective_move_distance),
         "enemy_move_distance": _canonical_float(enemy_move_distance),
+        "enemy_movement_profile_id": enemy_movement_profile_id
+        if enemy_threat_mode != "raw-range"
+        else "not-applicable",
         "enemy_source_center": [_canonical_float(value) for value in enemy_source_center],
         "enemy_threat_mode": enemy_threat_mode,
         "enemy_threat_range": _canonical_float(enemy_threat_range),
+        "endpoint_occupancy_policy": profile.endpoint_occupancy_policy
+        if enemy_threat_mode != "raw-range"
+        else "not-applicable",
         "exposure_mode": exposure_mode,
         "friendly_base_diameter": _canonical_float(friendly_base_diameter),
         "friendly_center": [_canonical_float(value) for value in friendly_center],
         "packet_digest": map_packet_digest(packet),
+        "routing_algorithm_version": MOVEMENT_ROUTING_ALGORITHM_VERSION
+        if enemy_threat_mode != "raw-range"
+        else "not-applicable",
+        "routing_resolution_inches": _canonical_float(1.0)
+        if enemy_threat_mode != "raw-range"
+        else "0.000000",
+        "routing_tolerance_inches": _canonical_float(MOVEMENT_ROUTING_TOLERANCE_INCHES)
+        if enemy_threat_mode != "raw-range"
+        else "0.000000",
         "schema_version": DEPLOYMENT_EXPOSURE_TOOLKIT_SCHEMA_VERSION,
         "tool_id": "deployment_exposure",
+        "traversal_policy": profile.traversal_policy
+        if enemy_threat_mode != "raw-range"
+        else "not-applicable",
     }
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
@@ -454,4 +609,12 @@ def _blocked_placement() -> ExposurePlacementDiagnostic:
         exposed_to_los=False,
         exposed_to_threat=False,
         not_exposed_under_assumptions=False,
+    )
+
+
+def _routing_metadata_for_hash(enemy_movement_profile_id: str) -> MovementRoutingMetadata:
+    profile = movement_profile_for_id(coerce_movement_profile_id(enemy_movement_profile_id))
+    return MovementRoutingMetadata(
+        traversal_policy=profile.traversal_policy,
+        endpoint_occupancy_policy=profile.endpoint_occupancy_policy,
     )

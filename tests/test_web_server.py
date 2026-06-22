@@ -228,7 +228,7 @@ def test_hidden_coverage_route_uses_terrain_and_range_controls(monkeypatch) -> N
 def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_language(
     monkeypatch,
 ) -> None:
-    calls: list[tuple[str, float, float, float, float, float, float, str]] = []
+    calls: list[tuple[str, float, float, float, float, float, float, str, str]] = []
     packet = server.repository.default_packet()
     packet_selector = WarhammerCompanionService(
         paths=server.ingestion_paths,
@@ -251,6 +251,7 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
             base: float = 1.57,
             move: float = 6.0,
             mode: str = "normal",
+            movement_profile: str = "ground-non-mobile",
         ) -> MovementReachState:
             resolved_packet_id = packet_id or packet.id
             calls.append(
@@ -263,6 +264,7 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
                     base,
                     move,
                     mode,
+                    movement_profile,
                 )
             )
             return MovementReachState(
@@ -283,6 +285,10 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
                     '<svg class="map-svg" role="img" aria-label="fake movement map">'
                     '<image class="movement-envelope-image"/></svg>'
                 ),
+                movement_profile=movement_profile,
+                movement_profile_label="Ground mobile / infantry",
+                effective_move=6.0,
+                input_hash="sha256:test-movement",
             )
 
     monkeypatch.setattr(server, "service", FakeService())
@@ -291,19 +297,24 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
     response = client.get(
         f"/movement-reach?packet_id={packet.id}&start_x=16&start_y=10"
         "&target_x=22&target_y=10&base=1.57&move=6&mode=advance"
+        "&movement_profile=ground-mobile"
     )
     normalized = " ".join(response.text.split()).lower()
 
     assert response.status_code == 200
-    assert calls == [(packet.id, 16.0, 10.0, 22.0, 10.0, 1.57, 6.0, "advance")]
+    assert calls == [(packet.id, 16.0, 10.0, 22.0, 10.0, 1.57, 6.0, "advance", "ground-mobile")]
     assert "Movement Reach" in response.text
     assert 'name="start_x"' in response.text
     assert 'name="target_x"' in response.text
     assert 'name="move"' in response.text
     assert 'name="mode"' in response.text
+    assert 'name="movement_profile"' in response.text
     assert 'value="advance" selected' in response.text
+    assert 'value="ground-mobile" selected' in response.text
+    assert "Ground mobile / infantry" in response.text
+    assert "Effective movement" in response.text
     assert "estimated 2d geometry" in normalized
-    assert "no straight-corridor blocker found under current assumptions" in normalized
+    assert "route-connected under selected assumptions" in normalized
     assert "movement-envelope-image" in response.text
     assert "<script" not in response.text
     for forbidden in ("legal", " safe", "recommended", "optimal", "likely"):
@@ -313,7 +324,7 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
 def test_threat_range_route_uses_manual_probability_controls_and_cautious_language(
     monkeypatch,
 ) -> None:
-    calls: list[tuple[str, float, float, float, float, float, float, float, str]] = []
+    calls: list[tuple[str, float, float, float, float, float, float, float, str, str]] = []
     packet = server.repository.default_packet()
     packet_selector = WarhammerCompanionService(
         paths=server.ingestion_paths,
@@ -337,6 +348,7 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
             move: float = 6.0,
             threat: float = 2.0,
             mode: str = "fixed-move-plus-range",
+            movement_profile: str = "ground-non-mobile",
         ) -> ThreatRangeState:
             resolved_packet_id = packet_id or packet.id
             calls.append(
@@ -350,6 +362,7 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
                     move,
                     threat,
                     mode,
+                    movement_profile,
                 )
             )
             from warhammer_companion.domain.threat import ThreatDiceOutcome
@@ -377,6 +390,7 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
                         denominator=36,
                         probability=6 / 36,
                         total_reach=16.0,
+                        effective_move_distance=13.0,
                     )
                 ],
                 warning_details=[
@@ -387,6 +401,10 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
                     '<svg class="map-svg" role="img" aria-label="fake threat map">'
                     '<image class="threat-projection-image"/></svg>'
                 ),
+                movement_profile=movement_profile,
+                movement_profile_label="Fly: Take to the Skies",
+                effective_move=4.0,
+                input_hash="sha256:test-threat",
             )
 
     monkeypatch.setattr(server, "service", FakeService())
@@ -395,17 +413,35 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
     response = client.get(
         f"/threat-range?packet_id={packet.id}&source_x=16&source_y=10"
         "&target_x=24&target_y=10&base=1.57&move=6&threat=2&mode=2d6-move-plus-range"
+        "&movement_profile=fly-take-to-skies"
     )
     normalized = " ".join(response.text.split()).lower()
 
     assert response.status_code == 200
-    assert calls == [(packet.id, 16.0, 10.0, 24.0, 10.0, 1.57, 6.0, 2.0, "2d6-move-plus-range")]
+    assert calls == [
+        (
+            packet.id,
+            16.0,
+            10.0,
+            24.0,
+            10.0,
+            1.57,
+            6.0,
+            2.0,
+            "2d6-move-plus-range",
+            "fly-take-to-skies",
+        )
+    ]
     assert "Threat Range" in response.text
     assert 'name="source_x"' in response.text
     assert 'name="target_x"' in response.text
     assert 'name="threat"' in response.text
     assert 'name="mode"' in response.text
+    assert 'name="movement_profile"' in response.text
     assert 'value="2d6-move-plus-range" selected' in response.text
+    assert 'value="fly-take-to-skies" selected' in response.text
+    assert "Fly: Take to the Skies" in response.text
+    assert "Effective movement" in response.text
     assert "estimated 2d threat projection" in normalized
     assert "source base edge to target point" in normalized
     assert "source-backed rules pending" in normalized
@@ -451,6 +487,7 @@ def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None
             "move": "6",
             "threat": "2",
             "mode": "2d6-move-plus-range",
+            "movement_profile": "fly-hover-take-to-skies",
         },
         follow_redirects=False,
     )
@@ -460,7 +497,7 @@ def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None
     assert response.headers["location"] == (
         f"/threat-range?packet_id={packet.id}&source_x=16.0&source_y=10.0"
         "&target_x=24.0&target_y=10.0&base=1.57&move=6.0&threat=2.0"
-        "&mode=2d6-move-plus-range"
+        "&mode=2d6-move-plus-range&movement_profile=fly-hover-take-to-skies"
     )
 
 
@@ -469,7 +506,7 @@ def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(
 ) -> None:
     packet = server.repository.default_packet()
     real_service = server.service
-    calls: list[tuple[str | None, str, float, float, str]] = []
+    calls: list[tuple[str | None, str, float, float, str, str]] = []
 
     class FakeService:
         def deployment_exposure_state(
@@ -489,9 +526,19 @@ def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(
             enemy_move: float = 0.0,
             enemy_threat: float = 1.0,
             enemy_mode: str = "raw-range",
+            enemy_movement_profile: str = "ground-non-mobile",
             exposure_mode: str = "threat-and-los",
         ) -> DeploymentExposureState:
-            calls.append((packet_id, deployment_zone_id, friendly_x, enemy_x, exposure_mode))
+            calls.append(
+                (
+                    packet_id,
+                    deployment_zone_id,
+                    friendly_x,
+                    enemy_x,
+                    enemy_movement_profile,
+                    exposure_mode,
+                )
+            )
             return DeploymentExposureState(
                 packet=packet,
                 packet_groups=real_service.packet_select_groups(),
@@ -529,6 +576,10 @@ def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(
                     '<circle class="threat-source-base"/>'
                     "</svg>"
                 ),
+                enemy_movement_profile=enemy_movement_profile,
+                enemy_movement_profile_label="Ground mobile / infantry",
+                enemy_effective_move=6.0,
+                input_hash="sha256:test-exposure",
             )
 
     monkeypatch.setattr(server, "service", FakeService())
@@ -538,20 +589,24 @@ def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(
         f"/deployment-exposure?packet_id={packet.id}&deployment_zone_id=attacker"
         "&friendly_x=10&friendly_y=5&friendly_base=1.57"
         "&enemy_x=38&enemy_y=52&enemy_base=1.57&enemy_move=0&enemy_threat=1"
-        "&enemy_mode=raw-range&exposure_mode=threat-and-los"
+        "&enemy_mode=raw-range&enemy_movement_profile=ground-mobile"
+        "&exposure_mode=threat-and-los"
     )
     normalized = " ".join(response.text.split()).lower()
     normalized_without_classes = normalized.replace("safe-zone-outline", "")
 
     assert response.status_code == 200
-    assert calls == [(packet.id, "attacker", 10.0, 38.0, "threat-and-los")]
+    assert calls == [(packet.id, "attacker", 10.0, 38.0, "ground-mobile", "threat-and-los")]
     assert "Deployment Exposure" in response.text
     assert 'name="deployment_zone_id"' in response.text
     assert 'name="friendly_x"' in response.text
     assert 'name="enemy_x"' in response.text
     assert 'name="enemy_mode"' in response.text
+    assert 'name="enemy_movement_profile"' in response.text
     assert 'name="exposure_mode"' in response.text
+    assert 'value="ground-mobile" selected' in response.text
     assert 'value="threat-and-los" selected' in response.text
+    assert "Ground mobile / infantry" in response.text
     assert "not exposed under selected assumptions" in normalized
     assert "estimated deployment exposure diagnostic" in normalized
     assert "not a placement planner" in normalized
@@ -600,6 +655,7 @@ def test_deployment_exposure_post_redirect_preserves_manual_values(monkeypatch) 
             "enemy_move": "0",
             "enemy_threat": "1",
             "enemy_mode": "raw-range",
+            "enemy_movement_profile": "ground-mobile",
             "exposure_mode": "threat-and-los",
         },
         follow_redirects=False,
@@ -611,14 +667,15 @@ def test_deployment_exposure_post_redirect_preserves_manual_values(monkeypatch) 
         f"/deployment-exposure?packet_id={packet.id}&deployment_zone_id=attacker"
         "&friendly_x=10.0&friendly_y=5.0&friendly_base=1.57"
         "&enemy_x=38.0&enemy_y=52.0&enemy_base=1.57&enemy_move=0.0"
-        "&enemy_threat=1.0&enemy_mode=raw-range&exposure_mode=threat-and-los"
+        "&enemy_threat=1.0&enemy_mode=raw-range&enemy_movement_profile=ground-mobile"
+        "&exposure_mode=threat-and-los"
     )
 
 
 def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
     monkeypatch,
 ) -> None:
-    calls: list[tuple[str, str, float, float, str, str]] = []
+    calls: list[tuple[str, str, float, float, str, str, str]] = []
     packet = server.repository.default_packet()
     packet_selector = WarhammerCompanionService(
         paths=server.ingestion_paths,
@@ -644,6 +701,7 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
             enemy_move: float = 0.0,
             enemy_threat: float = 1.0,
             enemy_mode: str = "raw-range",
+            enemy_movement_profile: str = "ground-non-mobile",
             exposure_mode: str = "threat-and-los",
             turn_order: str = "going-first",
         ) -> DeploymentScorecardState:
@@ -653,6 +711,7 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
                     deployment_zone_id,
                     friendly_x,
                     enemy_x,
+                    enemy_movement_profile,
                     exposure_mode,
                     turn_order,
                 )
@@ -702,6 +761,10 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
                     '<image class="threat-projection-image"/>'
                     "</g></svg>"
                 ),
+                enemy_movement_profile=enemy_movement_profile,
+                enemy_movement_profile_label="Fly: Hover / no-cost Take to the Skies",
+                enemy_effective_move=8.0,
+                input_hash="sha256:test-scorecard",
             )
 
     monkeypatch.setattr(server, "service", FakeService())
@@ -711,20 +774,34 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
         f"/deployment-scorecard?packet_id={packet.id}&deployment_zone_id=attacker"
         "&friendly_x=10&friendly_y=5&friendly_base=1.57"
         "&enemy_x=38&enemy_y=52&enemy_base=1.57&enemy_move=0&enemy_threat=1"
-        "&enemy_mode=raw-range&exposure_mode=threat-and-los&turn_order=going-second"
+        "&enemy_mode=raw-range&enemy_movement_profile=fly-hover-take-to-skies"
+        "&exposure_mode=threat-and-los&turn_order=going-second"
     )
     normalized = " ".join(response.text.split()).lower()
     main_html = response.text.split("<main", 1)[1].split("</main>", 1)[0]
     normalized_main = " ".join(main_html.split()).lower()
 
     assert response.status_code == 200
-    assert calls == [(packet.id, "attacker", 10.0, 38.0, "threat-and-los", "going-second")]
+    assert calls == [
+        (
+            packet.id,
+            "attacker",
+            10.0,
+            38.0,
+            "fly-hover-take-to-skies",
+            "threat-and-los",
+            "going-second",
+        )
+    ]
     assert "Deployment Scorecard" in response.text
     assert 'name="deployment_zone_id"' in response.text
     assert 'name="friendly_x"' in response.text
     assert 'name="enemy_x"' in response.text
+    assert 'name="enemy_movement_profile"' in response.text
     assert 'name="turn_order"' in response.text
+    assert 'value="fly-hover-take-to-skies" selected' in response.text
     assert 'value="going-second" selected' in response.text
+    assert "Fly: Hover / no-cost Take to the Skies" in response.text
     assert "Mission readiness" in response.text
     assert "Turn order assumption" in response.text
     assert "source-pending" in normalized
@@ -832,6 +909,7 @@ def test_deployment_scorecard_post_redirect_preserves_manual_values(monkeypatch)
             "enemy_move": "0",
             "enemy_threat": "1",
             "enemy_mode": "raw-range",
+            "enemy_movement_profile": "fly-hover-take-to-skies",
             "exposure_mode": "threat-and-los",
             "turn_order": "going-second",
         },
@@ -844,7 +922,8 @@ def test_deployment_scorecard_post_redirect_preserves_manual_values(monkeypatch)
         f"/deployment-scorecard?packet_id={packet.id}&deployment_zone_id=attacker"
         "&friendly_x=10.0&friendly_y=5.0&friendly_base=1.57"
         "&enemy_x=38.0&enemy_y=52.0&enemy_base=1.57&enemy_move=0.0"
-        "&enemy_threat=1.0&enemy_mode=raw-range&exposure_mode=threat-and-los"
+        "&enemy_threat=1.0&enemy_mode=raw-range"
+        "&enemy_movement_profile=fly-hover-take-to-skies&exposure_mode=threat-and-los"
         "&turn_order=going-second"
     )
 
@@ -1447,6 +1526,10 @@ def _scorecard_state(
     warning_details: list[str],
     map_svg: str,
     block_reason_details: list[str] | None = None,
+    enemy_movement_profile: str = "ground-non-mobile",
+    enemy_movement_profile_label: str = "Ground non-mobile",
+    enemy_effective_move: float = 0.0,
+    input_hash: str = "",
 ) -> DeploymentScorecardState:
     return DeploymentScorecardState(
         packet=packet,
@@ -1479,4 +1562,8 @@ def _scorecard_state(
         block_reason_details=block_reason_details or [],
         warning_details=warning_details,
         map_svg=map_svg,
+        enemy_movement_profile=enemy_movement_profile,
+        enemy_movement_profile_label=enemy_movement_profile_label,
+        enemy_effective_move=enemy_effective_move,
+        input_hash=input_hash,
     )

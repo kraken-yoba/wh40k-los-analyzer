@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from shapely.geometry import Point
 
@@ -11,6 +13,7 @@ from warhammer_companion.domain.models import (
     TerrainArea,
     TerrainKind,
 )
+from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.los.threat import (
     target_threat_probability,
     threat_distribution,
@@ -123,6 +126,136 @@ def test_target_threat_probability_accumulates_exact_regions() -> None:
     assert target_threat_probability(regions, target_point=(10.2, 2.0)) == pytest.approx(0.0)
 
 
+def test_raw_range_projection_is_profile_invariant() -> None:
+    packet = _threat_route_packet()
+
+    non_mobile = threat_projection(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=8.0,
+        threat_range=1.0,
+        mode="raw-range",
+        movement_profile_id="ground-non-mobile",
+    )
+    mobile = threat_projection(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=8.0,
+        threat_range=1.0,
+        mode="raw-range",
+        movement_profile_id="ground-mobile",
+    )
+
+    assert non_mobile.equals_exact(mobile, tolerance=0.001)
+
+
+def test_move_plus_range_uses_profile_aware_point_probability() -> None:
+    packet = _threat_route_packet()
+
+    non_mobile_regions = threat_projection_regions(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=6.1,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-non-mobile",
+    )
+    mobile_regions = threat_projection_regions(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=6.1,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-mobile",
+    )
+
+    target = (8.2, 5.0)
+    assert target_threat_probability(non_mobile_regions, target_point=target) == pytest.approx(0.0)
+    assert target_threat_probability(mobile_regions, target_point=target) == pytest.approx(1.0)
+
+
+def test_fly_penalty_and_hover_profile_change_threat_probability() -> None:
+    packet = _threat_route_packet()
+
+    penalized_regions = threat_projection_regions(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=7.5,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="fly-take-to-skies",
+    )
+    hover_regions = threat_projection_regions(
+        packet,
+        source_center=(2.0, 5.0),
+        base_diameter=0.5,
+        move_distance=7.5,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="fly-hover-take-to-skies",
+    )
+
+    target = (8.2, 5.0)
+    assert target_threat_probability(penalized_regions, target_point=target) == pytest.approx(0.0)
+    assert target_threat_probability(hover_regions, target_point=target) == pytest.approx(1.0)
+
+
+def test_threat_distribution_records_effective_move_after_fly_penalty() -> None:
+    distribution = threat_distribution(
+        mode="fixed-move-plus-range",
+        move_distance=7.5,
+        threat_range=0.5,
+        base_diameter=1.0,
+        movement_profile_id="fly-take-to-skies",
+    )
+
+    assert distribution[0].effective_move_distance == pytest.approx(5.5)
+    assert distribution[0].total_reach == pytest.approx(6.5)
+
+
+def test_official_page_9_page_52_threat_routing_smoke() -> None:
+    packets = _official_seed_packets()
+
+    for packet_id in ("official-event-companion-page-9", "official-event-companion-page-52"):
+        packet = packets[packet_id]
+        non_mobile_regions = threat_projection_regions(
+            packet,
+            source_center=(14.0, 32.75),
+            base_diameter=1.57,
+            move_distance=9.0,
+            threat_range=0.5,
+            mode="fixed-move-plus-range",
+            movement_profile_id="ground-non-mobile",
+        )
+        mobile_regions = threat_projection_regions(
+            packet,
+            source_center=(14.0, 32.75),
+            base_diameter=1.57,
+            move_distance=9.0,
+            threat_range=0.5,
+            mode="fixed-move-plus-range",
+            movement_profile_id="ground-mobile",
+        )
+
+        assert len(non_mobile_regions) == 1
+        assert len(mobile_regions) == 1
+        assert non_mobile_regions[0].outcome.effective_move_distance == pytest.approx(9.0)
+        assert mobile_regions[0].outcome.effective_move_distance == pytest.approx(9.0)
+        if packet_id == "official-event-companion-page-9":
+            target = (22.5, 32.75)
+            assert target_threat_probability(non_mobile_regions, target_point=target) == (
+                pytest.approx(0.0)
+            )
+            assert target_threat_probability(mobile_regions, target_point=target) == pytest.approx(
+                1.0
+            )
+
+
 def _threat_packet(
     dense_features: list[DenseTerrainFeature] | None = None,
 ) -> MapPacket:
@@ -147,6 +280,49 @@ def _threat_packet(
                 terrain_area_id="ruin",
                 label="Dense",
                 footprint=[(5.0, 5.0), (7.0, 5.0), (7.0, 7.0), (5.0, 7.0)],
+                profile="container_or_solid",
+            )
+        ],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0.0, 0.0), (10.0, 0.0), (10.0, 2.0), (0.0, 2.0)],
+            )
+        ],
+    )
+
+
+def _official_seed_packets() -> dict[str, MapPacket]:
+    seed_dir = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "warhammer_companion"
+        / "seed_data"
+        / "map-packets"
+    )
+    return {packet.id: packet for packet in load_packet_directory(seed_dir)}
+
+
+def _threat_route_packet() -> MapPacket:
+    terrain = TerrainArea(
+        id="route-ruin",
+        label="Route Ruin",
+        kind=TerrainKind.RUINS,
+        footprint=[(4.0, 3.5), (6.0, 3.5), (6.0, 6.5), (4.0, 6.5)],
+    )
+    return MapPacket(
+        id="threat-route-test",
+        name="Threat Route Test",
+        source="unit test",
+        board=BoardSize(width=10.0, height=10.0),
+        terrain_areas=[terrain],
+        dense_features=[
+            DenseTerrainFeature(
+                id="route-dense",
+                terrain_area_id=terrain.id,
+                label="Route Dense",
+                footprint=terrain.footprint,
                 profile="container_or_solid",
             )
         ],
