@@ -516,6 +516,92 @@ def test_deployment_exposure_state_renders_component_overlays_by_mode(
     assert ('class="threat-projection-image"' in state.map_svg) is expected_threat
 
 
+def test_deployment_scorecard_service_wraps_exposure_and_mission_context() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.deployment_scorecard_toolkit_result(
+        packet_id=SAMPLE_PACKETS[0].id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+        turn_order="going-second",
+    )
+    state = service.deployment_scorecard_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+        turn_order="going-second",
+    )
+
+    assert result.tool_id == "deployment_scorecard"
+    assert result.readiness == "estimated"
+    assert state.readiness == "estimated"
+    assert state.turn_order == "going-second"
+    assert [component.component_id for component in state.components] == [
+        "deployment-fit",
+        "selected-exposure",
+        "mission-readiness",
+        "turn-order-assumption",
+    ]
+    assert "source-pending" in " ".join(state.warning_details).lower()
+    assert "going-second" in " ".join(component.detail for component in state.components)
+    assert 'class="safe-zone-outline"' in state.map_svg
+    assert 'class="coverage-image"' in state.map_svg
+    assert 'class="threat-projection-image"' in state.map_svg
+
+
+def test_deployment_scorecard_state_blocks_invalid_turn_order_without_tactical_overlays() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.deployment_scorecard_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+        turn_order="alpha-strike",
+    )
+
+    assert state.readiness == "blocked"
+    assert state.is_blocked
+    assert any("invalid-turn-order" in detail for detail in state.block_reason_details)
+    assert 'class="safe-zone-outline"' not in state.map_svg
+    assert 'class="coverage-image"' not in state.map_svg
+    assert 'class="threat-projection-image"' not in state.map_svg
+
+
 def test_damage_profile_toolkit_result_wraps_manual_estimate() -> None:
     service = WarhammerCompanionService(
         paths=IngestionPaths(),

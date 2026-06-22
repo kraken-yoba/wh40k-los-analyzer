@@ -35,8 +35,9 @@ Steps:
 8. Open Hidden Coverage.
 9. Open Threat Range.
 10. Open Deployment Exposure.
-11. Open Damage Profile.
-12. Open Mission Pack.
+11. Open Deployment Scorecard.
+12. Open Damage Profile.
+13. Open Mission Pack.
 
 Expected result:
 
@@ -276,6 +277,44 @@ Manual check:
 
 - Visual plausibility of candidate staging regions, enemy threat/LOS overlap, and warning copy.
 
+## Scenario 9A: Deployment Scorecard
+
+Steps:
+
+1. Open Deployment Scorecard.
+2. Select page 9.
+3. Enter one friendly base, one enemy source base, threat/LOS exposure mode, and turn order.
+4. Generate valid going-first and going-second scorecards.
+5. Submit an invalid friendly base diameter.
+6. Open an invalid turn-order query.
+
+Expected result:
+
+- The scorecard is estimated and component based: deployment fit, selected exposure, mission
+  readiness, and turn-order assumption.
+- Mission readiness remains source-pending and does not fetch, parse, display, or export public
+  sheet card content.
+- Turn order is explicit.
+- Invalid base and invalid turn-order inputs are blocked with user-facing messages and no tactical
+  overlays.
+- The page does not claim legal, safe, optimal, recommended, likely, guaranteed, preferred, or
+  pairing authority.
+
+Automation:
+
+- Toolkit tests cover turn-order identity, invalid-turn-order blockers, invalid manual input
+  blockers, component ids, assessment values, source-pending mission context, no aggregate score,
+  and no recommendation-language authority.
+- Service, web, and desktop tests cover shared state, route controls, POST preservation, blocked
+  output, desktop screen summary, and smoke key `deployment_scorecard_estimate: true`.
+- Browser QA checks `/deployment-scorecard`, valid going-first/going-second routes, invalid base
+  route, invalid turn-order route, form submission, zero custom JavaScript, no console
+  warning/error logs, and blocked-output overlay absence.
+
+Manual check:
+
+- Visual plausibility of the scorecard components and the reused deployment exposure map on page 9.
+
 ## Scenario 10: Damage Profile Manual Estimate
 
 Steps:
@@ -344,7 +383,7 @@ Manual check:
 Steps:
 
 1. Load the same packet in Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat
-   Range, Deployment Exposure, and Mission Pack.
+   Range, Deployment Exposure, Deployment Scorecard, and Mission Pack.
 2. Compare packet labels, page metadata, board dimensions, terrain shapes, deployment zones, and blocker counts.
 3. Repeat for page 9 and page 52.
 
@@ -352,8 +391,8 @@ Expected result:
 
 - The same packet model drives every workflow.
 - Terrain and dense feature geometry do not diverge between screens.
-- Heatmap, LOS checker, movement, threat, hidden coverage, and deployment exposure tools use the
-  documented blocker semantics for their selected assumptions.
+- Heatmap, LOS checker, movement, threat, hidden coverage, deployment exposure, and deployment
+  scorecard tools use the documented blocker semantics for their selected assumptions.
 
 Automation:
 
@@ -372,7 +411,8 @@ Steps:
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
 4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, Deployment
-   Exposure, Damage Profile, and Mission Pack with bundled or generated packet data.
+   Exposure, Deployment Scorecard, Damage Profile, and Mission Pack with bundled or generated
+   packet data.
 5. Trigger a non-destructive settings/status check.
 
 Expected result:

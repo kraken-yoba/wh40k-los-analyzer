@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from warhammer_companion.domain.damage import DamageProbabilityRow
+from warhammer_companion.domain.deployment_scorecard import DeploymentScorecardComponent
 from warhammer_companion.domain.missions import MissionPack, MissionRecord, MissionSourceRef
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.threat import ThreatDiceOutcome
@@ -164,6 +165,37 @@ class DeploymentExposureState:
     not_exposed_under_assumptions: bool
     threat_probability_at_center: float
     placement_reason_details: list[str]
+    warning_details: list[str]
+    map_svg: str
+
+
+@dataclass(frozen=True)
+class DeploymentScorecardState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    deployment_zone_options: list[DeploymentZoneSelectOption]
+    deployment_zone_id: str
+    friendly_x: float
+    friendly_y: float
+    friendly_base: float
+    enemy_x: float
+    enemy_y: float
+    enemy_base: float
+    enemy_move: float
+    enemy_threat: float
+    enemy_mode: str
+    exposure_mode: str
+    turn_order: str
+    enemy_threat_modes: list[str]
+    exposure_modes: list[str]
+    turn_order_options: list[str]
+    readiness: str
+    is_blocked: bool
+    not_exposed_under_assumptions: bool
+    threat_probability_at_center: float
+    components: list[DeploymentScorecardComponent]
+    block_reason_details: list[str]
     warning_details: list[str]
     map_svg: str
 

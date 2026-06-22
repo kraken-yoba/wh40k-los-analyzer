@@ -35,6 +35,7 @@ def test_desktop_smoke_summary_renders_core_states() -> None:
     assert summary["movement_reach_svg"]
     assert summary["threat_range_svg"]
     assert summary["deployment_exposure_svg"]
+    assert summary["deployment_scorecard_estimate"]
     assert summary["damage_profile_estimate"]
     assert summary["mission_pack_estimate"]
     assert summary["deployment_zones"] == 2
@@ -224,6 +225,41 @@ def test_desktop_deployment_exposure_screen_renders_map_pixmap() -> None:
     status_text = deployment_screen.status_label.text()
     assert "not a placement planner" in status_text
     assert "Not exposed under selected assumptions" in status_text
+    window.close()
+    app.processEvents()
+
+
+def test_desktop_deployment_scorecard_screen_reports_components_and_blockers() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    service = build_desktop_service()
+    window = MainWindow(service)
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Deployment Scorecard" in labels
+    scorecard_screen = window.stack.widget(labels.index("Deployment Scorecard"))
+    status_text = scorecard_screen.status_label.text()
+    component_text = scorecard_screen.component_list_label.text()
+
+    assert "Deployment Scorecard" in labels
+    assert "source-pending" in status_text.lower()
+    assert "Mission readiness" in component_text
+    assert "Turn order assumption" in component_text
+
+    scorecard_screen._set_state(  # noqa: SLF001
+        service.deployment_scorecard_state(turn_order="alpha-strike")
+    )
+
+    assert "blocked" in scorecard_screen.status_label.text().lower()
+    assert "invalid-turn-order" in scorecard_screen.status_label.text()
+    assert "Turn order must be going-first or going-second" in (
+        scorecard_screen.component_list_label.text()
+    )
     window.close()
     app.processEvents()
 

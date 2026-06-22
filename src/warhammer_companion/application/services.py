@@ -9,6 +9,9 @@ from warhammer_companion.application.damage_profile import build_damage_profile_
 from warhammer_companion.application.deployment_exposure import (
     build_deployment_exposure_toolkit_result,
 )
+from warhammer_companion.application.deployment_scorecard import (
+    build_deployment_scorecard_toolkit_result,
+)
 from warhammer_companion.application.los_toolkit import (
     LosCheckerToolkitPayload,
     build_los_checker_toolkit_result,
@@ -20,6 +23,7 @@ from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
     DamageProfileState,
     DeploymentExposureState,
+    DeploymentScorecardState,
     DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
@@ -40,6 +44,10 @@ from warhammer_companion.domain.damage import (
     DEFAULT_DAMAGE_PROFILE_INPUT,
     DEFAULT_TARGET_PROFILE_INPUT,
     DamageEstimatePayload,
+)
+from warhammer_companion.domain.deployment_scorecard import (
+    TURN_ORDER_ASSUMPTIONS,
+    DeploymentScorecardPayload,
 )
 from warhammer_companion.domain.exposure import (
     EXPOSURE_MODES,
@@ -545,6 +553,138 @@ class WarhammerCompanionService:
             enemy_threat_range=enemy_threat,
             enemy_threat_mode=enemy_mode,
             exposure_mode=exposure_mode,
+        )
+
+    def deployment_scorecard_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        deployment_zone_id: str = "attacker",
+        friendly_x: float = 19.24,
+        friendly_y: float = 51.48,
+        friendly_base: float = 1.57,
+        enemy_x: float = 24.77,
+        enemy_y: float = 8.46,
+        enemy_base: float = 1.57,
+        enemy_move: float = 0.0,
+        enemy_threat: float = 1.0,
+        enemy_mode: str = "raw-range",
+        exposure_mode: str = "threat-and-los",
+        turn_order: str = "going-first",
+    ) -> DeploymentScorecardState:
+        result = self.deployment_scorecard_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            deployment_zone_id=deployment_zone_id,
+            friendly_x=friendly_x,
+            friendly_y=friendly_y,
+            friendly_base=friendly_base,
+            enemy_x=enemy_x,
+            enemy_y=enemy_y,
+            enemy_base=enemy_base,
+            enemy_move=enemy_move,
+            enemy_threat=enemy_threat,
+            enemy_mode=enemy_mode,
+            exposure_mode=exposure_mode,
+            turn_order=turn_order,
+        )
+        payload = result.payload
+        exposure = payload.deployment_exposure
+        if result.is_blocked:
+            map_svg = render_map_svg(payload.packet)
+        else:
+            map_svg = render_map_svg(
+                payload.packet,
+                coverage_polygon=exposure.enemy_los_region
+                if exposure_mode_includes_los(exposure.exposure_mode)
+                else None,
+                safe_regions=exposure.candidate_center_region,
+                base_center=exposure.friendly_center,
+                base_diameter=exposure.friendly_base_diameter,
+                threat_regions=exposure.enemy_threat_regions
+                if exposure_mode_includes_threat(exposure.exposure_mode)
+                else None,
+                threat_source_center=exposure.enemy_source_center,
+                threat_base_diameter=exposure.enemy_base_diameter,
+            )
+        return DeploymentScorecardState(
+            packet=payload.packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=payload.packet.id),
+            deployment_zone_options=[
+                DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+                for zone in payload.packet.deployment_zones
+            ],
+            deployment_zone_id=payload.deployment_zone_id,
+            friendly_x=payload.friendly_center[0],
+            friendly_y=payload.friendly_center[1],
+            friendly_base=payload.friendly_base_diameter,
+            enemy_x=payload.enemy_source_center[0],
+            enemy_y=payload.enemy_source_center[1],
+            enemy_base=payload.enemy_base_diameter,
+            enemy_move=payload.enemy_move_distance,
+            enemy_threat=payload.enemy_threat_range,
+            enemy_mode=payload.enemy_threat_mode,
+            exposure_mode=payload.exposure_mode,
+            turn_order=payload.turn_order,
+            enemy_threat_modes=list(THREAT_MODES),
+            exposure_modes=list(EXPOSURE_MODES),
+            turn_order_options=list(TURN_ORDER_ASSUMPTIONS),
+            readiness=result.readiness,
+            is_blocked=result.is_blocked,
+            not_exposed_under_assumptions=payload.not_exposed_under_assumptions,
+            threat_probability_at_center=payload.threat_probability_at_center,
+            components=list(payload.components),
+            block_reason_details=[
+                f"{reason.reason_id}: {reason.detail}" for reason in result.block_reasons
+            ],
+            warning_details=[warning.detail for warning in result.warnings],
+            map_svg=map_svg,
+        )
+
+    def deployment_scorecard_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        deployment_zone_id: str = "attacker",
+        friendly_x: float = 19.24,
+        friendly_y: float = 51.48,
+        friendly_base: float = 1.57,
+        enemy_x: float = 24.77,
+        enemy_y: float = 8.46,
+        enemy_base: float = 1.57,
+        enemy_move: float = 0.0,
+        enemy_threat: float = 1.0,
+        enemy_mode: str = "raw-range",
+        exposure_mode: str = "threat-and-los",
+        turn_order: str = "going-first",
+    ) -> ToolkitResult[DeploymentScorecardPayload]:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        return build_deployment_scorecard_toolkit_result(
+            packet,
+            deployment_zone_id=deployment_zone_id,
+            friendly_center=(friendly_x, friendly_y),
+            friendly_base_diameter=friendly_base,
+            enemy_source_center=(enemy_x, enemy_y),
+            enemy_base_diameter=enemy_base,
+            enemy_move_distance=enemy_move,
+            enemy_threat_range=enemy_threat,
+            enemy_threat_mode=enemy_mode,
+            exposure_mode=exposure_mode,
+            turn_order=turn_order,
         )
 
     def damage_profile_state(

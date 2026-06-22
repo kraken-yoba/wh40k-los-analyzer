@@ -2144,3 +2144,107 @@ Review and blocker status:
 - Adversarial implementation reviewer initially required moving Phase 9.5 scan evidence into the
   Phase 9.5 section and staging the Phase 9.5 docs listed as artifacts. Both were fixed;
   adversarial re-review approved.
+
+## Phase 10A - Manual Deployment Scorecard
+
+Purpose:
+
+- Start Phase 10 Mission-Aware Deployment Toolkit with a modest manual scorecard slice.
+- Reuse the existing deployment exposure geometry and Mission Pack skeleton instead of introducing
+  a parallel deployment solver.
+- Add explicit going-first/going-second context and source-pending mission readiness warnings.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-10a-manual-deployment-scorecard.md`
+- `docs/superpowers/plans/2026-06-22-phase-10a-manual-deployment-scorecard.md`
+- `docs/superpowers/qa/2026-06-22-phase-10a-manual-deployment-scorecard-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-10a-consultant-deployment-scorecard.md`
+- `docs/superpowers/reviews/2026-06-22-phase-10a-adversarial-deployment-scorecard.md`
+- `src/warhammer_companion/domain/deployment_scorecard.py`
+- `src/warhammer_companion/application/deployment_scorecard.py`
+- `src/warhammer_companion/application/services.py`
+- `src/warhammer_companion/application/view_models.py`
+- `src/warhammer_companion/web/templates/deployment_scorecard.html`
+- `src/warhammer_companion/desktop/screens/deployment_scorecard.py`
+- `tests/test_deployment_scorecard_toolkit.py`
+
+Design decisions:
+
+- Treat the scorecard as a deterministic diagnostic, not a placement planner, optimizer, or mission
+  scoring engine.
+- Use battlefield inches for all coordinates, base diameters, movement distances, and threat
+  ranges.
+- Return `estimated` only when both deployment exposure validation and turn-order validation pass.
+- Return `blocked` with no tactical overlays when either deployment exposure validation or
+  turn-order validation fails.
+- Keep scorecard components constrained to deployment fit, selected exposure, mission readiness,
+  and turn-order assumption.
+- Do not emit aggregate scores, ranks, grades, best labels, placement recommendations, or
+  captain-level matchup guidance.
+- Keep public mission-sheet context metadata-only; no public sheet fetch, mission-card/rules text,
+  copied source images, screenshots, exports, or card payloads were added.
+
+TDD and implementation results:
+
+- Red step: `tests/test_deployment_scorecard_toolkit.py` failed with missing module
+  `warhammer_companion.application.deployment_scorecard`.
+- Green step: added typed domain components/payload, application builder, shared service state,
+  server-rendered web route, PySide6 desktop screen, desktop smoke key, and focused tests.
+- The builder composes `build_deployment_exposure_toolkit_result(...)` and
+  `build_mission_pack_toolkit_result(...)`; it does not duplicate geometry or mission ingestion.
+
+Verification completed:
+
+- Red check before implementation failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_scorecard_toolkit.py -q`
+  reported missing `warhammer_companion.application.deployment_scorecard`.
+- Focused Phase 10A command passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_scorecard_toolkit.py -q`
+  returned 5 passed.
+- Focused app batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_deployment_scorecard_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 69 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 127 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 417 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and
+  `deployment_scorecard_estimate: true`.
+
+Browser QA:
+
+- The local app was launched through a detached child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/deployment-scorecard`, valid going-first and going-second page
+  9 routes, invalid base route, invalid turn-order route, valid form submission, and invalid base
+  form submission.
+- The route rendered heading `Deployment Scorecard`, one form, zero `<script>` tags, no
+  traceback/internal-error text, no forbidden visible claims, and no console warning/error logs on
+  routed checks.
+- Valid outputs rendered the expected selected threat/LOS exposure overlays according to mode.
+- Blocked base and blocked turn-order outputs rendered `blocked` state, user-facing blocker text,
+  and no coverage/threat/candidate overlay classes.
+- The temporary QA server process was closed after Browser QA.
+
+Review and blocker status:
+
+- Consultant reviewer initially required exact Browser QA URLs, synced forbidden-claim checks,
+  page 9/page 52 rationale, and desktop verification beyond smoke. The docs were patched;
+  consultant re-review approved.
+- Adversarial reviewer initially required first-class invalid-turn-order blocking, exact component
+  semantics, canonical visible-text claim checks, stronger Browser form QA, and explicit
+  public-source/IP assertions. The docs were patched.
+- Focused adversarial design re-review required explicit inch units, corrected readiness logic,
+  all-blocked-output overlay behavior, and a mechanical Browser overlay assertion. The docs were
+  patched and focused design re-review approved.
+- Consultant implementation review required replacing the ineffective `[data-toolkit-overlay]`
+  Browser assertion with concrete overlay-class absence checks and removing duplicated
+  `invalid-turn-order` user-facing text. Both were fixed.
+- Adversarial implementation review required the desktop blocker assertion to check the intended
+  blocker/status surface and warned that work-log verification should only be finalized after the
+  red desktop QA was fixed. The desktop test was corrected and rerun.
+- Post-review reruns passed: exact failed desktop test 1 passed, focused Phase 10A app batch
+  69 passed, Ruff format/check passed, Ruff check passed, mypy passed, full pytest 417 passed, and
+  desktop smoke reported `deployment_scorecard_estimate: true`.

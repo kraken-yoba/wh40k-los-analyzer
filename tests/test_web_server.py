@@ -8,6 +8,7 @@ from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import (
     DamageProfileState,
     DeploymentExposureState,
+    DeploymentScorecardState,
     DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
@@ -17,6 +18,7 @@ from warhammer_companion.application.view_models import (
     ThreatRangeState,
 )
 from warhammer_companion.domain.damage import DamageProbabilityRow
+from warhammer_companion.domain.deployment_scorecard import DeploymentScorecardComponent
 from warhammer_companion.domain.missions import (
     MissionPack,
     MissionRecord,
@@ -608,6 +610,238 @@ def test_deployment_exposure_post_redirect_preserves_manual_values(monkeypatch) 
     )
 
 
+def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str, float, float, str, str]] = []
+    packet = server.repository.default_packet()
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
+
+    class FakeService:
+        def deployment_scorecard_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+            deployment_zone_id: str = "attacker",
+            friendly_x: float = 10.0,
+            friendly_y: float = 5.0,
+            friendly_base: float = 1.57,
+            enemy_x: float = 38.0,
+            enemy_y: float = 52.0,
+            enemy_base: float = 1.57,
+            enemy_move: float = 0.0,
+            enemy_threat: float = 1.0,
+            enemy_mode: str = "raw-range",
+            exposure_mode: str = "threat-and-los",
+            turn_order: str = "going-first",
+        ) -> DeploymentScorecardState:
+            calls.append(
+                (
+                    packet_id or "",
+                    deployment_zone_id,
+                    friendly_x,
+                    enemy_x,
+                    exposure_mode,
+                    turn_order,
+                )
+            )
+            return _scorecard_state(
+                packet=packet,
+                packet_selector=packet_selector,
+                readiness="estimated",
+                turn_order=turn_order,
+                components=[
+                    DeploymentScorecardComponent(
+                        component_id="deployment-fit",
+                        label="Deployment fit",
+                        assessment="checked",
+                        detail="Manual footprint fits selected deployment zone.",
+                        source_ref_ids=("deployment-exposure",),
+                    ),
+                    DeploymentScorecardComponent(
+                        component_id="selected-exposure",
+                        label="Selected exposure",
+                        assessment="checked",
+                        detail="Threat probability at center is 0.0%.",
+                        source_ref_ids=("deployment-exposure",),
+                    ),
+                    DeploymentScorecardComponent(
+                        component_id="mission-readiness",
+                        label="Mission readiness",
+                        assessment="warning",
+                        detail="Mission context is source-pending.",
+                        source_ref_ids=("mission-pack",),
+                    ),
+                    DeploymentScorecardComponent(
+                        component_id="turn-order-assumption",
+                        label="Turn order assumption",
+                        assessment="warning",
+                        detail=f"Manual turn order: {turn_order}.",
+                        source_ref_ids=(),
+                    ),
+                ],
+                warning_details=[
+                    "Mission context is source-pending.",
+                    "Turn-order assumption is manual.",
+                ],
+                map_svg=(
+                    '<svg class="map-svg" role="img" aria-label="fake deployment scorecard">'
+                    '<g data-toolkit-overlay="deployment-scorecard">'
+                    '<image class="threat-projection-image"/>'
+                    "</g></svg>"
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/deployment-scorecard?packet_id={packet.id}&deployment_zone_id=attacker"
+        "&friendly_x=10&friendly_y=5&friendly_base=1.57"
+        "&enemy_x=38&enemy_y=52&enemy_base=1.57&enemy_move=0&enemy_threat=1"
+        "&enemy_mode=raw-range&exposure_mode=threat-and-los&turn_order=going-second"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, "attacker", 10.0, 38.0, "threat-and-los", "going-second")]
+    assert "Deployment Scorecard" in response.text
+    assert 'name="deployment_zone_id"' in response.text
+    assert 'name="friendly_x"' in response.text
+    assert 'name="enemy_x"' in response.text
+    assert 'name="turn_order"' in response.text
+    assert 'value="going-second" selected' in response.text
+    assert "Mission readiness" in response.text
+    assert "Turn order assumption" in response.text
+    assert "source-pending" in normalized
+    assert "threat-projection-image" in response.text
+    assert "<script" not in response.text
+    for forbidden in (
+        "legal",
+        " safe",
+        "optimal",
+        "recommended",
+        "likely",
+        "guaranteed",
+        "preferred",
+        "pairing",
+    ):
+        assert forbidden not in normalized
+
+
+def test_deployment_scorecard_route_renders_blocked_output_without_tactical_overlay(
+    monkeypatch,
+) -> None:
+    packet = server.repository.default_packet()
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
+
+    class FakeService:
+        def deployment_scorecard_state(self, **kwargs) -> DeploymentScorecardState:
+            return _scorecard_state(
+                packet=packet,
+                packet_selector=packet_selector,
+                readiness="blocked",
+                turn_order=kwargs.get("turn_order", "alpha-strike"),
+                components=[
+                    DeploymentScorecardComponent(
+                        component_id="turn-order-assumption",
+                        label="Turn order assumption",
+                        assessment="blocked",
+                        detail="Turn order must be going-first or going-second.",
+                        source_ref_ids=(),
+                    )
+                ],
+                block_reason_details=[
+                    "invalid-turn-order: Turn order must be going-first or going-second."
+                ],
+                warning_details=["Manual input cannot be evaluated until blockers are resolved."],
+                map_svg='<svg class="map-svg" role="img" aria-label="fake blocked map"></svg>',
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/deployment-scorecard?packet_id={packet.id}&deployment_zone_id=attacker"
+        "&friendly_x=10&friendly_y=5&friendly_base=1.57"
+        "&enemy_x=38&enemy_y=52&enemy_base=1.57&enemy_move=0&enemy_threat=1"
+        "&enemy_mode=raw-range&exposure_mode=threat-and-los&turn_order=alpha-strike"
+    )
+
+    assert response.status_code == 200
+    assert "blocked" in response.text.lower()
+    assert "invalid-turn-order" in response.text
+    assert "invalid-turn-order: invalid-turn-order" not in response.text
+    assert "data-toolkit-overlay" not in response.text
+    assert "safe-zone-outline" not in response.text
+    assert "coverage-image" not in response.text
+    assert "threat-projection-image" not in response.text
+
+
+def test_deployment_scorecard_post_redirect_preserves_manual_values(monkeypatch) -> None:
+    packet = server.repository.default_packet()
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/deployment-scorecard",
+        data={
+            "packet_id": packet.id,
+            "player_a": "Take and Hold",
+            "player_b": "Reconnaissance",
+            "layout_variant": "B",
+            "deployment_zone_id": "attacker",
+            "friendly_x": "10",
+            "friendly_y": "5",
+            "friendly_base": "1.57",
+            "enemy_x": "38",
+            "enemy_y": "52",
+            "enemy_base": "1.57",
+            "enemy_move": "0",
+            "enemy_threat": "1",
+            "enemy_mode": "raw-range",
+            "exposure_mode": "threat-and-los",
+            "turn_order": "going-second",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert resolved_calls == [(packet.id, "Take and Hold", "Reconnaissance", "B")]
+    assert response.headers["location"] == (
+        f"/deployment-scorecard?packet_id={packet.id}&deployment_zone_id=attacker"
+        "&friendly_x=10.0&friendly_y=5.0&friendly_base=1.57"
+        "&enemy_x=38.0&enemy_y=52.0&enemy_base=1.57&enemy_move=0.0"
+        "&enemy_threat=1.0&enemy_mode=raw-range&exposure_mode=threat-and-los"
+        "&turn_order=going-second"
+    )
+
+
 def test_damage_profile_route_uses_manual_math_controls_and_cautious_language(
     monkeypatch,
 ) -> None:
@@ -1070,4 +1304,49 @@ def _official_packet() -> MapPacket:
             "name": "Official Page 1",
             "source": "test official extraction",
         }
+    )
+
+
+def _scorecard_state(
+    *,
+    packet: MapPacket,
+    packet_selector,
+    readiness: str,
+    turn_order: str,
+    components: list[DeploymentScorecardComponent],
+    warning_details: list[str],
+    map_svg: str,
+    block_reason_details: list[str] | None = None,
+) -> DeploymentScorecardState:
+    return DeploymentScorecardState(
+        packet=packet,
+        packet_groups=[],
+        packet_selector=packet_selector,
+        deployment_zone_options=[
+            DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+            for zone in packet.deployment_zones
+        ],
+        deployment_zone_id="attacker",
+        friendly_x=10.0,
+        friendly_y=5.0,
+        friendly_base=1.57,
+        enemy_x=38.0,
+        enemy_y=52.0,
+        enemy_base=1.57,
+        enemy_move=0.0,
+        enemy_threat=1.0,
+        enemy_mode="raw-range",
+        exposure_mode="threat-and-los",
+        turn_order=turn_order,
+        enemy_threat_modes=["raw-range", "fixed-move-plus-range"],
+        exposure_modes=["threat-only", "los-only", "threat-or-los", "threat-and-los"],
+        turn_order_options=["going-first", "going-second"],
+        readiness=readiness,
+        is_blocked=readiness == "blocked",
+        not_exposed_under_assumptions=readiness != "blocked",
+        threat_probability_at_center=0.0,
+        components=components,
+        block_reason_details=block_reason_details or [],
+        warning_details=warning_details,
+        map_svg=map_svg,
     )

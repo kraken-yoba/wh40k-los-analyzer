@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Deployment Scorecard</h1>
+    <p class="lede">
+      Estimated manual deployment diagnostic combining selected threat/LOS exposure, turn order,
+      and mission readiness context.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar deployment-scorecard-form" method="post" action="/deployment-scorecard">
+    {% include "_packet_selector.html" %}
+    <label>
+      Deployment zone
+      <select name="deployment_zone_id">
+        {% for option in deployment_zone_options %}
+        <option value="{{ option.id }}" {{ "selected" if option.id == deployment_zone_id else "" }}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Friendly X (in)
+      <input name="friendly_x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ friendly_x }}">
+    </label>
+    <label>
+      Friendly Y (in)
+      <input name="friendly_y" type="number" min="0" max="{{ packet.board.height }}" step="0.01" value="{{ friendly_y }}">
+    </label>
+    <label>
+      Friendly base (in)
+      <input name="friendly_base" type="number" min="0" max="8" step="0.01" value="{{ friendly_base }}">
+    </label>
+    <label>
+      Enemy X (in)
+      <input name="enemy_x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ enemy_x }}">
+    </label>
+    <label>
+      Enemy Y (in)
+      <input name="enemy_y" type="number" min="0" max="{{ packet.board.height }}" step="0.01" value="{{ enemy_y }}">
+    </label>
+    <label>
+      Enemy base (in)
+      <input name="enemy_base" type="number" min="0" max="8" step="0.01" value="{{ enemy_base }}">
+    </label>
+    <label>
+      Enemy move (in)
+      <input name="enemy_move" type="number" min="0" max="30" step="0.01" value="{{ enemy_move }}">
+    </label>
+    <label>
+      Enemy threat (in)
+      <input name="enemy_threat" type="number" min="0" max="30" step="0.01" value="{{ enemy_threat }}">
+    </label>
+    <label>
+      Enemy mode
+      <select name="enemy_mode">
+        {% for option in enemy_threat_modes %}
+        <option value="{{ option }}" {{ "selected" if option == enemy_mode else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Exposure mode
+      <select name="exposure_mode">
+        {% for option in exposure_modes %}
+        <option value="{{ option }}" {{ "selected" if option == exposure_mode else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Turn order
+      <select name="turn_order">
+        {% for option in turn_order_options %}
+        <option value="{{ option }}" {{ "selected" if option == turn_order else "" }}>{{ option }}</option>
+        {% endfor %}
+        {% if turn_order not in turn_order_options %}
+        <option value="{{ turn_order }}" selected>{{ turn_order }}</option>
+        {% endif %}
+      </select>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+  <div class="diagnostic-summary" aria-label="Deployment scorecard diagnostic">
+    <strong>Readiness</strong>
+    <span>{{ readiness }}</span>
+    <strong>Threat probability at center</strong>
+    <span>{{ "%.1f"|format(threat_probability_at_center * 100) }}%</span>
+    <strong>Turn order</strong>
+    <span>{{ turn_order }}</span>
+  </div>
+  <ul class="warning-list" aria-label="Deployment scorecard components">
+    {% for component in components %}
+    <li>
+      <strong>{{ component.label }}</strong>
+      <span>{{ component.assessment }}</span>
+      <p>{{ component.detail }}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if block_reason_details %}
+  <ul class="warning-list" aria-label="Deployment scorecard blockers">
+    {% for detail in block_reason_details %}
+    <li>{{ detail }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if warning_details %}
+  <ul class="warning-list" aria-label="Deployment scorecard warnings">
+    {% for warning in warning_details %}
+    <li>{{ warning }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if not is_blocked %}
+  <div class="heatmap-legend" aria-label="Deployment scorecard legend">
+    <span><i class="legend-line candidate-line"></i>Candidate staging centers</span>
+    <span><i class="legend-swatch coverage"></i>Enemy LOS region</span>
+    <span><i class="legend-swatch threat-mid"></i>Enemy threat projection</span>
+    <span><i class="legend-swatch threat-source-swatch"></i>Enemy source base</span>
+  </div>
+  {% endif %}
+  <div class="map-wrap">{{ map_svg | safe }}</div>
+</section>
+{% endblock %}

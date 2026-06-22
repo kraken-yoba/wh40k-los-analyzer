@@ -437,6 +437,80 @@ def deployment_exposure(
     )
 
 
+@app.get("/deployment-scorecard", response_class=HTMLResponse)
+def deployment_scorecard(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    deployment_zone_id: str = "attacker",
+    friendly_x: float = 19.24,
+    friendly_y: float = 51.48,
+    friendly_base: float = 1.57,
+    enemy_x: float = 24.77,
+    enemy_y: float = 8.46,
+    enemy_base: float = 1.57,
+    enemy_move: float = 0.0,
+    enemy_threat: float = 1.0,
+    enemy_mode: str = "raw-range",
+    exposure_mode: str = "threat-and-los",
+    turn_order: str = "going-first",
+) -> HTMLResponse:
+    state = service.deployment_scorecard_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        deployment_zone_id=deployment_zone_id,
+        friendly_x=friendly_x,
+        friendly_y=friendly_y,
+        friendly_base=friendly_base,
+        enemy_x=enemy_x,
+        enemy_y=enemy_y,
+        enemy_base=enemy_base,
+        enemy_move=enemy_move,
+        enemy_threat=enemy_threat,
+        enemy_mode=enemy_mode,
+        exposure_mode=exposure_mode,
+        turn_order=turn_order,
+    )
+    return templates.TemplateResponse(
+        request,
+        "deployment_scorecard.html",
+        {
+            "active_page": "deployment-scorecard",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "deployment_zone_options": state.deployment_zone_options,
+            "deployment_zone_id": state.deployment_zone_id,
+            "friendly_x": state.friendly_x,
+            "friendly_y": state.friendly_y,
+            "friendly_base": state.friendly_base,
+            "enemy_x": state.enemy_x,
+            "enemy_y": state.enemy_y,
+            "enemy_base": state.enemy_base,
+            "enemy_move": state.enemy_move,
+            "enemy_threat": state.enemy_threat,
+            "enemy_mode": state.enemy_mode,
+            "exposure_mode": state.exposure_mode,
+            "turn_order": state.turn_order,
+            "enemy_threat_modes": state.enemy_threat_modes,
+            "exposure_modes": state.exposure_modes,
+            "turn_order_options": state.turn_order_options,
+            "readiness": state.readiness,
+            "is_blocked": state.is_blocked,
+            "not_exposed_under_assumptions": state.not_exposed_under_assumptions,
+            "threat_probability_at_center": state.threat_probability_at_center,
+            "components": state.components,
+            "block_reason_details": state.block_reason_details,
+            "warning_details": state.warning_details,
+            "map_svg": state.map_svg,
+        },
+    )
+
+
 @app.get("/damage-profile", response_class=HTMLResponse)
 def damage_profile(
     request: Request,
@@ -604,6 +678,54 @@ def update_deployment_exposure(
                 "enemy_threat": enemy_threat,
                 "enemy_mode": enemy_mode,
                 "exposure_mode": exposure_mode,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/deployment-scorecard", response_class=HTMLResponse)
+def update_deployment_scorecard(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    deployment_zone_id: str = Form("attacker"),
+    friendly_x: float = Form(...),
+    friendly_y: float = Form(...),
+    friendly_base: float = Form(...),
+    enemy_x: float = Form(...),
+    enemy_y: float = Form(...),
+    enemy_base: float = Form(...),
+    enemy_move: float = Form(...),
+    enemy_threat: float = Form(...),
+    enemy_mode: str = Form("raw-range"),
+    exposure_mode: str = Form("threat-and-los"),
+    turn_order: str = Form("going-first"),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    return RedirectResponse(
+        "/deployment-scorecard?"
+        + urlencode(
+            {
+                "packet_id": resolved_packet_id,
+                "deployment_zone_id": deployment_zone_id,
+                "friendly_x": friendly_x,
+                "friendly_y": friendly_y,
+                "friendly_base": friendly_base,
+                "enemy_x": enemy_x,
+                "enemy_y": enemy_y,
+                "enemy_base": enemy_base,
+                "enemy_move": enemy_move,
+                "enemy_threat": enemy_threat,
+                "enemy_mode": enemy_mode,
+                "exposure_mode": exposure_mode,
+                "turn_order": turn_order,
             }
         ),
         status_code=303,
