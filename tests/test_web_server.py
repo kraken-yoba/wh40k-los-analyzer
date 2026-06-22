@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
+from warhammer_companion.application.mission_pack import (
+    PUBLIC_MISSION_SHEET_GID,
+    PUBLIC_MISSION_SHEET_ID,
+)
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import (
     DamageProfileState,
@@ -709,6 +714,8 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
         "&enemy_mode=raw-range&exposure_mode=threat-and-los&turn_order=going-second"
     )
     normalized = " ".join(response.text.split()).lower()
+    main_html = response.text.split("<main", 1)[1].split("</main>", 1)[0]
+    normalized_main = " ".join(main_html.split()).lower()
 
     assert response.status_code == 200
     assert calls == [(packet.id, "attacker", 10.0, 38.0, "threat-and-los", "going-second")]
@@ -733,7 +740,7 @@ def test_deployment_scorecard_route_uses_manual_controls_and_cautious_language(
         "preferred",
         "pairing",
     ):
-        assert forbidden not in normalized
+        assert forbidden not in normalized_main
 
 
 def test_deployment_scorecard_route_renders_blocked_output_without_tactical_overlay(
@@ -1086,6 +1093,129 @@ def test_mission_pack_route_renders_source_safe_summary_without_javascript(monke
     assert "<script" not in response.text
     for forbidden in ("legal", "optimal", "recommended", "likely", "pairing-score"):
         assert forbidden not in normalized
+
+
+def test_team_pairing_route_renders_degraded_matrix_without_authority_claims() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/team-pairing?friendly_lists=Alpha%0ABeta&opponent_lists=Gamma%0ADelta")
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert "Team Pairing" in response.text
+    assert "degraded" in normalized
+    assert "Alpha" in response.text
+    assert "Beta" in response.text
+    assert "Gamma" in response.text
+    assert "Delta" in response.text
+    assert "unsupported-data" in response.text
+    assert "shared scenario" in normalized
+    assert "not pair-specific" in normalized
+    assert "<script" not in response.text
+    for forbidden in (
+        "legal",
+        "safe",
+        "optimal",
+        "recommended",
+        "likely",
+        "guaranteed",
+        "preferred",
+        "pairing score",
+        "expected points",
+        "win probability",
+        "favored",
+        "calibrated",
+        "docs.google.com",
+        PUBLIC_MISSION_SHEET_GID,
+        PUBLIC_MISSION_SHEET_ID.lower(),
+        "mission card",
+    ):
+        assert forbidden not in normalized
+
+
+def test_team_pairing_route_normalizes_and_escapes_manual_labels() -> None:
+    client = TestClient(server.app)
+
+    normalized_response = client.get(
+        "/team-pairing?friendly_lists=Alpha%20%20Prime%2C%2C%20%20Beta%0AControl%07Name"
+        "&opponent_lists=Gamma%2C%2C%20Delta"
+    )
+    script_response = client.get(
+        "/team-pairing?friendly_lists=%3Cscript%3Ealert(1)%3C%2Fscript%3E&opponent_lists=Gamma"
+    )
+
+    assert normalized_response.status_code == 200
+    assert "Alpha Prime" in normalized_response.text
+    assert "Alpha  Prime" not in normalized_response.text
+    assert "Beta" in normalized_response.text
+    assert "ControlName" in normalized_response.text
+    assert normalized_response.text.index("Alpha Prime") < normalized_response.text.index("Beta")
+    assert normalized_response.text.index("Beta") < normalized_response.text.index("ControlName")
+    assert "Gamma" in normalized_response.text
+    assert "Delta" in normalized_response.text
+    assert "<script" not in script_response.text
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in script_response.text
+
+
+def test_team_pairing_route_shows_blocked_manual_label_inputs() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/team-pairing?friendly_lists=&opponent_lists=Gamma%0ADelta")
+    overflow = client.get(
+        "/team-pairing?friendly_lists=A%0AB%0AC%0AD%0AE%0AF%0AG%0AH%0AI&opponent_lists=Gamma"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert "blocked" in normalized
+    assert "missing-friendly-lists" in response.text
+    assert "data-team-pairing-cell" not in response.text
+    assert "traceback" not in normalized
+    assert "internal server error" not in normalized
+    assert "too-many-friendly-lists" in overflow.text
+    assert "data-team-pairing-cell" not in overflow.text
+
+
+def test_team_pairing_post_redirect_preserves_labels_and_packet_selection(monkeypatch) -> None:
+    packet = server.repository.default_packet()
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/team-pairing",
+        data={
+            "packet_id": packet.id,
+            "player_a": "Take and Hold",
+            "player_b": "Reconnaissance",
+            "layout_variant": "B",
+            "friendly_lists": "Alpha\nBeta",
+            "opponent_lists": "Gamma\nDelta",
+        },
+        follow_redirects=False,
+    )
+    location = urlparse(response.headers["location"])
+    params = parse_qs(location.query)
+
+    assert response.status_code == 303
+    assert resolved_calls == [(packet.id, "Take and Hold", "Reconnaissance", "B")]
+    assert location.path == "/team-pairing"
+    assert params["packet_id"] == [packet.id]
+    assert params["friendly_lists"] == ["Alpha\nBeta"]
+    assert params["opponent_lists"] == ["Gamma\nDelta"]
 
 
 def test_pages_do_not_load_custom_frontend_javascript() -> None:

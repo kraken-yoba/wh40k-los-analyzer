@@ -323,3 +323,54 @@ def test_desktop_mission_pack_screen_reports_source_safe_summary() -> None:
     assert "Sabotage" in mission_text
     window.close()
     app.processEvents()
+
+
+def test_desktop_team_pairing_screen_reports_degraded_matrix_and_blockers() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import Qt  # type: ignore[import-not-found]
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Team Pairing" in labels
+    pairing_screen = window.stack.widget(labels.index("Team Pairing"))
+    status_text = pairing_screen.status_label.text()
+    matrix_text = pairing_screen.matrix_detail_label.text()
+    warning_text = pairing_screen.warning_label.text()
+    range_text = pairing_screen.range_label.text()
+
+    assert "degraded" in status_text.lower()
+    assert "source-pending" in warning_text.lower()
+    assert "unavailable" in warning_text.lower()
+    assert "Alpha" in matrix_text
+    assert "Gamma" in matrix_text
+    assert "damage-output" in matrix_text
+    assert "unsupported-data" in matrix_text
+    assert "not_available" in matrix_text
+    assert "not pair-specific" in matrix_text
+    assert "Shared expected damage" in range_text
+    assert pairing_screen.matrix_detail_label.textFormat() == Qt.TextFormat.PlainText
+    assert pairing_screen.warning_label.textFormat() == Qt.TextFormat.PlainText
+    assert pairing_screen.range_label.textFormat() == Qt.TextFormat.PlainText
+
+    pairing_screen.friendly_lists_input.setPlainText("<script>alert(1)</script>")
+    pairing_screen.opponent_lists_input.setPlainText("Gamma")
+    pairing_screen.refresh()
+
+    assert "<script>alert(1)</script>" in pairing_screen.matrix_detail_label.text()
+    assert pairing_screen.matrix_detail_label.textFormat() == Qt.TextFormat.PlainText
+
+    pairing_screen.friendly_lists_input.setPlainText("")
+    pairing_screen.opponent_lists_input.setPlainText("Gamma")
+    pairing_screen.refresh()
+
+    assert "blocked" in pairing_screen.status_label.text().lower()
+    assert "missing-friendly-lists" in pairing_screen.warning_label.text()
+    assert "damage-output" not in pairing_screen.matrix_detail_label.text()
+    window.close()
+    app.processEvents()

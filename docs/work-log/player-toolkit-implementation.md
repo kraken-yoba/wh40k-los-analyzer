@@ -2318,3 +2318,84 @@ Review status:
   Browser/manual QA URLs, and desktop overlay assertions; the spec, plan, QA pathway, and review
   notes were patched.
 - Focused adversarial re-review approved the hardened Phase 10.5 plan before implementation.
+
+## 2026-06-22 - Phase 11A Team Pairing Matrix
+
+Scope:
+
+- Added the first Phase 11 matchup analytics slice as a labels-only Team Pairing Matrix dossier.
+- Aggregated existing deterministic toolkit outputs into component cards: manual damage profile,
+  mission pack skeleton, deployment scorecard, and explicit unsupported-data cards.
+- Kept the result degraded by design; no recommendations, pairing scores, expected points, win
+  probabilities, confidence bands, rankings, best/worst labels, or calibration claims were added.
+
+Design decisions:
+
+- Treat each matrix cell as labels-only and shared-scenario based until roster-specific and
+  opponent-specific source results exist.
+- Store only sanitized scalar dossier fields: labels, selected packet id/label, result ids, input
+  hashes, readiness, source ref ids, warnings, blockers, and raw deterministic metrics.
+- Do not retain `MapPacket`, source payloads, Shapely geometry, SVG/images, source URLs, Google
+  Sheet id/gid, mission-card text, or official rules text in the pairing payload.
+- Force valid Phase 11A output to `degraded`, even if future source components become `trusted`.
+- Block empty labels, too many labels, duplicate normalized labels, and labels longer than 80
+  characters.
+- Normalize labels by comma/newline splitting, whitespace collapse, control-character removal,
+  empty-fragment dropping, and order preservation.
+
+Design review:
+
+- Consultant gap-analysis recommended a deterministic component dossier and explicitly deferred
+  expected tournament points, win rates, confidence bands, priors, weights, and captain automation.
+- Consultant design review required `not_available` to remain an assessment, forced degraded
+  readiness, label overflow blocking, and source URL/sheet id/gid leak checks.
+- Adversarial design review required labels-only wording, sanitized payload boundaries, no visible
+  forbidden terms, desktop parity, label-safety details, source blocker propagation, and no-network
+  QA.
+- Focused re-review approved after the QA route was patched to exercise internal whitespace
+  collapse and empty-fragment dropping.
+
+TDD and implementation results:
+
+- Red builder test:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_matchup_matrix_toolkit.py -q`
+  failed with missing `warhammer_companion.application.matchup_matrix`.
+- Added `domain/matchups.py` and `application/matchup_matrix.py`; focused builder tests then
+  passed with 15 passed.
+- Red service tests failed because `WarhammerCompanionService` had no
+  `team_pairing_matrix_toolkit_result(...)` or `team_pairing_matrix_state(...)`.
+- Added shared service/view state and desktop smoke key.
+- Red web tests failed with `/team-pairing` 404 and missing POST redirect.
+- Added server-rendered `/team-pairing`, POST redirect, navigation, and `team_pairing.html`; web
+  route tests passed.
+- Red desktop test failed because `Team Pairing` was missing from navigation.
+- Added a thin PySide6 `TeamPairingScreen`; desktop parity test passed.
+
+Verification completed:
+
+- Focused Phase 11A app batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_matchup_matrix_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 87 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 131 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 440 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and
+  `team_pairing_matrix_degraded: true`.
+
+Manual QA:
+
+- Built-in Browser control was unavailable in the resumed continuation:
+  `typeof browser=undefined`.
+- `tool_search` exposed Browser/Computer plugin metadata but no callable Browser or Computer
+  control tool.
+- Detached localhost server attempts exited before binding to port 8000, although a foreground
+  startup probe reached uvicorn startup and blocked normally.
+- Fallback in-process FastAPI route QA passed for `/team-pairing`, a valid label query,
+  normalization query, script-shaped label query, overflow-label query, and empty-friendly-label
+  blocked query.
+- The fallback checks verified heading/readiness text, zero `<script>` tags, no traceback/internal
+  error text, matrix-cell presence/absence, forbidden authority phrase absence, source leak
+  absence, normalized labels, escaped script-shaped label text, and expected blocker ids.

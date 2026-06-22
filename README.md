@@ -15,7 +15,8 @@ frontend JavaScript.
 - LOS heatmap generated from a deployment zone.
 - Base-aware LOS checker that places a model base and renders visibility rays.
 - Movement reach, hidden coverage, threat range, deployment exposure, deployment scorecard,
-  manual damage profile diagnostics, and mission-pack provenance records.
+  manual damage profile diagnostics, mission-pack provenance records, and a labels-only Team
+  Pairing Matrix dossier.
 - Official source registry for Games Workshop PDFs.
 - Python package, CLI, desktop smoke test, tests, linting, and docs.
 
@@ -46,6 +47,7 @@ Useful toolkit routes:
 - `/deployment-scorecard`
 - `/damage-profile`
 - `/mission-pack`
+- `/team-pairing`
 
 Desktop smoke:
 

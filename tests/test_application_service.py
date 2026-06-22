@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from warhammer_companion.application.mission_pack import PUBLIC_MISSION_SHEET_GID
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.domain.damage import (
     DEFAULT_DAMAGE_PROFILE_INPUT,
@@ -758,3 +759,67 @@ def test_mission_pack_state_exposes_sources_records_and_cautious_warnings() -> N
     )
     assert "not fetched" in " ".join(state.warning_details).lower()
     assert "source-pending" in " ".join(state.warning_details).lower()
+
+
+def test_team_pairing_matrix_service_wraps_existing_toolkits_as_degraded_dossier() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.team_pairing_matrix_toolkit_result(
+        packet_id=SAMPLE_PACKETS[0].id,
+        friendly_lists="Alpha\nBeta",
+        opponent_lists="Gamma\nDelta",
+    )
+    state = service.team_pairing_matrix_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        friendly_lists="Alpha\nBeta",
+        opponent_lists="Gamma\nDelta",
+    )
+    text = " ".join(
+        [
+            *state.warning_details,
+            *(component.detail for cell in state.cells for component in cell.components),
+        ]
+    ).lower()
+
+    assert result.tool_id == "team_pairing_matrix"
+    assert result.readiness == "degraded"
+    assert state.readiness == "degraded"
+    assert state.is_blocked is False
+    assert [entry.label for entry in state.friendly_lists] == ["Alpha", "Beta"]
+    assert [entry.label for entry in state.opponent_lists] == ["Gamma", "Delta"]
+    assert len(state.cells) == 4
+    assert {component.component_id for component in state.cells[0].components} == {
+        "damage-output",
+        "mission-context",
+        "deployment-staging",
+        "unsupported-data",
+    }
+    assert state.ranges
+    assert "source-pending" in text
+    assert "unavailable" in text
+    assert "not pair-specific" in text
+    assert "docs.google.com" not in text
+    assert PUBLIC_MISSION_SHEET_GID not in text
+
+
+def test_team_pairing_matrix_state_blocks_empty_labels_without_cells() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.team_pairing_matrix_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        friendly_lists="",
+        opponent_lists="Gamma\nDelta",
+    )
+
+    assert state.readiness == "blocked"
+    assert state.is_blocked
+    assert state.cells == []
+    assert any("missing-friendly-lists" in reason for reason in state.block_reason_details)

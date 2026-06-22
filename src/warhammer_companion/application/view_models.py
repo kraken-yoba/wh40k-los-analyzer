@@ -5,6 +5,12 @@ from dataclasses import dataclass
 
 from warhammer_companion.domain.damage import DamageProbabilityRow
 from warhammer_companion.domain.deployment_scorecard import DeploymentScorecardComponent
+from warhammer_companion.domain.matchups import (
+    PairingCell,
+    PairingListEntry,
+    PairingScenario,
+    PairingScenarioRange,
+)
 from warhammer_companion.domain.missions import MissionPack, MissionRecord, MissionSourceRef
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.threat import ThreatDiceOutcome
@@ -230,6 +236,24 @@ class MissionPackState:
     primary_missions: list[MissionRecord]
     warning_details: list[str]
     pack: MissionPack
+
+
+@dataclass(frozen=True)
+class TeamPairingMatrixState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    friendly_lists_text: str
+    opponent_lists_text: str
+    readiness: str
+    is_blocked: bool
+    friendly_lists: list[PairingListEntry]
+    opponent_lists: list[PairingListEntry]
+    scenarios: list[PairingScenario]
+    cells: list[PairingCell]
+    ranges: list[PairingScenarioRange]
+    warning_details: list[str]
+    block_reason_details: list[str]
 
 
 @dataclass(frozen=True)

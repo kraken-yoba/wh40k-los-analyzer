@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Team Pairing</h1>
+    <p class="lede">
+      Labels-only matrix dossier. Shared scenario metrics repeat across cells; no roster-specific
+      list-vs-list computation is performed in this slice.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar team-pairing-form" method="post" action="/team-pairing">
+    {% include "_packet_selector.html" %}
+    <label>
+      Friendly lists
+      <textarea name="friendly_lists" rows="4">{{ friendly_lists_text }}</textarea>
+    </label>
+    <label>
+      Opponent lists
+      <textarea name="opponent_lists" rows="4">{{ opponent_lists_text }}</textarea>
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+
+  <div class="diagnostic-summary" aria-label="Team pairing diagnostic">
+    <strong>Readiness</strong>
+    <span>{{ readiness }}</span>
+    <strong>Rows</strong>
+    <span>{{ friendly_lists | length }}</span>
+    <strong>Columns</strong>
+    <span>{{ opponent_lists | length }}</span>
+    <strong>Cells</strong>
+    <span>{{ cells | length }}</span>
+  </div>
+
+  {% if warning_details %}
+  <ul class="warning-list" aria-label="Team pairing warnings">
+    {% for warning in warning_details %}
+    <li>{{ warning }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if block_reason_details %}
+  <ul class="warning-list" aria-label="Team pairing blockers">
+    {% for detail in block_reason_details %}
+    <li>{{ detail }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <section>
+    <h2>Scenario</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Packet</th>
+          <th>Mission readiness</th>
+          <th>Turn orders</th>
+          <th>Scope</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scenario in scenarios %}
+        <tr>
+          <td>{{ scenario.packet_label }}</td>
+          <td>{{ scenario.mission_pack_readiness }}</td>
+          <td>{{ scenario.turn_orders | join(", ") }}</td>
+          <td>{{ scenario.detail }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if ranges %}
+  <section>
+    <h2>Deterministic Ranges</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Min</th>
+          <th>Max</th>
+          <th>Units</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scenario_range in ranges %}
+        <tr>
+          <td>{{ scenario_range.label }}</td>
+          <td>{{ "%.2f"|format(scenario_range.min_value) }}</td>
+          <td>{{ "%.2f"|format(scenario_range.max_value) }}</td>
+          <td>{{ scenario_range.units }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if cells %}
+  <section>
+    <h2>Matrix</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Friendly</th>
+          <th>Opponent</th>
+          <th>Readiness</th>
+          <th>Components</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cell in cells %}
+        <tr data-team-pairing-cell>
+          <td>{{ friendly_labels_by_id[cell.friendly_list_id] }}</td>
+          <td>{{ opponent_labels_by_id[cell.opponent_list_id] }}</td>
+          <td>{{ cell.readiness }}</td>
+          <td>
+            <p>{{ cell.shared_metric_notice }}</p>
+            <ul class="warning-list">
+              {% for component in cell.components %}
+              <li>
+                <strong><code>{{ component.component_id }}</code> {{ component.label }}</strong>
+                <span>{{ component.assessment }}</span>
+                <p>{{ component.detail }}</p>
+                {% if component.metrics %}
+                <ul>
+                  {% for metric in component.metrics %}
+                  <li>{{ metric.label }}: {{ "%.2f"|format(metric.value) }} {{ metric.units }}</li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+                {% if component.block_reasons %}
+                <ul>
+                  {% for reason in component.block_reasons %}
+                  <li>{{ reason }}</li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

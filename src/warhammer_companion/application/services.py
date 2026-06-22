@@ -16,6 +16,9 @@ from warhammer_companion.application.los_toolkit import (
     LosCheckerToolkitPayload,
     build_los_checker_toolkit_result,
 )
+from warhammer_companion.application.matchup_matrix import (
+    build_team_pairing_matrix_toolkit_result,
+)
 from warhammer_companion.application.mission_pack import build_mission_pack_toolkit_result
 from warhammer_companion.application.movement_reach import build_movement_reach_toolkit_result
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
@@ -36,6 +39,7 @@ from warhammer_companion.application.view_models import (
     PacketSelectOption,
     PacketSelectorState,
     SettingsState,
+    TeamPairingMatrixState,
     TerrainSelectOption,
     ThreatRangeState,
     ViewerState,
@@ -55,6 +59,7 @@ from warhammer_companion.domain.exposure import (
     exposure_mode_includes_los,
     exposure_mode_includes_threat,
 )
+from warhammer_companion.domain.matchups import PairingMatrixPayload
 from warhammer_companion.domain.missions import MissionPackPayload
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
@@ -765,6 +770,84 @@ class WarhammerCompanionService:
 
     def mission_pack_toolkit_result(self) -> ToolkitResult[MissionPackPayload]:
         return build_mission_pack_toolkit_result()
+
+    def team_pairing_matrix_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        friendly_lists: str = "Alpha\nBeta",
+        opponent_lists: str = "Gamma\nDelta",
+    ) -> TeamPairingMatrixState:
+        result = self.team_pairing_matrix_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            friendly_lists=friendly_lists,
+            opponent_lists=opponent_lists,
+        )
+        payload = result.payload
+        friendly_lists_text = "\n".join(entry.label for entry in payload.friendly_lists)
+        opponent_lists_text = "\n".join(entry.label for entry in payload.opponent_lists)
+        return TeamPairingMatrixState(
+            packet=self._selected_packet_by_selector(
+                packet_id=packet_id,
+                player_a=player_a,
+                player_b=player_b,
+                layout_variant=layout_variant,
+            ),
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(
+                packet_id=payload.scenarios[0].packet_id if payload.scenarios else packet_id
+            ),
+            friendly_lists_text=friendly_lists_text,
+            opponent_lists_text=opponent_lists_text,
+            readiness=result.readiness,
+            is_blocked=result.is_blocked,
+            friendly_lists=list(payload.friendly_lists),
+            opponent_lists=list(payload.opponent_lists),
+            scenarios=list(payload.scenarios),
+            cells=list(payload.cells),
+            ranges=list(payload.ranges),
+            warning_details=[warning.detail for warning in result.warnings],
+            block_reason_details=[
+                f"{reason.reason_id}: {reason.detail}" for reason in result.block_reasons
+            ],
+        )
+
+    def team_pairing_matrix_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        friendly_lists: str = "Alpha\nBeta",
+        opponent_lists: str = "Gamma\nDelta",
+    ) -> ToolkitResult[PairingMatrixPayload]:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        return build_team_pairing_matrix_toolkit_result(
+            packet=packet,
+            friendly_labels=friendly_lists,
+            opponent_labels=opponent_lists,
+            damage_result=self.damage_profile_toolkit_result(),
+            mission_result=self.mission_pack_toolkit_result(),
+            deployment_scorecard_results=tuple(
+                self.deployment_scorecard_toolkit_result(
+                    packet_id=packet.id,
+                    turn_order=turn_order,
+                )
+                for turn_order in TURN_ORDER_ASSUMPTIONS
+            ),
+        )
 
     def hidden_coverage_state(
         self,

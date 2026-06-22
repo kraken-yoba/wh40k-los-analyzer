@@ -72,6 +72,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
     deployment_scorecard = service.deployment_scorecard_state(packet_id=viewer.packet.id)
     damage_profile = service.damage_profile_toolkit_result()
     mission_pack = service.mission_pack_toolkit_result()
+    team_pairing = service.team_pairing_matrix_toolkit_result(packet_id=viewer.packet.id)
     hidden_coverage = service.hidden_coverage_state(packet_id=viewer.packet.id)
     return {
         "status": "ok",
@@ -92,6 +93,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
         "deployment_scorecard_estimate": deployment_scorecard.readiness == "estimated",
         "damage_profile_estimate": damage_profile.readiness == "estimated",
         "mission_pack_estimate": mission_pack.readiness == "estimated",
+        "team_pairing_matrix_degraded": team_pairing.readiness == "degraded",
         "hidden_coverage_svg": "<svg" in hidden_coverage.map_svg,
         "dense_features": len(viewer.packet.dense_features),
         "light_features": len(viewer.packet.light_features),

@@ -578,6 +578,49 @@ def mission_pack(request: Request) -> HTMLResponse:
     )
 
 
+@app.get("/team-pairing", response_class=HTMLResponse)
+def team_pairing(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    friendly_lists: str = "Alpha\nBeta",
+    opponent_lists: str = "Gamma\nDelta",
+) -> HTMLResponse:
+    state = service.team_pairing_matrix_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        friendly_lists=friendly_lists,
+        opponent_lists=opponent_lists,
+    )
+    return templates.TemplateResponse(
+        request,
+        "team_pairing.html",
+        {
+            "active_page": "team-pairing",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "friendly_lists_text": state.friendly_lists_text,
+            "opponent_lists_text": state.opponent_lists_text,
+            "readiness": state.readiness,
+            "is_blocked": state.is_blocked,
+            "friendly_lists": state.friendly_lists,
+            "opponent_lists": state.opponent_lists,
+            "friendly_labels_by_id": {entry.list_id: entry.label for entry in state.friendly_lists},
+            "opponent_labels_by_id": {entry.list_id: entry.label for entry in state.opponent_lists},
+            "scenarios": state.scenarios,
+            "cells": state.cells,
+            "ranges": state.ranges,
+            "warning_details": state.warning_details,
+            "block_reason_details": state.block_reason_details,
+        },
+    )
+
+
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
     packet_id: str | None = Form(None),
@@ -753,6 +796,34 @@ def update_damage_profile(
                 "damage": damage,
                 "wounds": wounds,
                 "models": models,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/team-pairing", response_class=HTMLResponse)
+def update_team_pairing(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    friendly_lists: str = Form(""),
+    opponent_lists: str = Form(""),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    return RedirectResponse(
+        "/team-pairing?"
+        + urlencode(
+            {
+                "packet_id": resolved_packet_id,
+                "friendly_lists": friendly_lists,
+                "opponent_lists": opponent_lists,
             }
         ),
         status_code=303,

@@ -378,12 +378,60 @@ Manual check:
 
 - Browser QA checks `/mission-pack` with no console warning/error logs.
 
+## Scenario 11A: Team Pairing Matrix
+
+Steps:
+
+1. Open Team Pairing.
+2. Enter friendly labels `Alpha` and `Beta`.
+3. Enter opponent labels `Gamma` and `Delta`.
+4. Generate the matrix.
+5. Enter an empty friendly-label list.
+6. Enter labels with comma separators, doubled internal spaces, empty fragments, and a control
+   character.
+
+Expected result:
+
+- The page renders heading `Team Pairing` without a traceback or blank state.
+- Valid inputs show a degraded, labels-only matrix with one cell per row/column pair.
+- Each valid cell shows component cards for damage output, mission context, deployment staging, and
+  unsupported data.
+- Shared metrics are described as shared scenario metrics and not pair-specific list-vs-list
+  computation.
+- Unsupported data copy says matchup weighting, selection guidance, and tournament-point model are
+  unavailable; it does not claim a pairing score, expected points, win probability, calibrated
+  range, or recommendation.
+- Empty labels, too many labels, duplicate normalized labels, and overlong labels are blocked with
+  user-facing blocker ids and no matrix cells.
+- Comma/newline splitting, internal whitespace collapse, control-character removal,
+  empty-fragment dropping, and order preservation are visible in normalized labels.
+- The page does not render source URLs, public sheet id/gid, card text, SVG/image payloads, or
+  source toolkit payload objects.
+
+Automation:
+
+- Toolkit tests cover degraded readiness, labels-only shared metrics, blocker ids, label
+  normalization, deterministic input hashes, scenario ranges, source blocker propagation,
+  sanitized payloads, empty overlays, and no authority claims.
+- Service tests cover shared-state wrapping and blocked labels.
+- Web tests cover route rendering, blocked routes, POST preservation, escaped labels, zero custom
+  JavaScript, source leak absence, and forbidden wording absence.
+- Desktop tests cover `Team Pairing` navigation, degraded status, component details, warning and
+  blocker text, deterministic ranges, and Qt plain-text label rendering.
+- Desktop smoke checks `team_pairing_matrix_degraded: true`.
+
+Manual check:
+
+- Browser QA checks `/team-pairing`, a valid label query, normalization query, script-shaped label
+  query, overflow-label query, and empty-label blocked query with no console warning/error logs
+  where Browser control is available.
+
 ## Scenario 12: Cross-Workflow Consistency
 
 Steps:
 
 1. Load the same packet in Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat
-   Range, Deployment Exposure, Deployment Scorecard, and Mission Pack.
+   Range, Deployment Exposure, Deployment Scorecard, Mission Pack, and Team Pairing.
 2. Compare packet labels, page metadata, board dimensions, terrain shapes, deployment zones, and blocker counts.
 3. Repeat for page 9 and page 52.
 
@@ -391,8 +439,9 @@ Expected result:
 
 - The same packet model drives every workflow.
 - Terrain and dense feature geometry do not diverge between screens.
-- Heatmap, LOS checker, movement, threat, hidden coverage, deployment exposure, and deployment
-  scorecard tools use the documented blocker semantics for their selected assumptions.
+- Heatmap, LOS checker, movement, threat, hidden coverage, deployment exposure, deployment
+  scorecard, and team-pairing tools use the documented blocker semantics for their selected
+  assumptions.
 
 Automation:
 
@@ -411,8 +460,8 @@ Steps:
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
 4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, Deployment
-   Exposure, Deployment Scorecard, Damage Profile, and Mission Pack with bundled or generated
-   packet data.
+   Exposure, Deployment Scorecard, Damage Profile, Mission Pack, and Team Pairing with bundled or
+   generated packet data.
 5. Trigger a non-destructive settings/status check.
 
 Expected result:
