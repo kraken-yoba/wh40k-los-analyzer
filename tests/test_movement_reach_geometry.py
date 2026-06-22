@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from shapely.geometry import Point
 
 from warhammer_companion.domain.models import (
@@ -10,7 +11,38 @@ from warhammer_companion.domain.models import (
     TerrainArea,
     TerrainKind,
 )
-from warhammer_companion.los.movement import movement_endpoint_diagnostic, movement_envelope
+from warhammer_companion.los.movement import (
+    base_center_region,
+    movement_endpoint_diagnostic,
+    movement_envelope,
+)
+
+
+def test_base_center_region_respects_board_edge_base_radius() -> None:
+    packet = _movement_packet(dense_features=[])
+
+    region = base_center_region(packet, base_radius=1.0)
+
+    assert tuple(round(value, 3) for value in region.bounds) == (1.0, 1.0, 9.0, 9.0)
+    assert region.covers(Point(1.0, 1.0))
+    assert not region.covers(Point(0.99, 5.0))
+
+
+def test_base_center_region_collapses_oversized_base_to_board_center() -> None:
+    packet = _movement_packet(dense_features=[])
+
+    region = base_center_region(packet, base_radius=99.0)
+
+    assert tuple(round(value, 3) for value in region.bounds) == (5.0, 5.0, 5.0, 5.0)
+    assert region.covers(Point(5.0, 5.0))
+    assert not region.covers(Point(5.01, 5.0))
+
+
+def test_base_center_region_rejects_negative_base_radius() -> None:
+    packet = _movement_packet(dense_features=[])
+
+    with pytest.raises(ValueError, match="base_radius must be non-negative"):
+        base_center_region(packet, base_radius=-0.1)
 
 
 def test_movement_envelope_respects_board_edge_base_radius() -> None:

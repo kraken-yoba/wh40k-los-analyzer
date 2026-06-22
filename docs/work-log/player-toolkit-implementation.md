@@ -1475,5 +1475,80 @@ Browser QA:
 
 Remaining blocker status:
 
-- Awaiting final consultant re-review and adversarial implementation review before staging and
+- Final Phase 6 consultant and adversarial implementation reviewers approved before staging and
   atomic commit.
+
+## Phase 6.5 - Threat Board Geometry Housekeeping
+
+Purpose:
+
+- Keep momentum between Phase 6 and Phase 7 with a behavior-preserving cleanup slice.
+- Remove duplicated circular-base board-fit geometry between movement reach and threat range.
+- Preserve movement envelopes, threat projections, web routes, desktop screens, source/readiness
+  wording, and generated data exactly.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-6-5-threat-housekeeping.md`
+- `docs/superpowers/plans/2026-06-22-phase-6-5-threat-housekeeping.md`
+- `docs/superpowers/qa/2026-06-22-phase-6-5-threat-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-6-5-consultant-threat-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-22-phase-6-5-adversarial-threat-housekeeping.md`
+- `src/warhammer_companion/los/movement.py`
+- `src/warhammer_companion/application/threat_range.py`
+- `tests/test_movement_reach_geometry.py`
+
+Design decisions:
+
+- The shared helper is `base_center_region(packet, base_radius)` in `los/movement.py`, because it
+  is reusable LOS/movement geometry rather than application policy.
+- Threat range validation remains in `application/threat_range.py`; it now asks the shared helper
+  whether the source center can keep the circular base inside the board and turns that geometry fact
+  into `source-base-outside-board` when needed.
+- Oversized-base behavior is intentionally unchanged: if a base radius exceeds the board half-size,
+  the center region collapses to the board center under the existing helper math.
+- No route, template, CSS, desktop, rendering, source-ingestion, roster, damage, mission, analytics,
+  or recommendation behavior changed.
+
+TDD and review:
+
+- Red step: `tests/test_movement_reach_geometry.py` imported `base_center_region(...)` before the
+  helper existed and failed with the expected import error.
+- Consultant review approved the scope and requested a direct negative-radius guard test; that test
+  was added before production code.
+- Green step: `_board_center_region(...)` was renamed to `base_center_region(...)`, movement callers
+  were updated, and threat validation reused the shared helper instead of local `box(...)` math.
+- Initial adversarial review requested changes because `threat_range.py` import order failed Ruff.
+  The import order was fixed and the adversarial reviewer re-approved.
+
+Verification completed:
+
+- Focused red/green suite passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_movement_reach_geometry.py tests\test_threat_range_toolkit.py -q`
+  returned 13 passed.
+- Broader app/web/desktop batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_application_service.py tests\test_threat_range_geometry.py tests\test_desktop_app.py tests\test_web_server.py -q`
+  returned 45 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 110 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 348 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, `movement_reach_svg: true`, and `threat_range_svg: true`.
+- `git diff --check` passed; Git printed only normal LF-to-CRLF warnings for touched files.
+
+Browser QA:
+
+- Even though Phase 6.5 touched only shared helper/application validation code, the local app was
+  launched on `http://127.0.0.1:8000` and the built-in Browser inspected `/movement-reach` and
+  `/threat-range`.
+- `/movement-reach` rendered one SVG, one `movement-envelope-image`, one form, zero `<script>` tags,
+  no traceback/error text, and no warning/error console logs.
+- `/threat-range` rendered one SVG, one `threat-projection-image`, one form, zero `<script>` tags,
+  no traceback/error text, and no warning/error console logs.
+- The temporary QA server process was terminated after Browser QA.
+
+Remaining blocker status:
+
+- Phase 6.5 consultant and adversarial reviewers approved. No blockers remain.

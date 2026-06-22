@@ -20,7 +20,7 @@ def movement_envelope(
     _require_positive("base_diameter", base_diameter)
     _require_positive("move_distance", move_distance)
     base_radius = base_diameter / 2.0
-    board_center_region = _board_center_region(packet, base_radius)
+    board_center_region = base_center_region(packet, base_radius)
     dense_collision_regions = dense_movement_collision_regions(packet, base_radius)
 
     envelope = Point(start_center).buffer(move_distance).intersection(board_center_region)
@@ -40,7 +40,7 @@ def movement_endpoint_diagnostic(
     _require_positive("base_diameter", base_diameter)
     _require_positive("move_distance", move_distance)
     base_radius = base_diameter / 2.0
-    board_center_region = _board_center_region(packet, base_radius)
+    board_center_region = base_center_region(packet, base_radius)
     dense_collision_regions = dense_movement_collision_regions(packet, base_radius)
     dense_blockers = _dense_movement_blockers(packet)
 
@@ -132,7 +132,7 @@ def _dense_movement_blockers(packet: MapPacket) -> BaseGeometry:
     return unary_union(blockers) if blockers else Polygon()
 
 
-def _board_center_region(packet: MapPacket, base_radius: float) -> Polygon:
+def base_center_region(packet: MapPacket, base_radius: float) -> Polygon:
     if base_radius < 0:
         raise ValueError("base_radius must be non-negative")
     min_x = min(base_radius, packet.board.width / 2.0)

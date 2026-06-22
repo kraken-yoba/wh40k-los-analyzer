@@ -4,7 +4,7 @@ import hashlib
 import json
 from math import isfinite
 
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, Polygon
 
 from warhammer_companion.application.toolkit import BlockReason, ToolkitResult
 from warhammer_companion.domain.board_state import map_packet_digest
@@ -16,6 +16,7 @@ from warhammer_companion.domain.threat import (
     ThreatRangePayload,
     coerce_threat_mode,
 )
+from warhammer_companion.los.movement import base_center_region
 from warhammer_companion.los.threat import (
     target_threat_probability,
     threat_distribution,
@@ -200,11 +201,10 @@ def _input_block_reasons(
         reasons.append(
             BlockReason("invalid-base-diameter", "Base diameter must be a positive finite number.")
         )
-    elif _finite_point(source_center) and not _source_base_within_board(
+    elif _finite_point(source_center) and not base_center_region(
         packet,
-        source_center=source_center,
-        base_diameter=base_diameter,
-    ):
+        base_diameter / 2.0,
+    ).covers(Point(source_center)):
         reasons.append(
             BlockReason(
                 "source-base-outside-board",
@@ -267,19 +267,3 @@ def _canonical_float(value: float) -> str:
 
 def _finite_point(point: tuple[float, float]) -> bool:
     return len(point) == 2 and all(isfinite(value) for value in point)
-
-
-def _source_base_within_board(
-    packet: MapPacket,
-    *,
-    source_center: tuple[float, float],
-    base_diameter: float,
-) -> bool:
-    base_radius = base_diameter / 2.0
-    board_center_region = box(
-        min(base_radius, packet.board.width / 2.0),
-        min(base_radius, packet.board.height / 2.0),
-        max(packet.board.width - base_radius, min(base_radius, packet.board.width / 2.0)),
-        max(packet.board.height - base_radius, min(base_radius, packet.board.height / 2.0)),
-    )
-    return board_center_region.covers(Point(source_center))
