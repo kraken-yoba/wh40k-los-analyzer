@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h1>Mission Pack</h1>
+      <p class="lede">
+        Source-safe skeleton for primary mission records derived from current layout metadata.
+      </p>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Readiness</span>
+      <span class="metric-value">{{ readiness }}</span>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <span class="metric-label">Primary Missions</span>
+      <span class="metric-value">{{ mission_count }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Source Refs</span>
+      <span class="metric-value">{{ source_refs | length }}</span>
+    </div>
+  </div>
+
+  <section class="status-list">
+    <h2>Warnings</h2>
+    {% for warning in warning_details %}
+    <p class="status-note">{{ warning }}</p>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>Primary Mission Records</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Mission</th>
+          <th>ID</th>
+          <th>Readiness</th>
+          <th>Anchors</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mission in primary_missions %}
+        <tr>
+          <td>{{ mission.label }}</td>
+          <td><code>{{ mission.mission_id }}</code></td>
+          <td>{{ mission.mechanics_readiness }}</td>
+          <td>
+            {% for anchor in mission.source_anchors %}
+            <span class="tag">{{ anchor.label }}</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Sources</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Trust</th>
+          <th>Status</th>
+          <th>Reference</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for source in source_refs %}
+        <tr>
+          <td>{{ source.label }}</td>
+          <td>{{ source.trust }}</td>
+          <td>{{ source.retrieval_status }}</td>
+          <td>
+            {% if source.gid %}
+            Sheet id {{ source.sheet_id }}, gid {{ source.gid }}
+            {% else %}
+            Local layout metadata
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</section>
+{% endblock %}

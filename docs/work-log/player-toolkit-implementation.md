@@ -1925,3 +1925,129 @@ Review and blocker status:
 - Consultant and adversarial implementation re-review approved the final diff with no blockers.
 - Protected-path scan passed: no generated/raw/binary/credential paths and no high-confidence
   secret-pattern hits. `AGENTS.md` remained untracked and excluded from staging.
+
+## Phase 9 - Mission Pack Skeleton
+
+Purpose:
+
+- Start Phase 9 without overclaiming mission scoring, objective-control analytics, or captain-level
+  matchup estimates.
+- Add source-safe mission-pack records and a Mission Pack product surface.
+- Derive primary mission labels only from existing layout metadata and record the public Google
+  Sheet as untrusted candidate provenance without fetching or parsing it.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-9-mission-pack-skeleton.md`
+- `docs/superpowers/plans/2026-06-22-phase-9-mission-pack-skeleton.md`
+- `docs/superpowers/qa/2026-06-22-phase-9-mission-pack-skeleton-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-9-consultant-mission-pack-skeleton.md`
+- `docs/superpowers/reviews/2026-06-22-phase-9-adversarial-mission-pack-skeleton.md`
+- `src/warhammer_companion/domain/missions.py`
+- `src/warhammer_companion/application/mission_pack.py`
+- `src/warhammer_companion/application/services.py`
+- `src/warhammer_companion/application/view_models.py`
+- `src/warhammer_companion/web/server.py`
+- `src/warhammer_companion/web/templates/base.html`
+- `src/warhammer_companion/web/templates/mission_pack.html`
+- `src/warhammer_companion/desktop/app.py`
+- `src/warhammer_companion/desktop/main_window.py`
+- `src/warhammer_companion/desktop/screens/mission_pack.py`
+- `tests/test_mission_pack_toolkit.py`
+- `tests/test_application_service.py`
+- `tests/test_web_server.py`
+- `tests/test_desktop_app.py`
+- `README.md`
+- `docs/qa-scenarios.md`
+- `docs/work-log/player-toolkit-implementation.md`
+
+Design decisions:
+
+- This slice is a mission-pack skeleton only. Primary/secondary scoring formulas, action timing,
+  objective control, contest math, denial/flip potential, and team-pairing analytics remain out of
+  scope.
+- `domain/missions.py` owns typed mission source refs, source anchors, mission records, pack
+  records, and payload records.
+- `application/mission_pack.py` builds deterministic `ToolkitResult` payloads from
+  `OFFICIAL_LAYOUT_PAGE_METADATA` only.
+- Mission records use readiness `estimated`, mechanics readiness `source-pending`, stable ids such
+  as `primary-battlefield-dominance`, and Event Companion page anchors.
+- The supplied public Google Sheet URL is stored only as source metadata: URL, sheet id, gid
+  `1565185881`, retrieval status `not_fetched`, trust `untrusted_candidate`, and no content hash
+  because no fetch occurs.
+- No mission-card images, Google Sheet exports, screenshots, full card text, external-sheet
+  payloads, or raw protected source documents are stored.
+- The web route `/mission-pack` is server-rendered with no custom JavaScript.
+- The desktop `Mission Pack` screen is a thin PySide6 adapter over `mission_pack_state(...)`.
+- Desktop smoke now reports `mission_pack_estimate: true`.
+
+TDD and implementation results:
+
+- Red step: `tests/test_mission_pack_toolkit.py` failed with the expected missing
+  `warhammer_companion.application.mission_pack` module before implementation.
+- Green step: mission domain records and the deterministic builder were added; the focused mission
+  toolkit tests passed.
+- Integration red step: the service/web/desktop tests failed on missing `MissionPackState`, route,
+  desktop screen, and smoke-summary key.
+- Green step: shared service state, server-rendered route/template, desktop screen/navigation, and
+  smoke summary were added.
+- The initial combined targeted command timed out at 180 seconds because the desktop suite exceeded
+  that timeout; split suite runs passed and the exact combined command passed when rerun with a
+  longer timeout.
+
+Verification completed:
+
+- Red check before implementation failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py -q`
+  reported missing `warhammer_companion.application.mission_pack`.
+- Focused builder command passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py -q`
+  returned 5 passed.
+- Targeted split checks passed after the initial timeout:
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py tests\test_application_service.py -q`
+    returned 26 passed.
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_web_server.py -q` returned 22 passed with
+    the existing Starlette `TestClient` deprecation warning.
+  - `.\.venv\Scripts\python.exe -m pytest tests\test_desktop_app.py -q` returned 15 passed in
+    208.51 seconds.
+- Exact focused Phase 9 batch passed after raising timeout:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_mission_pack_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 63 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 123 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 403 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, 45 official packets, and `mission_pack_estimate: true`.
+
+Browser QA:
+
+- The local app was launched through a detached child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/mission-pack`.
+- The route rendered heading `Mission Pack`, primary mission records including `Battlefield
+  Dominance` and `Sabotage`, the public sheet source row with sheet id and gid `1565185881`,
+  source-pending/not-fetched/not-ingested warning copy, zero forms, zero `<script>` tags, no
+  traceback/internal-error text, no legal/optimal/recommended/likely/pairing-score claim wording,
+  and no localhost warning/error console logs.
+- The temporary QA tab and server process were closed after Browser QA.
+
+Review and blocker status:
+
+- Consultant reviewer initially required the public Google Sheet candidate metadata to specify the
+  exact URL, sheet id, gid, retrieval status, trust value, and no-content-hash behavior.
+- The spec, plan, QA, and review notes were patched; consultant re-review approved.
+- Adversarial reviewer approved the skeleton-only scope with no blockers.
+- Consultant implementation reviewer approved after checking the Phase 9 acceptance criteria:
+  source refs, warnings, primary mission records, stable ids, page anchors, public-sheet
+  metadata-only handling, web/desktop surfaces, tests, docs, and work-log evidence.
+- Adversarial implementation reviewer approved the diff with no blockers and noted that sheet
+  handling, architecture boundaries, no-JS web behavior, and tests were safe to commit.
+- Protected-path scan passed for the Phase 9 candidate files: no generated/raw/cache/log/build/dist
+  paths, raw PDFs, database/archive files, images, screenshots, Google Sheet exports, or fetched
+  sheet payloads are in the candidate set.
+- A narrowed network-fetch scan over Phase 9 candidate files returned no fetch/HTTP/client library
+  matches.
+- A broad secret-pattern scan hit an existing `data/codex-home` fixture line outside the Phase 9
+  diff; the Phase 9 diff itself adds no credential or secret material.
+- `AGENTS.md` remains user-owned and must stay untracked unless explicitly requested.

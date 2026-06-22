@@ -11,11 +11,18 @@ from warhammer_companion.application.view_models import (
     DeploymentZoneSelectOption,
     HeatmapState,
     HiddenCoverageState,
+    MissionPackState,
     MovementReachState,
     TerrainSelectOption,
     ThreatRangeState,
 )
 from warhammer_companion.domain.damage import DamageProbabilityRow
+from warhammer_companion.domain.missions import (
+    MissionPack,
+    MissionRecord,
+    MissionSourceAnchor,
+    MissionSourceRef,
+)
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.domain.repository import FileBackedMapRepository, StaticMapRepository
@@ -775,6 +782,76 @@ def test_damage_profile_post_redirect_preserves_manual_values() -> None:
     assert response.headers["location"] == (
         "/damage-profile?attacks=2.0&hit=4&wound=4&save=4&damage=2.0&wounds=2.0&models=3.0"
     )
+
+
+def test_mission_pack_route_renders_source_safe_summary_without_javascript(monkeypatch) -> None:
+    source = MissionSourceRef(
+        source_ref_id="public-mission-sheet-candidate",
+        label="Public mission sheet candidate",
+        source_kind="public_sheet_candidate",
+        trust="untrusted_candidate",
+        retrieval_status="not_fetched",
+        url="https://docs.google.com/spreadsheets/d/test/edit?gid=1565185881#gid=1565185881",
+        sheet_id="test",
+        gid="1565185881",
+        content_hash=None,
+        warnings=("Public mission sheet not fetched and not ingested.",),
+    )
+    mission = MissionRecord(
+        mission_id="primary-battlefield-dominance",
+        label="Battlefield Dominance",
+        category="primary",
+        readiness="estimated",
+        source_ref_ids=("event-companion-layout-metadata",),
+        source_anchors=(
+            MissionSourceAnchor(
+                source_ref_id="event-companion-layout-metadata",
+                anchor_id="event-companion-page-9",
+                label="Event Companion page 9",
+                page_number=9,
+            ),
+        ),
+        mechanics_readiness="source-pending",
+    )
+
+    class FakeService:
+        def mission_pack_state(self) -> MissionPackState:
+            return MissionPackState(
+                readiness="estimated",
+                mission_count=1,
+                source_refs=[source],
+                primary_missions=[mission],
+                warning_details=[
+                    "Mission mechanics, scoring, and actions are source-pending.",
+                    "Public mission sheet is not fetched and not ingested.",
+                ],
+                pack=MissionPack(
+                    pack_id="mission-pack-pariah-nexus-skeleton",
+                    label="Mission Pack Skeleton",
+                    schema_version="mission-pack/v0",
+                    readiness="estimated",
+                    source_ref_ids=(source.source_ref_id,),
+                    primary_missions=(mission,),
+                    warnings=("Mission mechanics, scoring, and actions are source-pending.",),
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get("/mission-pack")
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert "Mission Pack" in response.text
+    assert "Battlefield Dominance" in response.text
+    assert "Event Companion page 9" in response.text
+    assert "not fetched" in normalized
+    assert "not ingested" in normalized
+    assert "source-pending" in normalized
+    assert "<script" not in response.text
+    for forbidden in ("legal", "optimal", "recommended", "likely", "pairing-score"):
+        assert forbidden not in normalized
 
 
 def test_pages_do_not_load_custom_frontend_javascript() -> None:

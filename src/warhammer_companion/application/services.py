@@ -13,6 +13,7 @@ from warhammer_companion.application.los_toolkit import (
     LosCheckerToolkitPayload,
     build_los_checker_toolkit_result,
 )
+from warhammer_companion.application.mission_pack import build_mission_pack_toolkit_result
 from warhammer_companion.application.movement_reach import build_movement_reach_toolkit_result
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
@@ -24,6 +25,7 @@ from warhammer_companion.application.view_models import (
     HiddenCoverageState,
     LosCheckerState,
     MapDataState,
+    MissionPackState,
     MovementReachState,
     PacketLayoutOption,
     PacketSelectGroup,
@@ -45,6 +47,7 @@ from warhammer_companion.domain.exposure import (
     exposure_mode_includes_los,
     exposure_mode_includes_threat,
 )
+from warhammer_companion.domain.missions import MissionPackPayload
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
 from warhammer_companion.domain.repository import MapRepository
@@ -609,6 +612,21 @@ class WarhammerCompanionService:
             target_wounds_per_model=wounds,
             target_model_count=models,
         )
+
+    def mission_pack_state(self) -> MissionPackState:
+        result = self.mission_pack_toolkit_result()
+        payload = result.payload
+        return MissionPackState(
+            readiness=result.readiness,
+            mission_count=len(payload.pack.primary_missions),
+            source_refs=list(payload.source_refs),
+            primary_missions=list(payload.pack.primary_missions),
+            warning_details=[warning.detail for warning in result.warnings],
+            pack=payload.pack,
+        )
+
+    def mission_pack_toolkit_result(self) -> ToolkitResult[MissionPackPayload]:
+        return build_mission_pack_toolkit_result()
 
     def hidden_coverage_state(
         self,

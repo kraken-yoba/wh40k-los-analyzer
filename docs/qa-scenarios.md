@@ -36,6 +36,7 @@ Steps:
 9. Open Threat Range.
 10. Open Deployment Exposure.
 11. Open Damage Profile.
+12. Open Mission Pack.
 
 Expected result:
 
@@ -309,12 +310,41 @@ Manual check:
 - Browser QA checks `/damage-profile`, a valid sample query, and a blocked invalid query with no
   console warning/error logs.
 
-## Scenario 11: Cross-Workflow Consistency
+## Scenario 11: Mission Pack Skeleton
+
+Steps:
+
+1. Open Mission Pack.
+2. Inspect source warnings.
+3. Inspect primary mission records.
+4. Inspect source metadata for the public Google Sheet candidate.
+
+Expected result:
+
+- The page renders heading `Mission Pack` without a traceback or blank state.
+- Primary mission labels are visible as short records derived from existing layout metadata.
+- Source warnings state that mechanics, scoring, and actions are source-pending.
+- The public Google Sheet candidate is represented only as untrusted metadata with retrieval status
+  `not_fetched`; no sheet content, card images, screenshots, exports, or full card text appear.
+- The page does not claim legal, optimal, recommended, likely, or pairing-score authority.
+
+Automation:
+
+- Toolkit tests cover deduped labels, stable ids, page anchors, untrusted public-sheet metadata, no
+  overlays, estimated readiness, and no recommendation-language authority.
+- Web tests cover source-safe copy, primary records, zero custom JavaScript, and cautious wording.
+- Desktop smoke checks `mission_pack_estimate: true` and the Mission Pack screen summary.
+
+Manual check:
+
+- Browser QA checks `/mission-pack` with no console warning/error logs.
+
+## Scenario 12: Cross-Workflow Consistency
 
 Steps:
 
 1. Load the same packet in Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat
-   Range, and Deployment Exposure.
+   Range, Deployment Exposure, and Mission Pack.
 2. Compare packet labels, page metadata, board dimensions, terrain shapes, deployment zones, and blocker counts.
 3. Repeat for page 9 and page 52.
 
@@ -334,7 +364,7 @@ Manual check:
 
 - Side-by-side web/desktop rendering comparison for known complex layouts.
 
-## Scenario 12: Packaged Windows Desktop Smoke
+## Scenario 13: Packaged Windows Desktop Smoke
 
 Steps:
 
@@ -342,7 +372,7 @@ Steps:
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
 4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, Deployment
-   Exposure, and Damage Profile with bundled or generated packet data.
+   Exposure, Damage Profile, and Mission Pack with bundled or generated packet data.
 5. Trigger a non-destructive settings/status check.
 
 Expected result:

@@ -70,6 +70,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
     threat_range = service.threat_range_state(packet_id=viewer.packet.id)
     deployment_exposure = service.deployment_exposure_state(packet_id=viewer.packet.id)
     damage_profile = service.damage_profile_toolkit_result()
+    mission_pack = service.mission_pack_toolkit_result()
     hidden_coverage = service.hidden_coverage_state(packet_id=viewer.packet.id)
     return {
         "status": "ok",
@@ -88,6 +89,7 @@ def smoke_test_summary(service: WarhammerCompanionService | None = None) -> dict
         "threat_range_svg": "<svg" in threat_range.map_svg,
         "deployment_exposure_svg": "<svg" in deployment_exposure.map_svg,
         "damage_profile_estimate": damage_profile.readiness == "estimated",
+        "mission_pack_estimate": mission_pack.readiness == "estimated",
         "hidden_coverage_svg": "<svg" in hidden_coverage.map_svg,
         "dense_features": len(viewer.packet.dense_features),
         "light_features": len(viewer.packet.light_features),

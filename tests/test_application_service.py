@@ -586,3 +586,27 @@ def test_damage_profile_state_uses_canonical_default_inputs() -> None:
     assert state.target_wounds_per_model == DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model
     assert state.target_model_count == DEFAULT_TARGET_PROFILE_INPUT.model_count
     assert state.expected_damage == pytest.approx(0.5)
+
+
+def test_mission_pack_state_exposes_sources_records_and_cautious_warnings() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.mission_pack_toolkit_result()
+    state = service.mission_pack_state()
+
+    assert result.tool_id == "mission_pack"
+    assert result.readiness == "estimated"
+    assert not result.overlays
+    assert state.readiness == "estimated"
+    assert state.primary_missions
+    assert state.mission_count == len(state.primary_missions)
+    assert any(mission.label == "Battlefield Dominance" for mission in state.primary_missions)
+    assert any(
+        source.source_ref_id == "public-mission-sheet-candidate" for source in state.source_refs
+    )
+    assert "not fetched" in " ".join(state.warning_details).lower()
+    assert "source-pending" in " ".join(state.warning_details).lower()

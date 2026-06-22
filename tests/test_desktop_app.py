@@ -36,6 +36,7 @@ def test_desktop_smoke_summary_renders_core_states() -> None:
     assert summary["threat_range_svg"]
     assert summary["deployment_exposure_svg"]
     assert summary["damage_profile_estimate"]
+    assert summary["mission_pack_estimate"]
     assert summary["deployment_zones"] == 2
 
 
@@ -255,5 +256,29 @@ def test_desktop_damage_profile_screen_reports_manual_estimate() -> None:
     assert "Expected damage" in status_text
     assert "not roster-derived" in status_text
     assert "effective save supplied by user" in status_text
+    window.close()
+    app.processEvents()
+
+
+def test_desktop_mission_pack_screen_reports_source_safe_summary() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Mission Pack" in labels
+    mission_screen = window.stack.widget(labels.index("Mission Pack"))
+    status_text = mission_screen.status_label.text()
+    mission_text = mission_screen.mission_list_label.text()
+
+    assert "Source-pending" in status_text
+    assert "not fetched" in status_text
+    assert "Battlefield Dominance" in mission_text
+    assert "Sabotage" in mission_text
     window.close()
     app.processEvents()

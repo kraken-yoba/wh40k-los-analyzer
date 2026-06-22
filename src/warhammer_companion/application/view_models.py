@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from warhammer_companion.domain.damage import DamageProbabilityRow
+from warhammer_companion.domain.missions import MissionPack, MissionRecord, MissionSourceRef
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.threat import ThreatDiceOutcome
 from warhammer_companion.ingestion.packet_builder import IngestionReport
@@ -187,6 +188,16 @@ class DamageProfileState:
     models_destroyed_distribution: list[DamageProbabilityRow]
     warning_details: list[str]
     block_reason_details: list[str]
+
+
+@dataclass(frozen=True)
+class MissionPackState:
+    readiness: str
+    mission_count: int
+    source_refs: list[MissionSourceRef]
+    primary_missions: list[MissionRecord]
+    warning_details: list[str]
+    pack: MissionPack
 
 
 @dataclass(frozen=True)

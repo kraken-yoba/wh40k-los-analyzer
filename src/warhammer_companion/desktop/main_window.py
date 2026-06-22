@@ -17,6 +17,7 @@ from warhammer_companion.desktop.screens.heatmap import HeatmapScreen
 from warhammer_companion.desktop.screens.hidden_coverage import HiddenCoverageScreen
 from warhammer_companion.desktop.screens.los_checker import LosCheckerScreen
 from warhammer_companion.desktop.screens.map_data import MapDataScreen
+from warhammer_companion.desktop.screens.mission_pack import MissionPackScreen
 from warhammer_companion.desktop.screens.movement_reach import MovementReachScreen
 from warhammer_companion.desktop.screens.settings import SettingsScreen
 from warhammer_companion.desktop.screens.threat_range import ThreatRangeScreen
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
         self._add_screen("Threat Range", ThreatRangeScreen(service))
         self._add_screen("Deployment Exposure", DeploymentExposureScreen(service))
         self._add_screen("Damage Profile", DamageProfileScreen(service))
+        self._add_screen("Mission Pack", MissionPackScreen(service))
         self._add_screen("Hidden Coverage", HiddenCoverageScreen(service))
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setCurrentRow(2)

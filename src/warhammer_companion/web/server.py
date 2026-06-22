@@ -486,6 +486,24 @@ def damage_profile(
     )
 
 
+@app.get("/mission-pack", response_class=HTMLResponse)
+def mission_pack(request: Request) -> HTMLResponse:
+    state = service.mission_pack_state()
+    return templates.TemplateResponse(
+        request,
+        "mission_pack.html",
+        {
+            "active_page": "mission-pack",
+            "readiness": state.readiness,
+            "mission_count": state.mission_count,
+            "source_refs": state.source_refs,
+            "primary_missions": state.primary_missions,
+            "warning_details": state.warning_details,
+            "pack": state.pack,
+        },
+    )
+
+
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
     packet_id: str | None = Form(None),
