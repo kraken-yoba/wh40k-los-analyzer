@@ -489,6 +489,35 @@ def test_threat_range_state_matches_direct_rendering_path() -> None:
     assert state.map_svg == expected_svg
 
 
+def test_threat_range_state_supports_deployment_zone_source_without_point_marker() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.threat_range_state(
+        packet_id=SAMPLE_PACKETS[0].id,
+        source_x=float("nan"),
+        source_y=999.0,
+        target_x=24.0,
+        target_y=10.0,
+        base=1.57,
+        move=0.0,
+        threat=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+    )
+
+    assert state.source_mode == "deployment-zone"
+    assert state.source_deployment_zone_id == "attacker"
+    assert state.source_label == "Attacker deployment zone"
+    assert state.target_probability >= 0.0
+    assert 'class="threat-source-region"' in state.map_svg
+    assert 'class="threat-source-base"' not in state.map_svg
+
+
 def test_deployment_exposure_toolkit_result_wraps_analysis_before_svg_projection() -> None:
     packet = SAMPLE_PACKETS[0]
     before = packet.model_dump()

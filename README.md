@@ -12,8 +12,7 @@ frontend JavaScript.
 - Internal map model for a 44" x 60" battlefield.
 - Terrain footprints, dense terrain features, and deployment zones.
 - Server-rendered map viewer.
-- LOS heatmap generated from a deployment zone.
-- Base-aware LOS checker that places a model base and renders visibility rays.
+- Line of Sight analysis surface with heatmap and base-aware checker modes.
 - Movement reach, hidden coverage, threat range, deployment exposure, deployment scorecard,
   manual damage profile diagnostics, mission-pack provenance records, and a labels-only Team
   Pairing Matrix dossier.
@@ -38,8 +37,7 @@ http://127.0.0.1:8000
 Useful toolkit routes:
 
 - `/viewer`
-- `/heatmap`
-- `/los-checker`
+- `/los`
 - `/movement-reach`
 - `/hidden-coverage`
 - `/threat-range`
@@ -48,6 +46,8 @@ Useful toolkit routes:
 - `/damage-profile`
 - `/mission-pack`
 - `/team-pairing`
+
+Compatibility redirects remain for old `/heatmap` and `/los-checker` links.
 
 Desktop smoke:
 

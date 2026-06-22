@@ -5,6 +5,8 @@ import json
 from math import isfinite
 
 from shapely.geometry import Point, Polygon
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 from warhammer_companion.application.toolkit import BlockReason, ToolkitResult
 from warhammer_companion.domain.board_state import map_packet_digest
@@ -22,17 +24,26 @@ from warhammer_companion.domain.overlays import MapOverlayLayer, ToolkitAssumpti
 from warhammer_companion.domain.threat import (
     THREAT_MEASUREMENT_CONVENTION,
     THREAT_MODES,
+    THREAT_SOURCE_MODES,
     ThreatDiceOutcome,
     ThreatMode,
     ThreatRangePayload,
+    ThreatSourceMode,
     coerce_threat_mode,
+    coerce_threat_source_mode,
 )
-from warhammer_companion.los.movement import MovementRoutingBudgetExceeded, base_center_region
+from warhammer_companion.los.exposure import allowed_deployment_center_region
+from warhammer_companion.los.movement import (
+    MovementRoutingBudgetExceeded,
+    base_center_region,
+    dense_movement_collision_regions,
+)
 from warhammer_companion.los.threat import (
     target_threat_probability,
     threat_distribution,
     threat_projection,
     threat_projection_regions,
+    threat_projection_regions_from_source_region,
 )
 
 THREAT_RANGE_TOOLKIT_SCHEMA_VERSION = "threat-range-toolkit/v0"
@@ -41,15 +52,21 @@ THREAT_RANGE_TOOLKIT_SCHEMA_VERSION = "threat-range-toolkit/v0"
 def build_threat_range_toolkit_result(
     packet: MapPacket,
     *,
-    source_center: tuple[float, float],
+    source_center: tuple[float, float] = (16.0, 10.0),
     target_point: tuple[float, float],
     base_diameter: float,
     move_distance: float,
     threat_range: float,
     mode: str,
     movement_profile_id: str = "ground-non-mobile",
+    source_mode: str = "point",
+    source_deployment_zone_id: str | None = None,
 ) -> ToolkitResult[ThreatRangePayload]:
     threat_mode = coerce_threat_mode(mode)
+    threat_source_mode = coerce_threat_source_mode(source_mode)
+    resolved_source_deployment_zone_id = source_deployment_zone_id or _default_deployment_zone_id(
+        packet
+    )
     movement_profile = movement_profile_for_id(movement_profile_id)
     coerced_profile_id = movement_profile.profile_id
     effective_move = (
@@ -67,6 +84,8 @@ def build_threat_range_toolkit_result(
         mode=mode,
         movement_profile_id=coerced_profile_id,
         effective_move_distance=effective_move,
+        source_mode=source_mode,
+        source_deployment_zone_id=resolved_source_deployment_zone_id,
     )
     suffix = input_hash.removeprefix("sha256:")[:12]
     block_reasons = _input_block_reasons(
@@ -77,7 +96,29 @@ def build_threat_range_toolkit_result(
         move_distance=move_distance,
         threat_range=threat_range,
         mode=mode,
+        source_mode=source_mode,
+        source_deployment_zone_id=resolved_source_deployment_zone_id,
     )
+    source_region = _source_region_for_payload(
+        packet=packet,
+        source_mode=threat_source_mode,
+        source_center=source_center,
+        source_deployment_zone_id=resolved_source_deployment_zone_id,
+        base_diameter=base_diameter,
+        block_reasons=block_reasons,
+    )
+    source_label = _source_label(
+        packet=packet,
+        source_mode=threat_source_mode,
+        source_deployment_zone_id=resolved_source_deployment_zone_id,
+    )
+    if not block_reasons and threat_source_mode == "deployment-zone" and source_region.is_empty:
+        block_reasons = (
+            BlockReason(
+                "empty-source-region",
+                "Selected deployment zone cannot contain the source base under current geometry.",
+            ),
+        )
     if block_reasons:
         payload = ThreatRangePayload(
             packet=packet,
@@ -96,6 +137,10 @@ def build_threat_range_toolkit_result(
             movement_profile_label=movement_profile.label,
             effective_move_distance=effective_move,
             routing_metadata=_routing_metadata_for_hash(coerced_profile_id),
+            source_mode=threat_source_mode,
+            source_deployment_zone_id=resolved_source_deployment_zone_id,
+            source_center_region=source_region,
+            source_label=source_label,
         )
         return ToolkitResult(
             result_id=f"{packet.id}:threat-range:{suffix}",
@@ -120,24 +165,41 @@ def build_threat_range_toolkit_result(
         movement_profile_id=coerced_profile_id,
     )
     try:
-        regions = threat_projection_regions(
-            packet,
-            source_center=source_center,
-            base_diameter=base_diameter,
-            move_distance=move_distance,
-            threat_range=threat_range,
-            mode=threat_mode,
-            movement_profile_id=coerced_profile_id,
-        )
-        max_region = threat_projection(
-            packet,
-            source_center=source_center,
-            base_diameter=base_diameter,
-            move_distance=move_distance,
-            threat_range=threat_range,
-            mode=threat_mode,
-            movement_profile_id=coerced_profile_id,
-        )
+        max_region: BaseGeometry
+        if threat_source_mode == "deployment-zone":
+            regions = threat_projection_regions_from_source_region(
+                packet,
+                source_center_region=source_region,
+                base_diameter=base_diameter,
+                move_distance=move_distance,
+                threat_range=threat_range,
+                mode=threat_mode,
+                movement_profile_id=coerced_profile_id,
+            )
+            max_region = (
+                unary_union([region.geometry for region in regions]).buffer(0)
+                if regions
+                else Polygon()
+            )
+        else:
+            regions = threat_projection_regions(
+                packet,
+                source_center=source_center,
+                base_diameter=base_diameter,
+                move_distance=move_distance,
+                threat_range=threat_range,
+                mode=threat_mode,
+                movement_profile_id=coerced_profile_id,
+            )
+            max_region = threat_projection(
+                packet,
+                source_center=source_center,
+                base_diameter=base_diameter,
+                move_distance=move_distance,
+                threat_range=threat_range,
+                mode=threat_mode,
+                movement_profile_id=coerced_profile_id,
+            )
     except MovementRoutingBudgetExceeded as exc:
         return _routing_budget_blocked_result(
             packet=packet,
@@ -156,6 +218,10 @@ def build_threat_range_toolkit_result(
             routing_metadata=_routing_metadata_for_hash(coerced_profile_id),
             node_count=exc.node_count,
             node_limit=exc.node_limit,
+            source_mode=threat_source_mode,
+            source_deployment_zone_id=resolved_source_deployment_zone_id,
+            source_center_region=source_region,
+            source_label=source_label,
         )
     target_probability = target_threat_probability(regions, target_point=target_point)
     payload = ThreatRangePayload(
@@ -175,6 +241,10 @@ def build_threat_range_toolkit_result(
         movement_profile_label=movement_profile.label,
         effective_move_distance=effective_move,
         routing_metadata=_routing_metadata_for_hash(coerced_profile_id),
+        source_mode=threat_source_mode,
+        source_deployment_zone_id=resolved_source_deployment_zone_id,
+        source_center_region=source_region,
+        source_label=source_label,
     )
     return ToolkitResult(
         result_id=f"{packet.id}:threat-range:{suffix}",
@@ -247,20 +317,37 @@ def _input_block_reasons(
     move_distance: float,
     threat_range: float,
     mode: str,
+    source_mode: str,
+    source_deployment_zone_id: str,
 ) -> tuple[BlockReason, ...]:
     reasons: list[BlockReason] = []
-    if not _finite_point(source_center):
+    if source_mode not in THREAT_SOURCE_MODES:
+        reasons.append(BlockReason("invalid-source-mode", "Threat source mode is not supported."))
+    if source_mode == "point" and not _finite_point(source_center):
         reasons.append(BlockReason("invalid-source-center", "Source coordinates must be finite."))
+    if source_mode == "deployment-zone" and source_deployment_zone_id not in {
+        zone.id for zone in packet.deployment_zones
+    }:
+        reasons.append(
+            BlockReason(
+                "invalid-source-deployment-zone",
+                "Threat source deployment zone must exist in the selected map packet.",
+            )
+        )
     if not _finite_point(target_point):
         reasons.append(BlockReason("invalid-target-point", "Target coordinates must be finite."))
     if not isfinite(base_diameter) or base_diameter <= 0:
         reasons.append(
             BlockReason("invalid-base-diameter", "Base diameter must be a positive finite number.")
         )
-    elif _finite_point(source_center) and not base_center_region(
-        packet,
-        base_diameter / 2.0,
-    ).covers(Point(source_center)):
+    elif (
+        source_mode == "point"
+        and _finite_point(source_center)
+        and not base_center_region(
+            packet,
+            base_diameter / 2.0,
+        ).covers(Point(source_center))
+    ):
         reasons.append(
             BlockReason(
                 "source-base-outside-board",
@@ -285,6 +372,67 @@ def _input_block_reasons(
     return tuple(reasons)
 
 
+def _source_region_for_payload(
+    *,
+    packet: MapPacket,
+    source_mode: ThreatSourceMode,
+    source_center: tuple[float, float],
+    source_deployment_zone_id: str,
+    base_diameter: float,
+    block_reasons: tuple[BlockReason, ...],
+) -> BaseGeometry:
+    if block_reasons or not isfinite(base_diameter) or base_diameter <= 0:
+        return Polygon()
+    if source_mode == "deployment-zone":
+        return _deployment_source_center_region(
+            packet=packet,
+            source_deployment_zone_id=source_deployment_zone_id,
+            base_radius=base_diameter / 2.0,
+        )
+    if _finite_point(source_center):
+        return Point(source_center)
+    return Polygon()
+
+
+def _deployment_source_center_region(
+    *,
+    packet: MapPacket,
+    source_deployment_zone_id: str,
+    base_radius: float,
+) -> BaseGeometry:
+    region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id=source_deployment_zone_id,
+        base_radius=base_radius,
+    )
+    if region.is_empty:
+        return region
+    dense_collision = dense_movement_collision_regions(packet, base_radius)
+    if not dense_collision.is_empty:
+        region = region.difference(dense_collision)
+    return region.buffer(0)
+
+
+def _source_label(
+    *,
+    packet: MapPacket,
+    source_mode: ThreatSourceMode,
+    source_deployment_zone_id: str,
+) -> str:
+    if source_mode != "deployment-zone":
+        return "Point source"
+    try:
+        return f"{packet.deployment_zone(source_deployment_zone_id).label} deployment zone"
+    except KeyError:
+        return "Deployment zone source"
+
+
+def _default_deployment_zone_id(packet: MapPacket) -> str:
+    if packet.deployment_zones:
+        return packet.deployment_zones[0].id
+    return "attacker"
+
+
 def _threat_range_hash(
     *,
     packet: MapPacket,
@@ -296,32 +444,45 @@ def _threat_range_hash(
     mode: str,
     movement_profile_id: MovementProfileId,
     effective_move_distance: float,
+    source_mode: str,
+    source_deployment_zone_id: str,
 ) -> str:
     profile = movement_profile_for_id(movement_profile_id)
+    uses_movement = mode != "raw-range"
+    uses_deployment_source = source_mode == "deployment-zone"
     payload = {
         "base_diameter": _canonical_float(base_diameter),
         "effective_move_distance": _canonical_float(effective_move_distance),
         "endpoint_occupancy_policy": profile.endpoint_occupancy_policy
-        if mode != "raw-range"
+        if uses_movement
         else "not-applicable",
         "measurement_convention": THREAT_MEASUREMENT_CONVENTION,
         "mode": mode,
         "move_distance": _canonical_float(move_distance),
-        "movement_profile_id": movement_profile_id if mode != "raw-range" else "not-applicable",
+        "movement_profile_id": movement_profile_id if uses_movement else "not-applicable",
         "packet_digest": map_packet_digest(packet),
         "routing_algorithm_version": MOVEMENT_ROUTING_ALGORITHM_VERSION
-        if mode != "raw-range"
+        if uses_movement
         else "not-applicable",
-        "routing_resolution_inches": _canonical_float(1.0) if mode != "raw-range" else "0.000000",
+        "routing_resolution_inches": _canonical_float(1.0) if uses_movement else "0.000000",
         "routing_tolerance_inches": _canonical_float(MOVEMENT_ROUTING_TOLERANCE_INCHES)
-        if mode != "raw-range"
+        if uses_movement
         else "0.000000",
         "schema_version": THREAT_RANGE_TOOLKIT_SCHEMA_VERSION,
-        "source_center": [_canonical_float(value) for value in source_center],
+        "source_center": "not-applicable"
+        if uses_deployment_source
+        else [_canonical_float(value) for value in source_center],
+        "source_deployment_zone_id": source_deployment_zone_id
+        if uses_deployment_source
+        else "not-applicable",
+        "source_mode": source_mode,
+        "source_region_policy": "deployment-zone-eroded-board-fit-dense-endpoint-clear"
+        if uses_deployment_source
+        else "point-center",
         "target_point": [_canonical_float(value) for value in target_point],
         "threat_range": _canonical_float(threat_range),
         "tool_id": "threat_range",
-        "traversal_policy": profile.traversal_policy if mode != "raw-range" else "not-applicable",
+        "traversal_policy": profile.traversal_policy if uses_movement else "not-applicable",
     }
     canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
@@ -359,6 +520,10 @@ def _routing_budget_blocked_result(
     routing_metadata: MovementRoutingMetadata,
     node_count: int,
     node_limit: int,
+    source_mode: ThreatSourceMode,
+    source_deployment_zone_id: str,
+    source_center_region: BaseGeometry,
+    source_label: str,
 ) -> ToolkitResult[ThreatRangePayload]:
     detail = (
         "Movement routing grid is too large for the bounded threat estimator "
@@ -386,6 +551,10 @@ def _routing_budget_blocked_result(
             movement_profile_label=movement_profile_label,
             effective_move_distance=effective_move,
             routing_metadata=routing_metadata,
+            source_mode=source_mode,
+            source_deployment_zone_id=source_deployment_zone_id,
+            source_center_region=source_center_region,
+            source_label=source_label,
         ),
         warnings=(
             ToolkitWarning(

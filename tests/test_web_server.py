@@ -158,6 +158,21 @@ def test_los_analysis_route_renders_checker_mode() -> None:
     assert "<script" not in response.text
 
 
+def test_los_analysis_ignores_malformed_inactive_query_values() -> None:
+    client = TestClient(server.app)
+
+    heatmap = client.get(
+        "/los?mode=heatmap&zone_id=attacker&source=edge&offset_inches=6"
+        "&x=not-a-number&y=also-bad&base=bad"
+    )
+    checker = client.get("/los?mode=checker&x=30.5&y=24&base=1.57&offset_inches=not-an-int")
+
+    assert heatmap.status_code == 200
+    assert 'class="heatmap-image"' in heatmap.text
+    assert checker.status_code == 200
+    assert 'class="coverage-image"' in checker.text
+
+
 def test_legacy_los_routes_redirect_to_canonical_los_surface() -> None:
     client = TestClient(server.app)
 
@@ -233,14 +248,67 @@ def test_los_analysis_post_preserves_mode_values(monkeypatch) -> None:
 
     assert heatmap.status_code == 303
     assert heatmap.headers["location"] == (
-        f"/los?mode=heatmap&packet_id={packet.id}&zone_id=defender"
-        "&source=interior&offset_inches=0"
+        f"/los?mode=heatmap&packet_id={packet.id}&zone_id=defender&source=interior&offset_inches=0"
     )
     assert checker.status_code == 303
     assert checker.headers["location"] == (
         f"/los?mode=checker&packet_id={packet.id}&x=30.5&y=24.0&base=1.57"
     )
     assert resolved_calls == [(packet.id, None, None, None), (packet.id, None, None, None)]
+
+
+def test_los_analysis_post_ignores_malformed_inactive_form_values(monkeypatch) -> None:
+    packet = server.repository.default_packet()
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    heatmap = client.post(
+        "/los",
+        data={
+            "mode": "heatmap",
+            "packet_id": packet.id,
+            "zone_id": "defender",
+            "source": "interior",
+            "offset_inches": "0",
+            "x": "not-a-number",
+            "y": "also-bad",
+            "base": "bad",
+        },
+        follow_redirects=False,
+    )
+    checker = client.post(
+        "/los",
+        data={
+            "mode": "checker",
+            "packet_id": packet.id,
+            "offset_inches": "not-an-int",
+            "x": "30.5",
+            "y": "24",
+            "base": "1.57",
+        },
+        follow_redirects=False,
+    )
+
+    assert heatmap.status_code == 303
+    assert heatmap.headers["location"] == (
+        f"/los?mode=heatmap&packet_id={packet.id}&zone_id=defender&source=interior&offset_inches=0"
+    )
+    assert checker.status_code == 303
+    assert checker.headers["location"] == (
+        f"/los?mode=checker&packet_id={packet.id}&x=30.5&y=24.0&base=1.57"
+    )
 
 
 def test_hidden_coverage_route_uses_terrain_and_range_controls(monkeypatch) -> None:
@@ -400,7 +468,9 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
 def test_threat_range_route_uses_manual_probability_controls_and_cautious_language(
     monkeypatch,
 ) -> None:
-    calls: list[tuple[str, float, float, float, float, float, float, float, str, str]] = []
+    calls: list[
+        tuple[str, str, str, float, float, float, float, float, float, float, str, str]
+    ] = []
     packet = server.repository.default_packet()
     packet_selector = WarhammerCompanionService(
         paths=server.ingestion_paths,
@@ -425,11 +495,15 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
             threat: float = 2.0,
             mode: str = "fixed-move-plus-range",
             movement_profile: str = "ground-non-mobile",
+            source_mode: str = "point",
+            source_deployment_zone_id: str = "attacker",
         ) -> ThreatRangeState:
             resolved_packet_id = packet_id or packet.id
             calls.append(
                 (
                     resolved_packet_id,
+                    source_mode,
+                    source_deployment_zone_id,
                     source_x,
                     source_y,
                     target_x,
@@ -481,6 +555,13 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
                 movement_profile_label="Fly: Take to the Skies",
                 effective_move=4.0,
                 input_hash="sha256:test-threat",
+                source_mode=source_mode,
+                source_deployment_zone_id=source_deployment_zone_id,
+                source_deployment_zone_options=[
+                    DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+                    for zone in packet.deployment_zones
+                ],
+                source_label="Point source",
             )
 
     monkeypatch.setattr(server, "service", FakeService())
@@ -497,6 +578,8 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
     assert calls == [
         (
             packet.id,
+            "point",
+            "attacker",
             16.0,
             10.0,
             24.0,
@@ -509,6 +592,7 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
         )
     ]
     assert "Threat Range" in response.text
+    assert 'name="source_mode"' in response.text
     assert 'name="source_x"' in response.text
     assert 'name="target_x"' in response.text
     assert 'name="threat"' in response.text
@@ -527,6 +611,46 @@ def test_threat_range_route_uses_manual_probability_controls_and_cautious_langua
     assert "<script" not in response.text
     for forbidden in ("legal", " safe", "recommended", "optimal", "likely", "guaranteed"):
         assert forbidden not in normalized
+
+
+def test_threat_range_route_renders_deployment_zone_source_without_javascript() -> None:
+    client = TestClient(server.app)
+
+    response = client.get(
+        "/threat-range?source_mode=deployment-zone&source_deployment_zone_id=attacker"
+        "&source_x=999&source_y=999&target_x=24&target_y=10&base=1.57&move=0"
+        "&threat=2&mode=raw-range&movement_profile=fly-take-to-skies"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert 'name="source_mode"' in response.text
+    assert 'value="deployment-zone" selected' in response.text
+    assert 'name="source_deployment_zone_id"' in response.text
+    assert "Attacker deployment zone" in response.text
+    assert "Source region" in response.text
+    assert "threat-projection-image" in response.text
+    assert "threat-source-region" in response.text
+    assert "threat-source-base" not in response.text
+    assert "<script" not in response.text
+    for forbidden in ("legal", " safe", "recommended", "optimal", "guaranteed"):
+        assert forbidden not in normalized
+
+
+def test_threat_range_deployment_source_ignores_malformed_point_query_values() -> None:
+    client = TestClient(server.app)
+
+    response = client.get(
+        "/threat-range?source_mode=deployment-zone&source_deployment_zone_id=attacker"
+        "&source_x=not-a-number&source_y=also-bad&target_x=24&target_y=10"
+        "&base=1.57&move=0&threat=2&mode=raw-range"
+    )
+
+    assert response.status_code == 200
+    assert 'value="deployment-zone" selected' in response.text
+    assert "Attacker deployment zone" in response.text
+    assert "threat-source-region" in response.text
+    assert "threat-source-base" not in response.text
 
 
 def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None:
@@ -571,10 +695,110 @@ def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None
     assert response.status_code == 303
     assert resolved_calls == [(packet.id, "Take and Hold", "Reconnaissance", "B")]
     assert response.headers["location"] == (
-        f"/threat-range?packet_id={packet.id}&source_x=16.0&source_y=10.0"
+        f"/threat-range?packet_id={packet.id}&source_mode=point"
+        "&source_deployment_zone_id=attacker&source_x=16.0&source_y=10.0"
         "&target_x=24.0&target_y=10.0&base=1.57&move=6.0&threat=2.0"
         "&mode=2d6-move-plus-range&movement_profile=fly-hover-take-to-skies"
     )
+
+
+def test_threat_range_post_deployment_zone_source_does_not_require_point_fields(
+    monkeypatch,
+) -> None:
+    packet = server.repository.default_packet()
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/threat-range",
+        data={
+            "packet_id": packet.id,
+            "source_mode": "deployment-zone",
+            "source_deployment_zone_id": "defender",
+            "target_x": "24",
+            "target_y": "10",
+            "base": "1.57",
+            "move": "6",
+            "threat": "2",
+            "mode": "fixed-move-plus-range",
+            "movement_profile": "ground-mobile",
+        },
+        follow_redirects=False,
+    )
+    location = urlparse(response.headers["location"])
+    params = parse_qs(location.query)
+
+    assert response.status_code == 303
+    assert resolved_calls == [(packet.id, None, None, None)]
+    assert location.path == "/threat-range"
+    assert params["source_mode"] == ["deployment-zone"]
+    assert params["source_deployment_zone_id"] == ["defender"]
+    assert "source_x" not in params
+    assert "source_y" not in params
+    assert params["target_x"] == ["24.0"]
+    assert params["movement_profile"] == ["ground-mobile"]
+
+
+def test_threat_range_post_deployment_zone_source_ignores_malformed_point_fields(
+    monkeypatch,
+) -> None:
+    packet = server.repository.default_packet()
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/threat-range",
+        data={
+            "packet_id": packet.id,
+            "source_mode": "deployment-zone",
+            "source_deployment_zone_id": "defender",
+            "source_x": "not-a-number",
+            "source_y": "also-bad",
+            "target_x": "24",
+            "target_y": "10",
+            "base": "1.57",
+            "move": "6",
+            "threat": "2",
+            "mode": "fixed-move-plus-range",
+            "movement_profile": "ground-mobile",
+        },
+        follow_redirects=False,
+    )
+    location = urlparse(response.headers["location"])
+    params = parse_qs(location.query)
+
+    assert response.status_code == 303
+    assert location.path == "/threat-range"
+    assert params["source_mode"] == ["deployment-zone"]
+    assert params["source_deployment_zone_id"] == ["defender"]
+    assert "source_x" not in params
+    assert "source_y" not in params
 
 
 def test_deployment_exposure_route_uses_manual_controls_and_cautious_language(

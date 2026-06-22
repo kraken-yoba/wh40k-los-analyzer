@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 
 from warhammer_companion.domain.models import (
     BoardSize,
@@ -14,11 +14,14 @@ from warhammer_companion.domain.models import (
     TerrainKind,
 )
 from warhammer_companion.domain.packet_io import load_packet_directory
+from warhammer_companion.los.exposure import allowed_deployment_center_region
+from warhammer_companion.los.movement import movement_envelope_from_region
 from warhammer_companion.los.threat import (
     target_threat_probability,
     threat_distribution,
     threat_projection,
     threat_projection_regions,
+    threat_projection_regions_from_source_region,
     threat_reach_probability,
 )
 
@@ -218,6 +221,113 @@ def test_threat_distribution_records_effective_move_after_fly_penalty() -> None:
     assert distribution[0].total_reach == pytest.approx(6.5)
 
 
+def test_zero_move_source_region_movement_returns_endpoint_clear_source_region() -> None:
+    packet = _deployment_threat_route_packet()
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=0.25,
+    )
+
+    envelope = movement_envelope_from_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=0.0,
+        movement_profile_id="ground-mobile",
+    )
+
+    assert envelope.covers(Point(2.0, 5.0))
+    assert not envelope.covers(Point(3.5, 5.0))
+
+
+def test_raw_threat_projection_from_source_region_buffers_source_region() -> None:
+    packet = _deployment_threat_route_packet()
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=0.25,
+    )
+
+    regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=9.0,
+        threat_range=1.0,
+        mode="raw-range",
+        movement_profile_id="fly-take-to-skies",
+    )
+
+    expected = source_region.buffer(1.25).intersection(box(0.0, 0.0, 10.0, 10.0)).buffer(0)
+    assert len(regions) == 1
+    assert regions[0].geometry.normalize().equals_exact(expected.normalize(), tolerance=0.001)
+
+
+def test_move_plus_range_from_source_region_uses_profile_aware_routing() -> None:
+    packet = _deployment_threat_route_packet()
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=0.25,
+    )
+    target = (8.2, 5.0)
+
+    non_mobile_regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=5.2,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-non-mobile",
+    )
+    mobile_regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=5.2,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-mobile",
+    )
+
+    assert target_threat_probability(non_mobile_regions, target_point=target) == pytest.approx(0.0)
+    assert target_threat_probability(mobile_regions, target_point=target) == pytest.approx(1.0)
+
+
+def test_fly_penalty_changes_source_region_threat_probability() -> None:
+    packet = _deployment_threat_route_packet()
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=0.25,
+    )
+    target = (8.2, 5.0)
+
+    penalized_regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=5.5,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="fly-take-to-skies",
+    )
+    hover_regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=0.5,
+        move_distance=5.5,
+        threat_range=0.1,
+        mode="fixed-move-plus-range",
+        movement_profile_id="fly-hover-take-to-skies",
+    )
+
+    assert target_threat_probability(penalized_regions, target_point=target) == pytest.approx(0.0)
+    assert target_threat_probability(hover_regions, target_point=target) == pytest.approx(1.0)
+
+
 def test_official_page_9_page_52_threat_routing_smoke() -> None:
     packets = _official_seed_packets()
 
@@ -254,6 +364,50 @@ def test_official_page_9_page_52_threat_routing_smoke() -> None:
             assert target_threat_probability(mobile_regions, target_point=target) == pytest.approx(
                 1.0
             )
+
+
+def test_deployment_zone_source_page_9_threat_projection_smoke() -> None:
+    packet = _official_seed_packets()["official-event-companion-page-9"]
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="attacker",
+        base_radius=1.57 / 2.0,
+    )
+
+    regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=1.57,
+        move_distance=9.0,
+        threat_range=0.5,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-mobile",
+    )
+
+    assert len(regions) == 1
+    assert not regions[0].geometry.is_empty
+
+
+def test_deployment_zone_source_page_52_threat_projection_smoke() -> None:
+    packet = _official_seed_packets()["official-event-companion-page-52"]
+    source_region = allowed_deployment_center_region(
+        packet,
+        deployment_zone_id="defender",
+        base_radius=1.57 / 2.0,
+    )
+
+    regions = threat_projection_regions_from_source_region(
+        packet,
+        source_center_region=source_region,
+        base_diameter=1.57,
+        move_distance=9.0,
+        threat_range=0.5,
+        mode="fixed-move-plus-range",
+        movement_profile_id="ground-mobile",
+    )
+
+    assert len(regions) == 1
+    assert not regions[0].geometry.is_empty
 
 
 def _threat_packet(
@@ -332,5 +486,42 @@ def _threat_route_packet() -> MapPacket:
                 label="Attacker",
                 footprint=[(0.0, 0.0), (10.0, 0.0), (10.0, 2.0), (0.0, 2.0)],
             )
+        ],
+    )
+
+
+def _deployment_threat_route_packet() -> MapPacket:
+    terrain = TerrainArea(
+        id="route-ruin",
+        label="Route Ruin",
+        kind=TerrainKind.RUINS,
+        footprint=[(4.0, 3.5), (6.0, 3.5), (6.0, 6.5), (4.0, 6.5)],
+    )
+    return MapPacket(
+        id="deployment-threat-route-test",
+        name="Deployment Threat Route Test",
+        source="unit test",
+        board=BoardSize(width=10.0, height=10.0),
+        terrain_areas=[terrain],
+        dense_features=[
+            DenseTerrainFeature(
+                id="route-dense",
+                terrain_area_id=terrain.id,
+                label="Route Dense",
+                footprint=terrain.footprint,
+                profile="container_or_solid",
+            )
+        ],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0.5, 4.0), (3.0, 4.0), (3.0, 6.0), (0.5, 6.0)],
+            ),
+            DeploymentZone(
+                id="defender",
+                label="Defender",
+                footprint=[(7.0, 4.0), (9.5, 4.0), (9.5, 6.0), (7.0, 6.0)],
+            ),
         ],
     )

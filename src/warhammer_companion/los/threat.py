@@ -16,7 +16,7 @@ from warhammer_companion.domain.threat import (
     ThreatProjectionRegion,
     coerce_threat_mode,
 )
-from warhammer_companion.los.movement import movement_envelope
+from warhammer_companion.los.movement import movement_envelope, movement_envelope_from_region
 
 
 def threat_projection(
@@ -82,6 +82,47 @@ def threat_projection_regions(
                 movement_profile_id=movement_profile_id,
             )
             region = centers.buffer(base_radius + threat_range).intersection(board)
+        regions.append(ThreatProjectionRegion(outcome=outcome, geometry=region.buffer(0)))
+    return tuple(regions)
+
+
+def threat_projection_regions_from_source_region(
+    packet: MapPacket,
+    *,
+    source_center_region: BaseGeometry,
+    base_diameter: float,
+    move_distance: float,
+    threat_range: float,
+    mode: str,
+    movement_profile_id: str = DEFAULT_MOVEMENT_PROFILE_ID,
+) -> tuple[ThreatProjectionRegion, ...]:
+    _require_non_negative("move_distance", move_distance)
+    _require_non_negative("threat_range", threat_range)
+    _require_positive("base_diameter", base_diameter)
+    threat_mode = coerce_threat_mode(mode)
+    board = _board_region(packet)
+    base_radius = base_diameter / 2.0
+    source_region = source_center_region.intersection(board)
+    distribution = threat_distribution(
+        mode=threat_mode,
+        move_distance=move_distance,
+        threat_range=threat_range,
+        base_diameter=base_diameter,
+        movement_profile_id=movement_profile_id,
+    )
+    regions: list[ThreatProjectionRegion] = []
+    for outcome in distribution:
+        if threat_mode == "raw-range" or outcome.effective_move_distance <= 0:
+            centers = source_region
+        else:
+            centers = movement_envelope_from_region(
+                packet,
+                source_center_region=source_region,
+                base_diameter=base_diameter,
+                move_distance=move_distance + outcome.variable_inches,
+                movement_profile_id=movement_profile_id,
+            )
+        region = centers.buffer(base_radius + threat_range).intersection(board)
         regions.append(ThreatProjectionRegion(outcome=outcome, geometry=region.buffer(0)))
     return tuple(regions)
 

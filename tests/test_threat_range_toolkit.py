@@ -73,6 +73,163 @@ def test_threat_range_toolkit_blocks_source_base_that_overhangs_board() -> None:
     assert [reason.reason_id for reason in result.block_reasons] == ["source-base-outside-board"]
 
 
+def test_threat_range_toolkit_deployment_zone_source_ignores_source_coordinates() -> None:
+    packet = SAMPLE_PACKETS[0]
+    finite = build_threat_range_toolkit_result(
+        packet,
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+    )
+    invalid_point = build_threat_range_toolkit_result(
+        packet,
+        source_center=(float("nan"), 999.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+    )
+
+    assert finite.readiness == "estimated"
+    assert invalid_point.readiness == "estimated"
+    assert finite.input_hash == invalid_point.input_hash
+    assert finite.payload.source_mode == "deployment-zone"
+    assert finite.payload.source_deployment_zone_id == "attacker"
+    assert finite.payload.max_threat_region.equals_exact(
+        invalid_point.payload.max_threat_region,
+        tolerance=0.001,
+    )
+
+
+def test_threat_range_toolkit_invalid_source_mode_blocks_without_overlays() -> None:
+    result = build_threat_range_toolkit_result(
+        SAMPLE_PACKETS[0],
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="army-roster",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert "invalid-source-mode" in {reason.reason_id for reason in result.block_reasons}
+
+
+def test_threat_range_toolkit_invalid_source_deployment_zone_blocks_without_overlays() -> None:
+    result = build_threat_range_toolkit_result(
+        SAMPLE_PACKETS[0],
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="missing",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert [reason.reason_id for reason in result.block_reasons] == [
+        "invalid-source-deployment-zone"
+    ]
+
+
+def test_threat_range_toolkit_empty_source_region_blocks_without_overlays() -> None:
+    result = build_threat_range_toolkit_result(
+        _empty_source_region_packet(),
+        source_center=(16.0, 10.0),
+        target_point=(5.0, 5.0),
+        base_diameter=4.0,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+    )
+
+    assert result.readiness == "blocked"
+    assert not result.overlays
+    assert [reason.reason_id for reason in result.block_reasons] == ["empty-source-region"]
+
+
+def test_threat_range_toolkit_source_zone_changes_identity() -> None:
+    packet = SAMPLE_PACKETS[0]
+    attacker = build_threat_range_toolkit_result(
+        packet,
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+    )
+    defender = build_threat_range_toolkit_result(
+        packet,
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="defender",
+    )
+
+    assert attacker.input_hash != defender.input_hash
+    assert not attacker.payload.max_threat_region.equals_exact(
+        defender.payload.max_threat_region,
+        tolerance=0.001,
+    )
+
+
+def test_threat_range_toolkit_raw_deployment_source_is_profile_invariant() -> None:
+    packet = SAMPLE_PACKETS[0]
+    non_mobile = build_threat_range_toolkit_result(
+        packet,
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=9.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+        movement_profile_id="ground-non-mobile",
+    )
+    fly = build_threat_range_toolkit_result(
+        packet,
+        source_center=(16.0, 10.0),
+        target_point=(24.0, 10.0),
+        base_diameter=1.57,
+        move_distance=9.0,
+        threat_range=2.0,
+        mode="raw-range",
+        source_mode="deployment-zone",
+        source_deployment_zone_id="attacker",
+        movement_profile_id="fly-take-to-skies",
+    )
+
+    assert non_mobile.input_hash == fly.input_hash
+    assert non_mobile.payload.max_threat_region.equals_exact(
+        fly.payload.max_threat_region,
+        tolerance=0.001,
+    )
+
+
 def test_threat_range_toolkit_blocks_oversized_routing_grid_without_raising() -> None:
     result = build_threat_range_toolkit_result(
         _oversized_route_packet(),
@@ -228,6 +385,24 @@ def _oversized_route_packet() -> MapPacket:
                 id="attacker",
                 label="Attacker",
                 footprint=[(0.0, 0.0), (200.0, 0.0), (200.0, 20.0), (0.0, 20.0)],
+            )
+        ],
+    )
+
+
+def _empty_source_region_packet() -> MapPacket:
+    return MapPacket(
+        id="empty-source-region",
+        name="Empty Source Region",
+        source="Synthetic empty source region fixture.",
+        board=BoardSize(width=10.0, height=10.0),
+        terrain_areas=[],
+        dense_features=[],
+        deployment_zones=[
+            DeploymentZone(
+                id="attacker",
+                label="Attacker",
+                footprint=[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             )
         ],
     )

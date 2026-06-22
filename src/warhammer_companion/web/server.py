@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from math import isfinite
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -195,23 +196,30 @@ def los_analysis(
     mode: str = "heatmap",
     zone_id: str = "attacker",
     source: str = "edge",
-    offset_inches: int = 0,
-    x: float = 22.0,
-    y: float = 10.0,
-    base: float = 1.57,
+    offset_inches: str = "0",
+    x: str = "22.0",
+    y: str = "10.0",
+    base: str = "1.57",
 ) -> HTMLResponse:
+    active_mode = "checker" if mode == "checker" else "heatmap"
+    active_offset_inches = (
+        0 if active_mode == "checker" else _parse_int_param(offset_inches, "offset_inches")
+    )
+    active_x = 22.0 if active_mode == "heatmap" else _parse_float_param(x, "x")
+    active_y = 10.0 if active_mode == "heatmap" else _parse_float_param(y, "y")
+    active_base = 1.57 if active_mode == "heatmap" else _parse_float_param(base, "base")
     state = service.los_analysis_state(
         packet_id=packet_id,
         player_a=player_a,
         player_b=player_b,
         layout_variant=layout_variant,
-        mode=mode,
+        mode=active_mode,
         zone_id=zone_id,
         source=source,
-        offset_inches=offset_inches,
-        x=x,
-        y=y,
-        base=base,
+        offset_inches=active_offset_inches,
+        x=active_x,
+        y=active_y,
+        base=active_base,
     )
     return templates.TemplateResponse(
         request,
@@ -325,8 +333,8 @@ def threat_range(
     player_a: str | None = None,
     player_b: str | None = None,
     layout_variant: str | None = None,
-    source_x: float = 16.0,
-    source_y: float = 10.0,
+    source_x: str = "16.0",
+    source_y: str = "10.0",
     target_x: float = 24.0,
     target_y: float = 10.0,
     base: float = 1.57,
@@ -334,14 +342,18 @@ def threat_range(
     threat: float = 2.0,
     mode: str = "fixed-move-plus-range",
     movement_profile: str = "ground-non-mobile",
+    source_mode: str = "point",
+    source_deployment_zone_id: str = "attacker",
 ) -> HTMLResponse:
+    active_source_x = _parse_float_param(source_x, "source_x") if source_mode == "point" else 16.0
+    active_source_y = _parse_float_param(source_y, "source_y") if source_mode == "point" else 10.0
     state = service.threat_range_state(
         packet_id=packet_id,
         player_a=player_a,
         player_b=player_b,
         layout_variant=layout_variant,
-        source_x=source_x,
-        source_y=source_y,
+        source_x=active_source_x,
+        source_y=active_source_y,
         target_x=target_x,
         target_y=target_y,
         base=base,
@@ -349,6 +361,8 @@ def threat_range(
         threat=threat,
         mode=mode,
         movement_profile=movement_profile,
+        source_mode=source_mode,
+        source_deployment_zone_id=source_deployment_zone_id,
     )
     return templates.TemplateResponse(
         request,
@@ -367,6 +381,11 @@ def threat_range(
             "threat": state.threat,
             "mode": state.mode,
             "threat_modes": state.threat_modes,
+            "source_mode": state.source_mode,
+            "source_modes": state.source_modes,
+            "source_deployment_zone_id": state.source_deployment_zone_id,
+            "source_deployment_zone_options": state.source_deployment_zone_options,
+            "source_label": state.source_label,
             "movement_profile": state.movement_profile,
             "movement_profiles": state.movement_profiles,
             "movement_profile_label": state.movement_profile_label,
@@ -721,10 +740,10 @@ def update_los_analysis(
     mode: str = Form("heatmap"),
     zone_id: str = Form("attacker"),
     source: str = Form("edge"),
-    offset_inches: int = Form(0),
-    x: float = Form(22.0),
-    y: float = Form(10.0),
-    base: float = Form(1.57),
+    offset_inches: str = Form("0"),
+    x: str = Form("22.0"),
+    y: str = Form("10.0"),
+    base: str = Form("1.57"),
 ) -> RedirectResponse:
     resolved_packet_id = service.resolve_packet_id(
         packet_id=packet_id,
@@ -733,20 +752,24 @@ def update_los_analysis(
         layout_variant=layout_variant,
     )
     if mode == "checker":
+        active_x = _parse_float_param(x, "x")
+        active_y = _parse_float_param(y, "y")
+        active_base = _parse_float_param(base, "base")
         params = {
             "mode": "checker",
             "packet_id": resolved_packet_id,
-            "x": x,
-            "y": y,
-            "base": base,
+            "x": active_x,
+            "y": active_y,
+            "base": active_base,
         }
     else:
+        active_offset_inches = _parse_int_param(offset_inches, "offset_inches")
         params = {
             "mode": "heatmap",
             "packet_id": resolved_packet_id,
             "zone_id": zone_id,
             "source": source,
-            "offset_inches": offset_inches,
+            "offset_inches": active_offset_inches,
         }
     return RedirectResponse(
         "/los?" + urlencode(params),
@@ -953,8 +976,10 @@ def update_threat_range(
     player_a: str | None = Form(None),
     player_b: str | None = Form(None),
     layout_variant: str | None = Form(None),
-    source_x: float = Form(...),
-    source_y: float = Form(...),
+    source_mode: str = Form("point"),
+    source_deployment_zone_id: str = Form("attacker"),
+    source_x: str = Form("16.0"),
+    source_y: str = Form("10.0"),
     target_x: float = Form(...),
     target_y: float = Form(...),
     base: float = Form(...),
@@ -969,22 +994,27 @@ def update_threat_range(
         player_b=player_b,
         layout_variant=layout_variant,
     )
+    params: dict[str, object] = {
+        "packet_id": resolved_packet_id,
+        "source_mode": source_mode,
+        "source_deployment_zone_id": source_deployment_zone_id,
+    }
+    if source_mode == "point":
+        params["source_x"] = _parse_float_param(source_x, "source_x")
+        params["source_y"] = _parse_float_param(source_y, "source_y")
+    params.update(
+        {
+            "target_x": target_x,
+            "target_y": target_y,
+            "base": base,
+            "move": move,
+            "threat": threat,
+            "mode": mode,
+            "movement_profile": movement_profile,
+        }
+    )
     return RedirectResponse(
-        "/threat-range?"
-        + urlencode(
-            {
-                "packet_id": resolved_packet_id,
-                "source_x": source_x,
-                "source_y": source_y,
-                "target_x": target_x,
-                "target_y": target_y,
-                "base": base,
-                "move": move,
-                "threat": threat,
-                "mode": mode,
-                "movement_profile": movement_profile,
-            }
-        ),
+        "/threat-range?" + urlencode(params),
         status_code=303,
     )
 
@@ -1004,3 +1034,22 @@ def _settings_codex_error_redirect(exc: Exception) -> RedirectResponse:
 
 def _without_none(values: dict[str, object | None]) -> dict[str, object]:
     return {key: value for key, value in values.items() if value is not None}
+
+
+def _parse_float_param(value: str, field_name: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail=f"{field_name} must be a finite number"
+        ) from exc
+    if not isfinite(parsed):
+        raise HTTPException(status_code=422, detail=f"{field_name} must be a finite number")
+    return parsed
+
+
+def _parse_int_param(value: str, field_name: str) -> int:
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"{field_name} must be an integer") from exc

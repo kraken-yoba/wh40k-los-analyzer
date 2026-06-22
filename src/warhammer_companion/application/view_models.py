@@ -178,6 +178,11 @@ class ThreatRangeState:
     movement_profile_label: str = "Ground non-mobile"
     effective_move: float = 0.0
     input_hash: str = ""
+    source_mode: str = "point"
+    source_modes: list[str] = field(default_factory=lambda: ["point", "deployment-zone"])
+    source_deployment_zone_id: str = "attacker"
+    source_deployment_zone_options: list[DeploymentZoneSelectOption] = field(default_factory=list)
+    source_label: str = "Point source"
 
 
 @dataclass(frozen=True)

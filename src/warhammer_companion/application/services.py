@@ -69,7 +69,7 @@ from warhammer_companion.domain.movement import (
     MovementReachPayload,
 )
 from warhammer_companion.domain.repository import MapRepository
-from warhammer_companion.domain.threat import THREAT_MODES, ThreatRangePayload
+from warhammer_companion.domain.threat import THREAT_MODES, THREAT_SOURCE_MODES, ThreatRangePayload
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import PipelineStage, current_pipeline_status
@@ -430,6 +430,8 @@ class WarhammerCompanionService:
         threat: float = 2.0,
         mode: str = "fixed-move-plus-range",
         movement_profile: str = "ground-non-mobile",
+        source_mode: str = "point",
+        source_deployment_zone_id: str = "attacker",
     ) -> ThreatRangeState:
         result = self.threat_range_toolkit_result(
             packet_id=packet_id,
@@ -445,6 +447,8 @@ class WarhammerCompanionService:
             threat=threat,
             mode=mode,
             movement_profile=movement_profile,
+            source_mode=source_mode,
+            source_deployment_zone_id=source_deployment_zone_id,
         )
         payload = result.payload
         map_svg = (
@@ -453,7 +457,12 @@ class WarhammerCompanionService:
             else render_map_svg(
                 payload.packet,
                 threat_regions=payload.threat_regions,
-                threat_source_center=payload.source_center,
+                threat_source_center=payload.source_center
+                if payload.source_mode == "point"
+                else None,
+                threat_source_region=payload.source_center_region
+                if payload.source_mode == "deployment-zone"
+                else None,
                 threat_target_point=payload.target_point,
                 threat_base_diameter=payload.base_diameter,
             )
@@ -481,6 +490,14 @@ class WarhammerCompanionService:
             movement_profile_label=payload.movement_profile_label,
             effective_move=payload.effective_move_distance,
             input_hash=result.input_hash,
+            source_mode=payload.source_mode,
+            source_modes=list(THREAT_SOURCE_MODES),
+            source_deployment_zone_id=payload.source_deployment_zone_id or "attacker",
+            source_deployment_zone_options=[
+                DeploymentZoneSelectOption(id=zone.id, label=zone.label)
+                for zone in payload.packet.deployment_zones
+            ],
+            source_label=payload.source_label,
         )
 
     def threat_range_toolkit_result(
@@ -499,6 +516,8 @@ class WarhammerCompanionService:
         threat: float = 2.0,
         mode: str = "fixed-move-plus-range",
         movement_profile: str = "ground-non-mobile",
+        source_mode: str = "point",
+        source_deployment_zone_id: str = "attacker",
     ) -> ToolkitResult[ThreatRangePayload]:
         packet = self._selected_packet_by_selector(
             packet_id=packet_id,
@@ -515,6 +534,8 @@ class WarhammerCompanionService:
             threat_range=threat,
             mode=mode,
             movement_profile_id=movement_profile,
+            source_mode=source_mode,
+            source_deployment_zone_id=source_deployment_zone_id,
         )
 
     def deployment_exposure_state(

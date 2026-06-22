@@ -138,6 +138,13 @@ THREAT_SOURCE_BASE_ATTRS: SVG_ATTRS = {
     "stroke": "#8b2f2d",
     "stroke-width": 2,
 }
+THREAT_SOURCE_REGION_ATTRS: SVG_ATTRS = {
+    "fill": "none",
+    "stroke": "#8b2f2d",
+    "stroke-opacity": 0.76,
+    "stroke-width": 2.0,
+    "stroke-dasharray": "5 3",
+}
 THREAT_TARGET_POINT_ATTRS: SVG_ATTRS = {
     "fill": "#1c2520",
     "fill-opacity": 0.86,
@@ -175,6 +182,7 @@ def render_map_svg(
     movement_base_diameter: float | None = None,
     threat_regions: tuple[ThreatProjectionRegion, ...] | None = None,
     threat_source_center: tuple[float, float] | None = None,
+    threat_source_region: BaseGeometry | None = None,
     threat_target_point: tuple[float, float] | None = None,
     threat_base_diameter: float | None = None,
 ) -> str:
@@ -332,6 +340,17 @@ def render_map_svg(
             f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
             f'r="{movement_base_diameter * scale / 2:.1f}" '
             f'class="movement-target-base"{_attrs(MOVEMENT_TARGET_BASE_ATTRS)}/>'
+        )
+
+    if threat_source_region is not None:
+        parts.extend(
+            _render_geometry_outlines(
+                threat_source_region,
+                scale,
+                packet.board.height,
+                "threat-source-region",
+                THREAT_SOURCE_REGION_ATTRS,
+            )
         )
 
     if threat_source_center is not None and threat_base_diameter is not None:

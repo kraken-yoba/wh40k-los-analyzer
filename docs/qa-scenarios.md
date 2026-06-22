@@ -29,8 +29,8 @@ Steps:
 2. Open Settings.
 3. Open Map Data.
 4. Open Map Viewer.
-5. Open LOS Heatmap.
-6. Open LOS Checker.
+5. Open Line of Sight.
+6. Switch Line of Sight between checker and heatmap modes.
 7. Open Movement Reach.
 8. Open Hidden Coverage.
 9. Open Threat Range.
@@ -141,7 +141,7 @@ Steps:
 1. Choose a generated, deletable packet.
 2. Delete it.
 3. Return to Map Data.
-4. Check packet selectors on Viewer, Heatmap, and LOS Checker.
+4. Check packet selectors on Viewer and Line of Sight.
 
 Expected result:
 
@@ -174,7 +174,7 @@ Steps:
 Expected result:
 
 - The selected packet persists after load.
-- Viewer, Heatmap, and LOS Checker expose the same Player A / Player B / terrain layout selector model.
+- Viewer and Line of Sight expose the same Player A / Player B / terrain layout selector model.
 - Force-disposition matchup, primary-mission matchup, layout variant, and Event Companion source page are visible.
 - The map renders board, terrain footprints, dense features, light/review features, labels, and deployment zones.
 - Counts match the loaded packet.
@@ -189,28 +189,35 @@ Manual check:
 
 - Visual plausibility, map orientation, and official terrain feature symmetry.
 
-## Scenario 7: LOS Heatmap
+## Scenario 7: Line Of Sight Analysis
 
 Steps:
 
-1. Open LOS Heatmap.
+1. Open Line of Sight.
 2. Select page 9.
-3. Generate attacker heatmap from deployment edge with offsets 0, 6, and 12.
+3. Use heatmap mode to generate attacker heatmap from deployment edge with offsets 0, 6, and 12.
 4. Switch to defender and repeat at 6.
-5. Switch source mode to full deployment zone.
+5. Switch heatmap source mode to full deployment zone.
+6. Use checker mode with a 1.57 inch base at `(30.5, 24.0)`.
+7. Open old `/heatmap` and `/los-checker` URLs and confirm they redirect to `/los` with the
+   correct mode.
 
 Expected result:
 
+- Line of Sight is one player surface with checker and heatmap modes.
 - Heatmap renders as a pixel-resolution raster overlay.
 - Own deployment or deployment-plus-offset risk area is blanked out.
 - Fully obscured safe zones are outlined.
 - Edge offset uses rounded distance from corners, not a stepped copy of the deployment edge.
-- Switching packet, zone, source, or offset updates the rendered map.
+- Checker mode renders coverage raster, base marker, clear rays, and blocked rays.
+- Switching packet, mode, zone, source, offset, base size, or position updates the rendered map.
+- Web navigation exposes one Line of Sight link, not separate LOS Heatmap and LOS Checker links.
 
 Automation:
 
 - SVG/PNG alpha checks for blanked own-risk area.
-- DOM/widget checks for selected controls and safe-zone outline count.
+- DOM/widget checks for selected controls, safe-zone outline count, checker overlays, canonical
+  redirects, and one Line of Sight nav entry.
 
 Manual check:
 
@@ -220,7 +227,7 @@ Manual check:
 
 Steps:
 
-1. Open LOS Checker.
+1. Open Line of Sight and switch to checker mode.
 2. Select page 9.
 3. Enter a normal base center and 1.57 inch base diameter.
 4. Enter out-of-bounds coordinates.
@@ -286,8 +293,8 @@ Steps:
    base `1.57`, move `9.0`, and Dense 12 between the points.
 3. Submit `Ground non-mobile`, `Ground mobile / infantry`, `Fly: Take to the Skies`, and
    `Fly: Hover / no-cost Take to the Skies`.
-4. Open Threat Range with the same source/target relationship, threat `0.5`, and repeat the
-   profile changes.
+4. Open Threat Range with the same source/target relationship, point source mode, threat `0.5`,
+   and repeat the profile changes.
 5. Open Deployment Exposure and Deployment Scorecard and repeat the enemy movement profile changes
    for a move-plus-range enemy threat mode.
 6. Repeat page 9 and page 52 smoke routes for movement, threat, exposure, and scorecard.
@@ -328,6 +335,48 @@ Manual check:
   Scorecard profile controls plus visible geometry/probability/status changes. If Browser control
   is unavailable, use Computer Use with Firefox; if both are unavailable, record the blocker and run
   equivalent FastAPI route checks.
+
+## Scenario 9N: Threat Range Deployment-Zone Source
+
+Steps:
+
+1. Open Threat Range.
+2. Select deployment-zone source mode, attacker zone, base `1.57`, move `6.0`, threat `2.0`,
+   target `(24.0, 10.0)`, and `fixed-move-plus-range`.
+3. Submit without relying on point source coordinates.
+4. Switch the source deployment zone to defender.
+5. Repeat with `ground-non-mobile`, `ground-mobile`, `fly-take-to-skies`, and
+   `fly-hover-take-to-skies`.
+6. Switch back to point source mode.
+7. Repeat page 9 and page 52 deployment-zone threat source smoke routes.
+
+Expected result:
+
+- Deployment-zone source mode renders a source-region indicator and does not render a single
+  point-source base marker.
+- Point source coordinates are ignored in deployment-zone source mode and validated only in point
+  source mode.
+- Invalid or empty source deployment zones block without tactical overlays.
+- Changing source deployment zone changes the result identity and visible geometry.
+- Move-plus-range deployment-zone threat projection respects the selected movement profile,
+  including mobile traversal and Fly effective movement.
+- `raw-range` deployment-zone threat remains movement-profile invariant.
+- Copy remains estimated and does not claim legal movement, safety, recommendations, or matchup
+  advantage.
+
+Automation:
+
+- Geometry and toolkit tests cover source-region movement, source-zone identity, invalid source
+  blockers, empty source-region blockers, raw-range invariance, profile-aware projection, and page
+  9/page 52 smoke routes.
+- Web and desktop tests cover source mode controls, POST preservation without point source fields,
+  source-region rendering, and absence of a point source marker in deployment-zone source mode.
+- Browser QA checks `/threat-range` source-mode interaction and the page 9/page 52 query routes.
+
+Manual check:
+
+- Visual plausibility of the source-region outline and threat projection when toggling source zone
+  and movement profile.
 
 ## Scenario 9A: Deployment Scorecard
 
@@ -482,7 +531,7 @@ Manual check:
 
 Steps:
 
-1. Load the same packet in Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat
+1. Load the same packet in Viewer, Line of Sight, Movement Reach, Hidden Coverage, Threat
    Range, Deployment Exposure, Deployment Scorecard, Mission Pack, and Team Pairing.
 2. Compare packet labels, page metadata, board dimensions, terrain shapes, deployment zones, and blocker counts.
 3. Repeat for page 9 and page 52.
@@ -491,9 +540,9 @@ Expected result:
 
 - The same packet model drives every workflow.
 - Terrain and dense feature geometry do not diverge between screens.
-- Heatmap, LOS checker, movement, threat, hidden coverage, deployment exposure, deployment
-  scorecard, and team-pairing tools use the documented blocker semantics for their selected
-  assumptions.
+- Line of Sight heatmap/checker modes, movement, threat, hidden coverage, deployment exposure,
+  deployment scorecard, and team-pairing tools use the documented blocker semantics for their
+  selected assumptions.
 
 Automation:
 
@@ -511,7 +560,7 @@ Steps:
 1. Install or unzip the Windows desktop build on a clean profile with no Python installed.
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
-4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, Deployment
+4. Open Viewer, Line of Sight, Movement Reach, Hidden Coverage, Threat Range, Deployment
    Exposure, Deployment Scorecard, Damage Profile, Mission Pack, and Team Pairing with bundled or
    generated packet data.
 5. Trigger a non-destructive settings/status check.

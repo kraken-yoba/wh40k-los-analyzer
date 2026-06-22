@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Hashable, MutableMapping
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -46,7 +47,15 @@ _EnvelopeCacheKey = tuple[
     str,
     float,
 ]
+_RegionRouteFieldCacheKey = tuple[
+    _PacketGeometryKey,
+    float,
+    str,
+    str,
+    float,
+]
 _ROUTE_FIELD_CACHE: dict[_RouteFieldCacheKey, _RouteField] = {}
+_REGION_ROUTE_FIELD_CACHE: dict[_RegionRouteFieldCacheKey, _RouteField] = {}
 _ENVELOPE_CACHE: dict[_EnvelopeCacheKey, BaseGeometry] = {}
 _CACHE_LIMIT = 64
 
@@ -138,6 +147,62 @@ def movement_envelope(
     result = envelope.buffer(0)
     _cache_put(_ENVELOPE_CACHE, cache_key, result)
     return result
+
+
+def movement_envelope_from_region(
+    packet: MapPacket,
+    *,
+    source_center_region: BaseGeometry,
+    base_diameter: float,
+    move_distance: float,
+    movement_profile_id: str = DEFAULT_MOVEMENT_PROFILE_ID,
+    routing_resolution: float = DEFAULT_ROUTING_RESOLUTION_INCHES,
+) -> BaseGeometry:
+    _require_positive("base_diameter", base_diameter)
+    _require_non_negative("move_distance", move_distance)
+    _require_positive("routing_resolution", routing_resolution)
+    base_radius = base_diameter / 2.0
+    board_center_region = base_center_region(packet, base_radius)
+    profile = movement_profile_for_id(movement_profile_id)
+    effective_distance = effective_move_distance(move_distance, profile.profile_id)
+    endpoint_blockers = dense_endpoint_collision_regions(packet, base_radius)
+    source_region = source_center_region.intersection(board_center_region).buffer(0)
+    if not endpoint_blockers.is_empty:
+        source_region = source_region.difference(endpoint_blockers).buffer(0)
+    if source_region.is_empty:
+        return Polygon()
+
+    if effective_distance <= MOVEMENT_ROUTING_TOLERANCE_INCHES:
+        return source_region
+
+    traversal_blockers = _traversal_blockers(packet, base_radius, profile)
+    if profile.ignores_dense_traversal or traversal_blockers.is_empty:
+        envelope = source_region.buffer(effective_distance).intersection(board_center_region)
+        if not endpoint_blockers.is_empty:
+            envelope = envelope.difference(endpoint_blockers)
+        return envelope.buffer(0)
+
+    field = _build_route_field_from_region(
+        packet=packet,
+        base_radius=base_radius,
+        source_center_region=source_region,
+        profile=profile,
+        resolution=routing_resolution,
+    )
+    cells: list[BaseGeometry] = [source_region]
+    cell_radius = min(routing_resolution / 4.0, 0.25)
+    for key, distance in field.distances.items():
+        if distance > effective_distance + _route_budget_tolerance(routing_resolution):
+            continue
+        x, y = field.nodes[key]
+        point = Point(x, y)
+        if not endpoint_blockers.is_empty and endpoint_blockers.covers(point):
+            continue
+        cells.append(point.buffer(cell_radius))
+    envelope = unary_union(cells).intersection(board_center_region)
+    if not endpoint_blockers.is_empty:
+        envelope = envelope.difference(endpoint_blockers)
+    return envelope.buffer(0)
 
 
 def movement_endpoint_diagnostic(
@@ -365,6 +430,11 @@ def _require_positive(field_name: str, value: float) -> None:
         raise ValueError(f"{field_name} must be positive")
 
 
+def _require_non_negative(field_name: str, value: float) -> None:
+    if not isfinite(value) or value < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+
+
 def _require_finite_point(field_name: str, point: tuple[float, float]) -> None:
     if len(point) != 2 or not all(isfinite(value) for value in point):
         raise ValueError(f"{field_name} must contain two finite coordinates")
@@ -471,6 +541,78 @@ def _build_route_field(
     return field
 
 
+def _build_route_field_from_region(
+    *,
+    packet: MapPacket,
+    base_radius: float,
+    source_center_region: BaseGeometry,
+    profile: MovementProfile,
+    resolution: float,
+) -> _RouteField:
+    cache_key: _RegionRouteFieldCacheKey = (
+        _packet_geometry_key(packet),
+        round(base_radius, 6),
+        _geometry_digest(source_center_region),
+        profile.profile_id,
+        round(resolution, 6),
+    )
+    cached = _REGION_ROUTE_FIELD_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    board_center_region = base_center_region(packet, base_radius)
+    blockers = _traversal_blockers(packet, base_radius, profile)
+    nodes = _route_nodes(
+        board_center_region=board_center_region,
+        blockers=blockers,
+        resolution=resolution,
+    )
+    if len(nodes) > MAX_ROUTING_GRID_NODES:
+        raise MovementRoutingBudgetExceeded(
+            node_count=len(nodes),
+            node_limit=MAX_ROUTING_GRID_NODES,
+        )
+    source_keys = tuple(
+        key for key, node in nodes.items() if source_center_region.covers(Point(node))
+    )
+    if not source_keys:
+        metadata = _routing_metadata(
+            profile=profile,
+            resolution=resolution,
+            node_count=len(nodes),
+            snapped_endpoint=None,
+        )
+        field = _RouteField(
+            nodes=nodes,
+            distances={},
+            previous={},
+            start_key=(0, 0),
+            metadata=metadata,
+        )
+        _cache_put(_REGION_ROUTE_FIELD_CACHE, cache_key, field)
+        return field
+    distances, previous = _multi_source_dijkstra(
+        nodes=nodes,
+        source_keys=source_keys,
+        resolution=resolution,
+        blockers=blockers,
+    )
+    metadata = _routing_metadata(
+        profile=profile,
+        resolution=resolution,
+        node_count=len(nodes),
+        snapped_endpoint=None,
+    )
+    field = _RouteField(
+        nodes=nodes,
+        distances=distances,
+        previous=previous,
+        start_key=source_keys[0],
+        metadata=metadata,
+    )
+    _cache_put(_REGION_ROUTE_FIELD_CACHE, cache_key, field)
+    return field
+
+
 def _route_nodes(
     *,
     board_center_region: BaseGeometry,
@@ -533,6 +675,32 @@ def _dijkstra(
     distances: dict[_GridKey, float] = {start_key: 0.0}
     previous: dict[_GridKey, _GridKey | None] = {start_key: None}
     queue: list[tuple[float, _GridKey]] = [(0.0, start_key)]
+    while queue:
+        current_distance, key = heappop(queue)
+        if current_distance > distances[key]:
+            continue
+        for neighbor in _neighbors(key, nodes, blockers):
+            cost = _edge_cost(key, neighbor, nodes, resolution)
+            candidate = current_distance + cost
+            if candidate + 1e-9 < distances.get(neighbor, float("inf")):
+                distances[neighbor] = candidate
+                previous[neighbor] = key
+                heappush(queue, (candidate, neighbor))
+    return distances, previous
+
+
+def _multi_source_dijkstra(
+    *,
+    nodes: dict[_GridKey, tuple[float, float]],
+    source_keys: tuple[_GridKey, ...],
+    resolution: float,
+    blockers: BaseGeometry,
+) -> tuple[dict[_GridKey, float], dict[_GridKey, _GridKey | None]]:
+    distances: dict[_GridKey, float] = {key: 0.0 for key in source_keys}
+    previous: dict[_GridKey, _GridKey | None] = {key: None for key in source_keys}
+    queue: list[tuple[float, _GridKey]] = []
+    for key in source_keys:
+        heappush(queue, (0.0, key))
     while queue:
         current_distance, key = heappop(queue)
         if current_distance > distances[key]:
@@ -637,6 +805,10 @@ def _packet_geometry_key(packet: MapPacket) -> _PacketGeometryKey:
         if feature.blocks_los
     )
     return (packet.id, round(packet.board.width, 6), round(packet.board.height, 6), features)
+
+
+def _geometry_digest(geometry: BaseGeometry) -> str:
+    return hashlib.sha256(geometry.buffer(0).wkb).hexdigest()
 
 
 def _cache_put[CacheKey: Hashable, CacheValue](

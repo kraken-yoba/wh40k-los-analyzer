@@ -165,6 +165,31 @@ def test_threat_projection_renders_probability_raster_and_markers() -> None:
     assert int(positive_alpha.max()) > int(positive_alpha.min())
 
 
+def test_threat_source_region_renders_without_point_source_marker() -> None:
+    packet = SAMPLE_PACKETS[0]
+    regions = threat_projection_regions(
+        packet,
+        source_center=(16.0, 10.0),
+        base_diameter=1.57,
+        move_distance=0.0,
+        threat_range=2.0,
+        mode="raw-range",
+    )
+    source_region = packet.deployment_zone("attacker").polygon().buffer(-1.57 / 2.0)
+
+    svg = render_map_svg(
+        packet,
+        threat_regions=regions,
+        threat_source_region=source_region,
+        threat_target_point=(24.0, 10.0),
+        threat_base_diameter=1.57,
+    )
+
+    assert 'class="threat-source-region"' in svg
+    assert 'class="threat-source-base"' not in svg
+    assert 'class="threat-projection-image"' in svg
+
+
 def test_deployment_exposure_projection_reuses_existing_overlay_primitives() -> None:
     packet = SAMPLE_PACKETS[0]
     threat_regions = threat_projection_regions(

@@ -2580,3 +2580,135 @@ Manual QA status:
   browser.
 - Until Browser or Computer Use is restored, the authoritative fallback evidence is the FastAPI
   route rendering above plus automated web, service, geometry, and desktop smoke tests.
+
+## 2026-06-22 - LOS Analysis And Deployment Threat Source
+
+Scope:
+
+- Merged the separate LOS Heatmap and LOS Checker player surfaces into one switchable Line of Sight
+  surface with canonical web route `/los`.
+- Kept old `/heatmap` and `/los-checker` URLs as compatibility redirects to `/los` with the
+  appropriate mode and preserved values.
+- Added deployment-zone source mode to Threat Range so the source can be inferred from valid
+  deployment-zone center geometry instead of only a point source.
+- Added source-region movement and threat projection primitives that reuse the existing mobile,
+  non-mobile, Fly, and Hover/no-cost movement assumptions.
+
+Design decisions:
+
+- The LOS merge is a thin application/UI facade over existing heatmap and checker engines rather
+  than a rewrite of LOS geometry.
+- Threat Range deployment-zone source mode uses an eroded deployment-zone source-center region
+  cleared of dense endpoint occupancy; it blocks if that region is empty.
+- Point source coordinates are deliberately ignored in deployment-zone source mode and remain
+  validated only in point mode.
+- Deployment Exposure and Deployment Scorecard were not changed in this slice because they still
+  combine enemy threat with point-source enemy LOS.
+
+Plan and review:
+
+- Spec artifact:
+  `docs/superpowers/specs/2026-06-22-los-analysis-and-deployment-threat-source.md`.
+- QA artifact:
+  `docs/superpowers/qa/2026-06-22-los-analysis-and-deployment-threat-source-qa.md`.
+- Plan artifact:
+  `docs/superpowers/plans/2026-06-22-los-analysis-and-deployment-threat-source.md`.
+- Consultant review recommended a thin LOS facade and a true source-region threat primitive.
+- Adversarial spec review initially required stronger web nav consolidation tests, deployment-zone
+  source validation, empty source-region blocking, page 9/page 52 smoke coverage, and no-JS web
+  coverage; the hardened spec was approved after those gaps were closed.
+
+TDD and implementation results:
+
+- Red tests covered source-region movement, source-region threat projection, deployment-zone source
+  identity, invalid source blockers, empty source-region blockers, raw-range invariance, source
+  marker rendering, web POST without point source fields, and desktop source-mode controls.
+- Added `LosAnalysisState`, canonical `/los` GET/POST behavior, `los_analysis.html`, and a desktop
+  `Line of Sight` screen.
+- Added `movement_envelope_from_region(...)` with multi-source routing for non-mobile profiles and
+  deterministic source-region cache keys.
+- Added `threat_projection_regions_from_source_region(...)` and threaded source mode, source zone,
+  source region, and source label through domain payloads, services, rendering, web, and desktop.
+- Rendering now shows a deployment threat source-region indicator instead of a point source base
+  marker when deployment-zone source mode is selected.
+
+Verification completed so far:
+
+- LOS implementation commit `95d9f11` passed the focused LOS tests and the affected
+  application/web/desktop batch: 81 passed with the existing Starlette `TestClient` deprecation
+  warning.
+- Focused threat deployment-source tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_threat_range_geometry.py tests\test_threat_range_toolkit.py tests\test_rendering_svg.py::test_threat_source_region_renders_without_point_source_marker tests\test_application_service.py::test_threat_range_state_supports_deployment_zone_source_without_point_marker tests\test_web_server.py::test_threat_range_route_renders_deployment_zone_source_without_javascript tests\test_web_server.py::test_threat_range_post_deployment_zone_source_does_not_require_point_fields tests\test_desktop_app.py::test_desktop_threat_range_screen_supports_deployment_zone_source -q`
+  returned 34 passed.
+- Affected application/rendering/web/desktop/threat batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_threat_range_geometry.py tests\test_threat_range_toolkit.py tests\test_rendering_svg.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 131 passed with the existing Starlette `TestClient` deprecation warning.
+
+Remaining before closeout:
+
+- Run protected-artifact scan, adversarial implementation review, and final commit.
+
+Final validation:
+
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 484 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Packet validation passed for all 45 packaged official Event Companion packets:
+  `.\.venv\Scripts\python.exe -m warhammer_companion.cli validate-packets --packet-dir src\warhammer_companion\seed_data\map-packets`.
+- Desktop smoke passed with `status: ok`, 45 bundled seed packets, `los_svg: true`,
+  `heatmap_svg: true`, and `threat_range_svg: true`.
+- `git diff --check` passed with the normal CRLF warnings for touched files.
+
+Adversarial implementation review:
+
+- Initial implementation review returned `CHANGES_REQUIRED` for three acceptance failures:
+  inactive `/los` fields were parsed too early by FastAPI, deployment-zone Threat Range still
+  parsed malformed point fields too early, and desktop Threat Range showed point and zone source
+  controls at the same time.
+- Fixed web route parsing so `/los` and `/threat-range` parse only active mode/source fields.
+  Active malformed numeric fields remain rejected; inactive stale fields are ignored.
+- Fixed desktop Threat Range controls so deployment-zone mode shows the zone selector and hides
+  point Source X/Y controls, while point mode does the inverse.
+- Added regression tests for malformed inactive `/los` GET/POST fields, malformed ignored point
+  fields in deployment-zone Threat Range GET/POST, and desktop source-control visibility.
+- Post-fix focused regressions passed: 5 passed.
+- Post-fix affected suite passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_web_server.py tests\test_desktop_app.py tests\test_threat_range_toolkit.py tests\test_threat_range_geometry.py tests\test_application_service.py tests\test_rendering_svg.py -q`
+  returned 135 passed with the existing Starlette `TestClient` deprecation warning.
+- Post-fix static checks passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Adversarial re-review approved the fixes. The reviewer independently confirmed inactive malformed
+  fields return rendered pages, active malformed fields still return 422, and desktop source
+  controls hide/show by source mode.
+- Final full pytest after the reviewer fixes passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 488 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Final packet validation, desktop smoke, and `git diff --check` passed after the reviewer fixes.
+
+Manual QA status:
+
+- The current app version was launched successfully on `http://127.0.0.1:8056` because port 8000
+  was already occupied by an older Python process serving a stale app version where `/los` returned
+  404.
+- Built-in Browser setup succeeded, but both background and visible tab attempts failed with
+  `Timed out waiting for the Browser webview to attach for this browser-use page`.
+- Browser troubleshooting guidance did not expose another recovery path beyond confirming the
+  selected Browser workflow was attempted.
+- Computer Use setup succeeded and Firefox was discoverable, but launching Firefox stopped
+  immediately because browser URL-policy enforcement is not supported for the current Windows
+  browser.
+- Fallback FastAPI rendered-route QA passed for:
+  - `/los`, `/los?mode=checker...`, and `/los?mode=heatmap...` with no script tags;
+  - old `/heatmap` and `/los-checker` redirects to canonical `/los` with preserved values;
+  - web navigation containing exactly one `/los` `Line of Sight` link and no old LOS nav entries;
+  - Threat Range point source mode rendering `threat-source-base` and no source region;
+  - Threat Range deployment-zone source mode rendering `threat-source-region`, no
+    `threat-source-base`, deployment source labels, selected source-zone controls, and
+    `threat-projection-image`;
+  - page 9 and page 52 deployment-zone threat source smoke routes;
+  - POSTing deployment-zone source mode without `source_x`/`source_y`, with the redirect preserving
+    source mode and zone while omitting point-source fields.

@@ -304,6 +304,49 @@ def test_desktop_threat_range_screen_renders_map_pixmap() -> None:
     app.processEvents()
 
 
+def test_desktop_threat_range_screen_supports_deployment_zone_source() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+    threat_screen = window.stack.widget(labels.index("Threat Range"))
+
+    assert threat_screen.source_mode_combo.findData("deployment-zone") >= 0
+    assert not threat_screen.source_x_input.isHidden()
+    assert threat_screen.source_deployment_zone_combo.isHidden()
+    threat_screen.source_mode_combo.setCurrentIndex(
+        threat_screen.source_mode_combo.findData("deployment-zone")
+    )
+    assert threat_screen.source_x_input.isHidden()
+    assert threat_screen.source_y_input.isHidden()
+    assert not threat_screen.source_deployment_zone_combo.isHidden()
+    threat_screen.source_deployment_zone_combo.setCurrentIndex(
+        threat_screen.source_deployment_zone_combo.findData("attacker")
+    )
+    threat_screen.mode_combo.setCurrentIndex(threat_screen.mode_combo.findData("raw-range"))
+    threat_screen.refresh()
+
+    status_text = threat_screen.status_label.text()
+    pixmap = threat_screen.map.rendered_pixmap()
+    assert "Attacker deployment zone" in status_text
+    assert pixmap is not None
+    assert not pixmap.isNull()
+
+    threat_screen.source_mode_combo.setCurrentIndex(
+        threat_screen.source_mode_combo.findData("point")
+    )
+    assert not threat_screen.source_x_input.isHidden()
+    assert threat_screen.source_deployment_zone_combo.isHidden()
+
+    window.close()
+    app.processEvents()
+
+
 def test_desktop_threat_range_screen_reports_profile_sensitive_probability() -> None:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]

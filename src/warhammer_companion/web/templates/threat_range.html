@@ -15,6 +15,24 @@
   <form class="toolbar threat-range-form" method="post" action="/threat-range">
     {% include "_packet_selector.html" %}
     <label>
+      Source mode
+      <select name="source_mode">
+        {% for option in source_modes %}
+        <option value="{{ option }}" {{ "selected" if option == source_mode else "" }}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if source_mode == "deployment-zone" %}
+    <label>
+      Source deployment zone
+      <select name="source_deployment_zone_id">
+        {% for option in source_deployment_zone_options %}
+        <option value="{{ option.id }}" {{ "selected" if option.id == source_deployment_zone_id else "" }}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <label>
       Source X
       <input name="source_x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ source_x }}">
     </label>
@@ -22,6 +40,8 @@
       Source Y
       <input name="source_y" type="number" min="0" max="{{ packet.board.height }}" step="0.01" value="{{ source_y }}">
     </label>
+    <input name="source_deployment_zone_id" type="hidden" value="{{ source_deployment_zone_id }}">
+    {% endif %}
     <label>
       Target X
       <input name="target_x" type="number" min="0" max="{{ packet.board.width }}" step="0.01" value="{{ target_x }}">
@@ -61,6 +81,8 @@
     <button type="submit">Generate</button>
   </form>
   <div class="diagnostic-summary" aria-label="Threat projection diagnostic" data-result-hash="{{ input_hash }}">
+    <strong>Source</strong>
+    <span>{{ source_label }}</span>
     <strong>Movement profile</strong>
     <span>{{ movement_profile_label }}</span>
     <strong>Effective movement</strong>
@@ -81,7 +103,7 @@
     <span><i class="legend-swatch threat-low"></i>Low probability</span>
     <span><i class="legend-swatch threat-mid"></i>Mid probability</span>
     <span><i class="legend-swatch threat-high"></i>High probability</span>
-    <span><i class="legend-swatch threat-source-swatch"></i>Source base</span>
+    <span><i class="legend-swatch threat-source-swatch"></i>{{ "Source region" if source_mode == "deployment-zone" else "Source base" }}</span>
     <span><i class="legend-swatch threat-target-swatch"></i>Target point</span>
   </div>
   {% if distribution %}
