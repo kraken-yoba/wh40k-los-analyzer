@@ -3,6 +3,10 @@ from __future__ import annotations
 import pytest
 
 from warhammer_companion.application.services import WarhammerCompanionService
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+)
 from warhammer_companion.domain.repository import StaticMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.official_layout_metadata import official_layout_metadata_for_page
@@ -563,3 +567,22 @@ def test_damage_profile_state_exposes_summary_warnings_and_block_reasons() -> No
     assert "manual estimate" in " ".join(state.warning_details).lower()
     assert blocked.is_blocked is True
     assert any("attack" in detail.lower() for detail in blocked.block_reason_details)
+
+
+def test_damage_profile_state_uses_canonical_default_inputs() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.damage_profile_state()
+
+    assert state.attacks == DEFAULT_DAMAGE_PROFILE_INPUT.attacks
+    assert state.hit_target == DEFAULT_DAMAGE_PROFILE_INPUT.hit_target
+    assert state.wound_target == DEFAULT_DAMAGE_PROFILE_INPUT.wound_target
+    assert state.save_target == DEFAULT_DAMAGE_PROFILE_INPUT.save_target
+    assert state.damage_per_unsaved_wound == DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound
+    assert state.target_wounds_per_model == DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model
+    assert state.target_model_count == DEFAULT_TARGET_PROFILE_INPUT.model_count
+    assert state.expected_damage == pytest.approx(0.5)

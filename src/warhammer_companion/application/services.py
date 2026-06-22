@@ -34,7 +34,11 @@ from warhammer_companion.application.view_models import (
     ThreatRangeState,
     ViewerState,
 )
-from warhammer_companion.domain.damage import DamageEstimatePayload
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+    DamageEstimatePayload,
+)
 from warhammer_companion.domain.exposure import (
     EXPOSURE_MODES,
     DeploymentExposurePayload,
@@ -543,13 +547,13 @@ class WarhammerCompanionService:
     def damage_profile_state(
         self,
         *,
-        attacks: float = 2.0,
-        hit: int = 4,
-        wound: int = 4,
-        save: int = 4,
-        damage: float = 2.0,
-        wounds: float = 2.0,
-        models: float = 3.0,
+        attacks: float = DEFAULT_DAMAGE_PROFILE_INPUT.attacks,
+        hit: int = DEFAULT_DAMAGE_PROFILE_INPUT.hit_target,
+        wound: int = DEFAULT_DAMAGE_PROFILE_INPUT.wound_target,
+        save: int = DEFAULT_DAMAGE_PROFILE_INPUT.save_target,
+        damage: float = DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound,
+        wounds: float = DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model,
+        models: float = DEFAULT_TARGET_PROFILE_INPUT.model_count,
     ) -> DamageProfileState:
         result = self.damage_profile_toolkit_result(
             attacks=attacks,
@@ -588,13 +592,13 @@ class WarhammerCompanionService:
     def damage_profile_toolkit_result(
         self,
         *,
-        attacks: float = 2.0,
-        hit: int = 4,
-        wound: int = 4,
-        save: int = 4,
-        damage: float = 2.0,
-        wounds: float = 2.0,
-        models: float = 3.0,
+        attacks: float = DEFAULT_DAMAGE_PROFILE_INPUT.attacks,
+        hit: int = DEFAULT_DAMAGE_PROFILE_INPUT.hit_target,
+        wound: int = DEFAULT_DAMAGE_PROFILE_INPUT.wound_target,
+        save: int = DEFAULT_DAMAGE_PROFILE_INPUT.save_target,
+        damage: float = DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound,
+        wounds: float = DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model,
+        models: float = DEFAULT_TARGET_PROFILE_INPUT.model_count,
     ) -> ToolkitResult[DamageEstimatePayload]:
         return build_damage_profile_toolkit_result(
             attacks=attacks,

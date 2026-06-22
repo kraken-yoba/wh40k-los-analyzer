@@ -9,6 +9,20 @@ from warhammer_companion.application.damage_profile import (
     d6_threshold_probability,
     models_destroyed_for_unsaved_wounds,
 )
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+)
+
+
+def test_damage_profile_default_inputs_remain_manual_sample() -> None:
+    assert DEFAULT_DAMAGE_PROFILE_INPUT.attacks == 2.0
+    assert DEFAULT_DAMAGE_PROFILE_INPUT.hit_target == 4
+    assert DEFAULT_DAMAGE_PROFILE_INPUT.wound_target == 4
+    assert DEFAULT_DAMAGE_PROFILE_INPUT.save_target == 4
+    assert DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound == 2.0
+    assert DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model == 2.0
+    assert DEFAULT_TARGET_PROFILE_INPUT.model_count == 3.0
 
 
 def test_d6_threshold_probability_uses_exact_roll_targets() -> None:

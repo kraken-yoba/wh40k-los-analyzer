@@ -1848,3 +1848,80 @@ Review and blocker status:
   explicit invalid-input fixtures. The docs were patched and re-review approved the scope.
 - Adversarial implementation review required a fractional-damage threshold fix; the fix and
   regression were applied before final re-review.
+
+## Phase 8.5 - Damage Profile Defaults Housekeeping
+
+Purpose:
+
+- Run a behavior-preserving housekeeping slice after Phase 8A.
+- Centralize the manual Damage Profile default input values used by service, web, and desktop
+  adapters.
+- Keep math, readiness, warning copy, route names, form/query field names, and desktop labels
+  unchanged.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-8-5-damage-defaults-housekeeping.md`
+- `docs/superpowers/plans/2026-06-22-phase-8-5-damage-defaults-housekeeping.md`
+- `docs/superpowers/qa/2026-06-22-phase-8-5-damage-defaults-housekeeping-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-8-5-consultant-damage-defaults.md`
+- `docs/superpowers/reviews/2026-06-22-phase-8-5-adversarial-damage-defaults.md`
+- `src/warhammer_companion/domain/damage.py`
+- `src/warhammer_companion/application/services.py`
+- `src/warhammer_companion/web/server.py`
+- `src/warhammer_companion/desktop/screens/damage_profile.py`
+- `tests/test_damage_profile_toolkit.py`
+- `tests/test_application_service.py`
+- `tests/test_desktop_app.py`
+
+Design decisions:
+
+- Canonical defaults live in `domain/damage.py` as `DEFAULT_DAMAGE_PROFILE_INPUT` and
+  `DEFAULT_TARGET_PROFILE_INPUT` because they are typed manual damage profile records, not web
+  form metadata.
+- Web query/form field names remain adapter-owned and are not centralized in the domain layer.
+- The default values remain attacks 2, hit 4+, wound 4+, effective save 4+, damage 2, 2
+  wounds/model, and 3 target models.
+- No roster/profile/rules authority, new mechanic, or recommendation behavior was added.
+
+TDD and implementation results:
+
+- Red step: new guardrail tests imported `DEFAULT_DAMAGE_PROFILE_INPUT` and
+  `DEFAULT_TARGET_PROFILE_INPUT` before they existed and failed with expected import errors.
+- Green step: defaults were added in `domain/damage.py` and wired into service default parameters,
+  GET `/damage-profile` defaults, and desktop `DamageProfileScreen` initial controls.
+- Guardrail tests now assert the constants, service default summary, and desktop initial controls.
+
+Verification completed:
+
+- Red check before implementation failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_damage_profile_toolkit.py tests\test_application_service.py tests\test_desktop_app.py -q`
+  reported missing default constants.
+- Focused Phase 8.5 batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_damage_profile_toolkit.py tests\test_application_service.py tests\test_desktop_app.py -q`
+  returned 56 passed.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 119 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 395 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok` and `damage_profile_estimate: true`.
+
+Browser QA:
+
+- The local app was launched through a detached Node child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/damage-profile`.
+- The default route rendered heading `Damage Profile`, exactly one form, zero `<script>` tags,
+  expected damage `0.50`, distribution rows `49/64`, `14/64`, and `1/64`, required
+  manual-estimate/effective-save/unsupported-effects warning copy, no traceback/internal-error text,
+  and no localhost warning/error console logs.
+- The temporary QA tab and server process were closed after Browser QA.
+
+Review and blocker status:
+
+- Consultant reviewer approved the Phase 8.5 spec, plan, and QA pathway.
+- Adversarial reviewer approved the Phase 8.5 spec, plan, and QA pathway with no blockers.
+- Consultant and adversarial implementation re-review approved the final diff with no blockers.
+- Protected-path scan passed: no generated/raw/binary/credential paths and no high-confidence
+  secret-pattern hits. `AGENTS.md` remained untracked and excluded from staging.

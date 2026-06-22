@@ -11,19 +11,35 @@ from PySide6.QtWidgets import (  # type: ignore[import-not-found]
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import DamageProfileState
 from warhammer_companion.desktop.screens.common import double_spin_box
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+)
 
 
 class DamageProfileScreen(QWidget):
     def __init__(self, service: WarhammerCompanionService) -> None:
         super().__init__()
         self.service = service
-        self.attacks_input = _integer_spin_box(1, 120, 2)
-        self.hit_input = _integer_spin_box(2, 6, 4)
-        self.wound_input = _integer_spin_box(2, 6, 4)
-        self.save_input = _integer_spin_box(2, 6, 4)
-        self.damage_input = double_spin_box(0.0, 100.0, 2.0)
-        self.wounds_input = _integer_spin_box(1, 100, 2)
-        self.models_input = _integer_spin_box(1, 120, 3)
+        self.attacks_input = _integer_spin_box(1, 120, int(DEFAULT_DAMAGE_PROFILE_INPUT.attacks))
+        self.hit_input = _integer_spin_box(2, 6, DEFAULT_DAMAGE_PROFILE_INPUT.hit_target)
+        self.wound_input = _integer_spin_box(2, 6, DEFAULT_DAMAGE_PROFILE_INPUT.wound_target)
+        self.save_input = _integer_spin_box(2, 6, DEFAULT_DAMAGE_PROFILE_INPUT.save_target)
+        self.damage_input = double_spin_box(
+            0.0,
+            100.0,
+            DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound,
+        )
+        self.wounds_input = _integer_spin_box(
+            1,
+            100,
+            int(DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model),
+        )
+        self.models_input = _integer_spin_box(
+            1,
+            120,
+            int(DEFAULT_TARGET_PROFILE_INPUT.model_count),
+        )
         self.generate_button = QPushButton("Generate")
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)

@@ -12,6 +12,10 @@ from warhammer_companion.desktop.app import (
     packaged_seed_packets,
     smoke_test_summary,
 )
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+)
 
 
 def test_desktop_smoke_summary_renders_core_states() -> None:
@@ -238,6 +242,15 @@ def test_desktop_damage_profile_screen_reports_manual_estimate() -> None:
     damage_screen = window.stack.widget(labels.index("Damage Profile"))
     status_text = damage_screen.status_label.text()
 
+    assert damage_screen.attacks_input.value() == DEFAULT_DAMAGE_PROFILE_INPUT.attacks
+    assert damage_screen.hit_input.value() == DEFAULT_DAMAGE_PROFILE_INPUT.hit_target
+    assert damage_screen.wound_input.value() == DEFAULT_DAMAGE_PROFILE_INPUT.wound_target
+    assert damage_screen.save_input.value() == DEFAULT_DAMAGE_PROFILE_INPUT.save_target
+    assert (
+        damage_screen.damage_input.value() == DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound
+    )
+    assert damage_screen.wounds_input.value() == DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model
+    assert damage_screen.models_input.value() == DEFAULT_TARGET_PROFILE_INPUT.model_count
     assert "Manual estimate" in status_text
     assert "Expected damage" in status_text
     assert "not roster-derived" in status_text

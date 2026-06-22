@@ -9,6 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from warhammer_companion.application.services import WarhammerCompanionService
+from warhammer_companion.domain.damage import (
+    DEFAULT_DAMAGE_PROFILE_INPUT,
+    DEFAULT_TARGET_PROFILE_INPUT,
+)
 from warhammer_companion.domain.repository import FileBackedMapRepository
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.integrations.codex_backend import CodexBackend, sanitize_status_message
@@ -436,13 +440,13 @@ def deployment_exposure(
 @app.get("/damage-profile", response_class=HTMLResponse)
 def damage_profile(
     request: Request,
-    attacks: float = 2.0,
-    hit: int = 4,
-    wound: int = 4,
-    save: int = 4,
-    damage: float = 2.0,
-    wounds: float = 2.0,
-    models: float = 3.0,
+    attacks: float = DEFAULT_DAMAGE_PROFILE_INPUT.attacks,
+    hit: int = DEFAULT_DAMAGE_PROFILE_INPUT.hit_target,
+    wound: int = DEFAULT_DAMAGE_PROFILE_INPUT.wound_target,
+    save: int = DEFAULT_DAMAGE_PROFILE_INPUT.save_target,
+    damage: float = DEFAULT_DAMAGE_PROFILE_INPUT.damage_per_unsaved_wound,
+    wounds: float = DEFAULT_TARGET_PROFILE_INPUT.wounds_per_model,
+    models: float = DEFAULT_TARGET_PROFILE_INPUT.model_count,
 ) -> HTMLResponse:
     state = service.damage_profile_state(
         attacks=attacks,
