@@ -10,6 +10,7 @@ from warhammer_companion.los.geometry import (
     visibility_rays_from_base,
 )
 from warhammer_companion.los.movement import movement_envelope, swept_base_path
+from warhammer_companion.los.threat import threat_projection_regions
 from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 from warhammer_companion.web import server
@@ -321,4 +322,79 @@ def test_movement_reach_state_matches_direct_rendering_path() -> None:
     assert state.target_x == 22.0
     assert state.mode == "normal"
     assert state.endpoint_estimated_reachable
+    assert state.map_svg == expected_svg
+
+
+def test_threat_range_toolkit_result_wraps_analysis_before_svg_projection() -> None:
+    packet = SAMPLE_PACKETS[0]
+    before = packet.model_dump()
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.threat_range_toolkit_result(
+        packet_id=packet.id,
+        source_x=16.0,
+        source_y=10.0,
+        target_x=24.0,
+        target_y=10.0,
+        base=1.57,
+        move=6.0,
+        threat=2.0,
+        mode="2d6-move-plus-range",
+    )
+
+    assert result.tool_id == "threat_range"
+    assert result.readiness == "estimated"
+    assert result.payload.packet is packet
+    assert result.overlays
+    assert result.overlays[0].layer_kind == "threat_projection"
+    assert result.payload.target_probability > 0.0
+    assert not result.allows_recommendation_language()
+    assert packet.model_dump() == before
+
+
+def test_threat_range_state_matches_direct_rendering_path() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+    packet = SAMPLE_PACKETS[0]
+    regions = threat_projection_regions(
+        packet,
+        source_center=(16.0, 10.0),
+        base_diameter=1.57,
+        move_distance=6.0,
+        threat_range=2.0,
+        mode="2d6-move-plus-range",
+    )
+    expected_svg = render_map_svg(
+        packet,
+        threat_regions=regions,
+        threat_source_center=(16.0, 10.0),
+        threat_target_point=(24.0, 10.0),
+        threat_base_diameter=1.57,
+    )
+
+    state = service.threat_range_state(
+        packet_id=packet.id,
+        source_x=16.0,
+        source_y=10.0,
+        target_x=24.0,
+        target_y=10.0,
+        base=1.57,
+        move=6.0,
+        threat=2.0,
+        mode="2d6-move-plus-range",
+    )
+
+    assert state.packet is packet
+    assert state.source_x == 16.0
+    assert state.target_x == 24.0
+    assert state.mode == "2d6-move-plus-range"
+    assert state.measurement_convention == "source-base-edge-to-target-point"
+    assert state.target_probability > 0.0
     assert state.map_svg == expected_svg

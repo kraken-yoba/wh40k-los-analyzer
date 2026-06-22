@@ -275,6 +275,62 @@ def movement_reach(
     )
 
 
+@app.get("/threat-range", response_class=HTMLResponse)
+def threat_range(
+    request: Request,
+    packet_id: str | None = None,
+    player_a: str | None = None,
+    player_b: str | None = None,
+    layout_variant: str | None = None,
+    source_x: float = 16.0,
+    source_y: float = 10.0,
+    target_x: float = 24.0,
+    target_y: float = 10.0,
+    base: float = 1.57,
+    move: float = 6.0,
+    threat: float = 2.0,
+    mode: str = "fixed-move-plus-range",
+) -> HTMLResponse:
+    state = service.threat_range_state(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+        source_x=source_x,
+        source_y=source_y,
+        target_x=target_x,
+        target_y=target_y,
+        base=base,
+        move=move,
+        threat=threat,
+        mode=mode,
+    )
+    return templates.TemplateResponse(
+        request,
+        "threat_range.html",
+        {
+            "active_page": "threat-range",
+            "packet": state.packet,
+            "packet_groups": state.packet_groups,
+            "packet_selector": state.packet_selector,
+            "source_x": state.source_x,
+            "source_y": state.source_y,
+            "target_x": state.target_x,
+            "target_y": state.target_y,
+            "base": state.base,
+            "move": state.move,
+            "threat": state.threat,
+            "mode": state.mode,
+            "threat_modes": state.threat_modes,
+            "measurement_convention": state.measurement_convention,
+            "target_probability": state.target_probability,
+            "distribution": state.distribution,
+            "warning_details": state.warning_details,
+            "map_svg": state.map_svg,
+        },
+    )
+
+
 @app.get("/hidden-coverage", response_class=HTMLResponse)
 def hidden_coverage(
     request: Request,
@@ -363,6 +419,46 @@ def update_movement_reach(
                 "target_y": target_y,
                 "base": base,
                 "move": move,
+                "mode": mode,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/threat-range", response_class=HTMLResponse)
+def update_threat_range(
+    packet_id: str | None = Form(None),
+    player_a: str | None = Form(None),
+    player_b: str | None = Form(None),
+    layout_variant: str | None = Form(None),
+    source_x: float = Form(...),
+    source_y: float = Form(...),
+    target_x: float = Form(...),
+    target_y: float = Form(...),
+    base: float = Form(...),
+    move: float = Form(...),
+    threat: float = Form(...),
+    mode: str = Form("fixed-move-plus-range"),
+) -> RedirectResponse:
+    resolved_packet_id = service.resolve_packet_id(
+        packet_id=packet_id,
+        player_a=player_a,
+        player_b=player_b,
+        layout_variant=layout_variant,
+    )
+    return RedirectResponse(
+        "/threat-range?"
+        + urlencode(
+            {
+                "packet_id": resolved_packet_id,
+                "source_x": source_x,
+                "source_y": source_y,
+                "target_x": target_x,
+                "target_y": target_y,
+                "base": base,
+                "move": move,
+                "threat": threat,
                 "mode": mode,
             }
         ),

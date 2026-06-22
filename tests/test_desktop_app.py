@@ -29,6 +29,7 @@ def test_desktop_smoke_summary_renders_core_states() -> None:
     assert summary["los_svg"]
     assert summary["hidden_coverage_svg"]
     assert summary["movement_reach_svg"]
+    assert summary["threat_range_svg"]
     assert summary["deployment_zones"] == 2
 
 
@@ -164,5 +165,31 @@ def test_desktop_movement_reach_screen_renders_map_pixmap() -> None:
     assert not pixmap.isNull()
     assert pixmap.width() > 528
     assert pixmap.height() > 720
+    window.close()
+    app.processEvents()
+
+
+def test_desktop_threat_range_screen_renders_map_pixmap() -> None:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication  # type: ignore[import-not-found]
+
+    from warhammer_companion.desktop.app import build_desktop_service
+    from warhammer_companion.desktop.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(build_desktop_service())
+    labels = [window.nav.item(index).text() for index in range(window.nav.count())]
+
+    assert "Threat Range" in labels
+    threat_screen = window.stack.widget(labels.index("Threat Range"))
+    pixmap = threat_screen.map.rendered_pixmap()
+
+    assert pixmap is not None
+    assert not pixmap.isNull()
+    assert pixmap.width() > 528
+    assert pixmap.height() > 720
+    status_text = threat_screen.status_label.text()
+    assert "Source-backed rules pending" in status_text
+    assert "No recommendations" in status_text
     window.close()
     app.processEvents()

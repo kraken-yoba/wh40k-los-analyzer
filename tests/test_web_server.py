@@ -10,6 +10,7 @@ from warhammer_companion.application.view_models import (
     HiddenCoverageState,
     MovementReachState,
     TerrainSelectOption,
+    ThreatRangeState,
 )
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
@@ -289,6 +290,160 @@ def test_movement_reach_route_uses_manual_geometry_controls_and_cautious_languag
     assert "<script" not in response.text
     for forbidden in ("legal", " safe", "recommended", "optimal", "likely"):
         assert forbidden not in normalized
+
+
+def test_threat_range_route_uses_manual_probability_controls_and_cautious_language(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, float, float, float, float, float, float, float, str]] = []
+    packet = server.repository.default_packet()
+    packet_selector = WarhammerCompanionService(
+        paths=server.ingestion_paths,
+        repository=StaticMapRepository([packet]),
+        codex_backend=server.codex_backend,
+    ).packet_selector_state(packet_id=packet.id)
+
+    class FakeService:
+        def threat_range_state(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+            source_x: float = 16.0,
+            source_y: float = 10.0,
+            target_x: float = 24.0,
+            target_y: float = 10.0,
+            base: float = 1.57,
+            move: float = 6.0,
+            threat: float = 2.0,
+            mode: str = "fixed-move-plus-range",
+        ) -> ThreatRangeState:
+            resolved_packet_id = packet_id or packet.id
+            calls.append(
+                (
+                    resolved_packet_id,
+                    source_x,
+                    source_y,
+                    target_x,
+                    target_y,
+                    base,
+                    move,
+                    threat,
+                    mode,
+                )
+            )
+            from warhammer_companion.domain.threat import ThreatDiceOutcome
+
+            return ThreatRangeState(
+                packet=packet,
+                packet_groups=[],
+                packet_selector=packet_selector,
+                source_x=source_x,
+                source_y=source_y,
+                target_x=target_x,
+                target_y=target_y,
+                base=base,
+                move=move,
+                threat=threat,
+                mode=mode,
+                threat_modes=["raw-range", "fixed-move-plus-range", "2d6-move-plus-range"],
+                measurement_convention="source-base-edge-to-target-point",
+                target_probability=0.75,
+                distribution=[
+                    ThreatDiceOutcome(
+                        dice_label="2D6",
+                        variable_inches=7,
+                        numerator=6,
+                        denominator=36,
+                        probability=6 / 36,
+                        total_reach=16.0,
+                    )
+                ],
+                warning_details=[
+                    "Source-backed rules pending; this result remains estimated.",
+                    "No recommendations are generated from estimated threat projections.",
+                ],
+                map_svg=(
+                    '<svg class="map-svg" role="img" aria-label="fake threat map">'
+                    '<image class="threat-projection-image"/></svg>'
+                ),
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        f"/threat-range?packet_id={packet.id}&source_x=16&source_y=10"
+        "&target_x=24&target_y=10&base=1.57&move=6&threat=2&mode=2d6-move-plus-range"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert calls == [(packet.id, 16.0, 10.0, 24.0, 10.0, 1.57, 6.0, 2.0, "2d6-move-plus-range")]
+    assert "Threat Range" in response.text
+    assert 'name="source_x"' in response.text
+    assert 'name="target_x"' in response.text
+    assert 'name="threat"' in response.text
+    assert 'name="mode"' in response.text
+    assert 'value="2d6-move-plus-range" selected' in response.text
+    assert "estimated 2d threat projection" in normalized
+    assert "source base edge to target point" in normalized
+    assert "source-backed rules pending" in normalized
+    assert "no recommendations" in normalized
+    assert "75.0%" in response.text
+    assert "threat-projection-image" in response.text
+    assert "<script" not in response.text
+    for forbidden in ("legal", " safe", "recommended", "optimal", "likely", "guaranteed"):
+        assert forbidden not in normalized
+
+
+def test_threat_range_post_redirect_preserves_manual_values(monkeypatch) -> None:
+    packet = server.repository.default_packet()
+    resolved_calls: list[tuple[str | None, str | None, str | None, str | None]] = []
+
+    class FakeService:
+        def resolve_packet_id(
+            self,
+            *,
+            packet_id: str | None = None,
+            player_a: str | None = None,
+            player_b: str | None = None,
+            layout_variant: str | None = None,
+        ) -> str:
+            resolved_calls.append((packet_id, player_a, player_b, layout_variant))
+            return packet.id
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/threat-range",
+        data={
+            "packet_id": packet.id,
+            "player_a": "Take and Hold",
+            "player_b": "Reconnaissance",
+            "layout_variant": "B",
+            "source_x": "16",
+            "source_y": "10",
+            "target_x": "24",
+            "target_y": "10",
+            "base": "1.57",
+            "move": "6",
+            "threat": "2",
+            "mode": "2d6-move-plus-range",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert resolved_calls == [(packet.id, "Take and Hold", "Reconnaissance", "B")]
+    assert response.headers["location"] == (
+        f"/threat-range?packet_id={packet.id}&source_x=16.0&source_y=10.0"
+        "&target_x=24.0&target_y=10.0&base=1.57&move=6.0&threat=2.0"
+        "&mode=2d6-move-plus-range"
+    )
 
 
 def test_pages_do_not_load_custom_frontend_javascript() -> None:

@@ -12,6 +12,7 @@ from shapely.geometry.base import BaseGeometry
 
 from warhammer_companion.domain.deployment_geometry import smooth_deployment_footprint
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.threat import ThreatProjectionRegion
 from warhammer_companion.los.geometry import (
     CoverageCell,
     HeatmapCell,
@@ -131,6 +132,18 @@ MOVEMENT_TARGET_BASE_ATTRS: SVG_ATTRS = {
     "stroke-width": 2,
     "stroke-dasharray": "4 2",
 }
+THREAT_SOURCE_BASE_ATTRS: SVG_ATTRS = {
+    "fill": "#fffdf8",
+    "fill-opacity": 0.82,
+    "stroke": "#8b2f2d",
+    "stroke-width": 2,
+}
+THREAT_TARGET_POINT_ATTRS: SVG_ATTRS = {
+    "fill": "#1c2520",
+    "fill-opacity": 0.86,
+    "stroke": "#fffdf8",
+    "stroke-width": 1.4,
+}
 RAY_VISIBLE_ATTRS: SVG_ATTRS = {
     "stroke": "#2d6f5b",
     "stroke-opacity": 0.44,
@@ -160,6 +173,10 @@ def render_map_svg(
     movement_start_center: tuple[float, float] | None = None,
     movement_target_center: tuple[float, float] | None = None,
     movement_base_diameter: float | None = None,
+    threat_regions: tuple[ThreatProjectionRegion, ...] | None = None,
+    threat_source_center: tuple[float, float] | None = None,
+    threat_target_point: tuple[float, float] | None = None,
+    threat_base_diameter: float | None = None,
 ) -> str:
     scale = 12
     width = packet.board.width * scale
@@ -211,6 +228,9 @@ def render_map_svg(
                 color=(75, 125, 178, 96),
             )
         )
+
+    if threat_regions:
+        parts.extend(_render_threat_probability_raster(packet, threat_regions, scale))
 
     for zone in packet.deployment_zones:
         parts.append(
@@ -312,6 +332,21 @@ def render_map_svg(
             f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
             f'r="{movement_base_diameter * scale / 2:.1f}" '
             f'class="movement-target-base"{_attrs(MOVEMENT_TARGET_BASE_ATTRS)}/>'
+        )
+
+    if threat_source_center is not None and threat_base_diameter is not None:
+        cx, cy = _to_svg_point(threat_source_center, scale, packet.board.height)
+        parts.append(
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" '
+            f'r="{threat_base_diameter * scale / 2:.1f}" '
+            f'class="threat-source-base"{_attrs(THREAT_SOURCE_BASE_ATTRS)}/>'
+        )
+
+    if threat_target_point is not None:
+        cx, cy = _to_svg_point(threat_target_point, scale, packet.board.height)
+        parts.append(
+            f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3.0" '
+            f'class="threat-target-point"{_attrs(THREAT_TARGET_POINT_ATTRS)}/>'
         )
 
     if hidden_coverage is not None:
@@ -439,6 +474,29 @@ def _render_hidden_coverage_raster(
     rgba = _colorize_hidden_coverage_array(exposure)
     image = Image.fromarray(rgba, "RGBA")
     return [_image_data_uri(image, width, height, "hidden-coverage-image")]
+
+
+def _render_threat_probability_raster(
+    packet: MapPacket,
+    regions: tuple[ThreatProjectionRegion, ...],
+    scale: int,
+) -> list[str]:
+    width = int(round(packet.board.width * scale))
+    height = int(round(packet.board.height * scale))
+    accumulator: NDArray[np.float64] = np.zeros((height, width), dtype=np.float64)
+
+    for region in regions:
+        if region.geometry.is_empty:
+            continue
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        _draw_geometry_mask(draw, region.geometry, scale, packet.board.height, exterior_fill=1)
+        accumulator += np.asarray(mask, dtype=np.float64) * region.outcome.probability
+
+    probability = np.clip(accumulator, 0.0, 1.0)
+    rgba = _colorize_threat_probability_array(probability)
+    image = Image.fromarray(rgba, "RGBA")
+    return [_image_data_uri(image, width, height, "threat-projection-image")]
 
 
 def _draw_geometry_mask(
@@ -603,6 +661,26 @@ def _colorize_hidden_coverage_array(exposure: NDArray[np.float64]) -> NDArray[np
     for channel in range(3):
         rgba[..., channel] = np.interp(exposure, stops, colors[:, channel]).astype(np.uint8)
     rgba[exposure > 0, 3] = 190
+    return rgba
+
+
+def _colorize_threat_probability_array(probability: NDArray[np.float64]) -> NDArray[np.uint8]:
+    stops = np.array([0.0, 0.25, 0.5, 0.75, 1.0], dtype=np.float32)
+    colors = np.array(
+        [
+            [80, 116, 164],
+            [73, 150, 142],
+            [213, 182, 76],
+            [207, 126, 58],
+            [139, 47, 45],
+        ],
+        dtype=np.float32,
+    )
+    rgba = np.zeros((*probability.shape, 4), dtype=np.uint8)
+    for channel in range(3):
+        rgba[..., channel] = np.interp(probability, stops, colors[:, channel]).astype(np.uint8)
+    nonzero = probability > 0
+    rgba[nonzero, 3] = np.interp(probability[nonzero], [0.0, 1.0], [70.0, 188.0]).astype(np.uint8)
     return rgba
 
 

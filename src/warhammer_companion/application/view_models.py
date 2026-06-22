@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from warhammer_companion.domain.models import MapPacket
+from warhammer_companion.domain.threat import ThreatDiceOutcome
 from warhammer_companion.ingestion.packet_builder import IngestionReport
 from warhammer_companion.ingestion.pipeline import PipelineStage
 from warhammer_companion.ingestion.sources import OfficialSource
@@ -109,6 +110,27 @@ class MovementReachState:
     movement_modes: list[str]
     endpoint_estimated_reachable: bool
     endpoint_reason_details: list[str]
+    map_svg: str
+
+
+@dataclass(frozen=True)
+class ThreatRangeState:
+    packet: MapPacket
+    packet_groups: list[PacketSelectGroup]
+    packet_selector: PacketSelectorState
+    source_x: float
+    source_y: float
+    target_x: float
+    target_y: float
+    base: float
+    move: float
+    threat: float
+    mode: str
+    threat_modes: list[str]
+    measurement_convention: str
+    target_probability: float
+    distribution: list[ThreatDiceOutcome]
+    warning_details: list[str]
     map_svg: str
 
 

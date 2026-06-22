@@ -10,6 +10,7 @@ from warhammer_companion.application.los_toolkit import (
     build_los_checker_toolkit_result,
 )
 from warhammer_companion.application.movement_reach import build_movement_reach_toolkit_result
+from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
     HeatmapState,
@@ -23,11 +24,13 @@ from warhammer_companion.application.view_models import (
     PacketSelectorState,
     SettingsState,
     TerrainSelectOption,
+    ThreatRangeState,
     ViewerState,
 )
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.movement import MOVEMENT_MODES, MovementReachPayload
 from warhammer_companion.domain.repository import MapRepository
+from warhammer_companion.domain.threat import THREAT_MODES, ThreatRangePayload
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import PipelineStage, current_pipeline_status
@@ -304,6 +307,100 @@ class WarhammerCompanionService:
             target_center=(target_x, target_y),
             base_diameter=base,
             move_distance=move,
+            mode=mode,
+        )
+
+    def threat_range_state(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        source_x: float = 16.0,
+        source_y: float = 10.0,
+        target_x: float = 24.0,
+        target_y: float = 10.0,
+        base: float = 1.57,
+        move: float = 6.0,
+        threat: float = 2.0,
+        mode: str = "fixed-move-plus-range",
+    ) -> ThreatRangeState:
+        result = self.threat_range_toolkit_result(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+            source_x=source_x,
+            source_y=source_y,
+            target_x=target_x,
+            target_y=target_y,
+            base=base,
+            move=move,
+            threat=threat,
+            mode=mode,
+        )
+        payload = result.payload
+        map_svg = (
+            render_map_svg(payload.packet)
+            if result.is_blocked
+            else render_map_svg(
+                payload.packet,
+                threat_regions=payload.threat_regions,
+                threat_source_center=payload.source_center,
+                threat_target_point=payload.target_point,
+                threat_base_diameter=payload.base_diameter,
+            )
+        )
+        return ThreatRangeState(
+            packet=payload.packet,
+            packet_groups=self.packet_select_groups(),
+            packet_selector=self.packet_selector_state(packet_id=payload.packet.id),
+            source_x=payload.source_center[0],
+            source_y=payload.source_center[1],
+            target_x=payload.target_point[0],
+            target_y=payload.target_point[1],
+            base=payload.base_diameter,
+            move=payload.move_distance,
+            threat=payload.threat_range,
+            mode=payload.mode,
+            threat_modes=list(THREAT_MODES),
+            measurement_convention=payload.measurement_convention,
+            target_probability=payload.target_probability,
+            distribution=list(payload.distribution),
+            warning_details=[warning.detail for warning in result.warnings],
+            map_svg=map_svg,
+        )
+
+    def threat_range_toolkit_result(
+        self,
+        *,
+        packet_id: str | None = None,
+        player_a: str | None = None,
+        player_b: str | None = None,
+        layout_variant: str | None = None,
+        source_x: float = 16.0,
+        source_y: float = 10.0,
+        target_x: float = 24.0,
+        target_y: float = 10.0,
+        base: float = 1.57,
+        move: float = 6.0,
+        threat: float = 2.0,
+        mode: str = "fixed-move-plus-range",
+    ) -> ToolkitResult[ThreatRangePayload]:
+        packet = self._selected_packet_by_selector(
+            packet_id=packet_id,
+            player_a=player_a,
+            player_b=player_b,
+            layout_variant=layout_variant,
+        )
+        return build_threat_range_toolkit_result(
+            packet,
+            source_center=(source_x, source_y),
+            target_point=(target_x, target_y),
+            base_diameter=base,
+            move_distance=move,
+            threat_range=threat,
             mode=mode,
         )
 

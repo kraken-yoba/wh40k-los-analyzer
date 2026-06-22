@@ -1350,3 +1350,130 @@ Browser QA:
 Remaining blocker status:
 
 - Awaiting implementation reviewer re-check after this log update, then atomic commit.
+
+## 2026-06-22 - Phase 6 - Threat Range Toolkit
+
+Branch: `codex/assistant-companion-roadmap`
+
+Commit: pending
+
+Purpose:
+
+- Add the first manual threat-range diagnostic slice before source-backed rules mechanics, roster
+  profiles, damage, mission analytics, and AI companion behavior are implemented.
+- Provide deterministic exact D6/2D6 probability-band geometry for one circular source base using
+  manual move/range inputs.
+- Keep results explicitly `estimated` and non-recommending.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-21-threat-range-toolkit-spec.md`
+- `docs/superpowers/plans/2026-06-21-threat-range-toolkit.md`
+- `docs/superpowers/qa/2026-06-21-threat-range-toolkit-qa.md`
+- `docs/superpowers/reviews/2026-06-21-phase-6-consultant-threat-range.md`
+- `docs/superpowers/reviews/2026-06-21-phase-6-adversarial-threat-range.md`
+- `src/warhammer_companion/domain/threat.py`
+- `src/warhammer_companion/los/threat.py`
+- `src/warhammer_companion/application/threat_range.py`
+- service, renderer, web, desktop, and test adapter updates for `/threat-range`.
+
+Design decisions:
+
+- Phase 6 is rosterless and manual-input only.
+- Measurement convention is `source-base-edge-to-target-point`. The source base radius is included
+  in reach budgets and rendered geometry; target base radius and official engagement/targeting
+  semantics are not modeled.
+- Movement-enabled threat modes reuse Phase 5 `movement_envelope(...)` behavior and then buffer the
+  reachable source-center region by source base radius plus threat range.
+- `raw-range` is current source center buffered by source base radius plus threat range.
+- Movement distance and threat range may be zero; base diameter must be positive. Non-finite values
+  and negative move/threat values block the result with no overlays.
+- Dice modes are exact enumerations: D6 outcomes `1..6`, 2D6 outcomes `2..12`, no rerolls,
+  modifiers, CP, stratagems, transports, reserves, actions, target-base logic, LOS, or damage.
+- The SVG renderer accumulates probability-weighted threat regions into one embedded PNG raster.
+  Deterministic modes are binary; dice modes produce probability bands.
+- Web and desktop surfaces remain thin adapters over `WarhammerCompanionService`; no custom
+  frontend JavaScript was added.
+
+Consultant and adversarial triage:
+
+- Phase 6 design consultant approved the manual probability-band slice and recommended exact dice
+  enumeration, target-point diagnostics, and raster probability bands.
+- Phase 6 adversarial design reviewer conditionally approved only if the slice stayed estimated,
+  deterministic, manual, and non-recommending.
+- Implementation consultant initially blocked on stale desktop wiring, measurement/spec mismatch,
+  warning visibility, zero-value validation drift, shallow renderer coverage, missing POST coverage,
+  and missing QA evidence.
+- Accepted fixes: desktop screen/nav/smoke wiring, spec alignment to
+  `source-base-edge-to-target-point`, visible source-backed/no-recommendation warnings, nonnegative
+  move/threat contract, decoded raster dimension/alpha coverage, POST redirect test coverage, and
+  this QA evidence record.
+- Final adversarial implementation reviewer found four blockers: zero fixed-move threat paths
+  crashed via `movement_envelope(...)`; source bases could overhang the board; invalid modes shared
+  the same input hash as valid `raw-range`; and desktop omitted warning text.
+- Accepted fixes: stationary fixed-move threat paths now render as source-stationary regions,
+  toolkit validation blocks overhanging source bases, input identity hashes the submitted mode
+  string, and desktop status includes the toolkit warning details.
+
+TDD and implementation results:
+
+- Red step: threat geometry/toolkit tests initially failed on missing
+  `warhammer_companion.los.threat` and `warhammer_companion.application.threat_range`.
+- Green step: geometry/toolkit tests passed after adding typed threat domain records, exact dice
+  distributions, threat-region geometry helpers, threshold/target probability helpers, and the
+  `threat_range` toolkit result builder.
+- Integration red step: service/rendering/web/desktop tests failed on missing renderer arguments,
+  `/threat-range` route/template, and desktop `Threat Range` screen/smoke summary.
+- Green step: those tests passed after adding shared service state, SVG threat probability raster,
+  server-rendered web controls/table/warnings, and a PySide6 desktop screen.
+- Review-fix red step: warning and POST-preservation tests failed before warning plumbing and route
+  coverage were added, then passed after fixes.
+- Adversarial-fix red step: tests for zero fixed movement, source-base overhang, invalid-mode hash
+  collision, and desktop warning visibility failed first and then passed after fixes.
+
+Verification completed:
+
+- Focused warning/POST/raster regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_threat_range_toolkit.py::test_threat_range_toolkit_result_is_estimated_and_non_recommending tests\test_web_server.py::test_threat_range_route_uses_manual_probability_controls_and_cautious_language tests\test_web_server.py::test_threat_range_post_redirect_preserves_manual_values tests\test_rendering_svg.py::test_threat_projection_renders_probability_raster_and_markers -q`
+  returned 4 passed.
+- Phase 6 target suite passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_threat_range_geometry.py tests\test_threat_range_toolkit.py tests\test_application_service.py tests\test_rendering_svg.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 65 passed with the existing Starlette `TestClient` deprecation warning after the final
+  adversarial fixes.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 110 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 342 passed with the existing Starlette
+  `TestClient` deprecation warning before the final adversarial fixes; after those fixes, full
+  pytest passed again with 345 passed and the same warning.
+- Packet validation passed for all 45 bundled official seed packets.
+- Desktop smoke passed with `status: ok`, 45 packets, and `threat_range_svg: true`.
+- `git diff --check` passed; Git printed only normal LF-to-CRLF warnings for touched files.
+- Restricted protected-path scan over the Phase 6 candidate file set passed: no blocked
+  generated/raw/binary paths and no credential/API-key hits. `AGENTS.md` remained untracked and
+  excluded from staging.
+
+Browser QA:
+
+- `Start-Process` background launch hit the known Windows `Path`/`PATH` duplication issue, so the
+  local app was launched through a detached child process on `http://127.0.0.1:8000`.
+- Built-in Browser route sweep passed for `/threat-range`, the 2D6 query path,
+  `/movement-reach`, `/los-checker`, `/viewer`, `/heatmap`, `/hidden-coverage`, `/settings`, and
+  `/map-data`.
+- Default `/threat-range` rendered one SVG map, one `threat-projection-image`, source and target
+  markers, no `<script>` tags, visible estimated/caution warnings, and no console warnings/errors.
+- The 2D6 query path preserved source, target, base, move, threat, mode, and Layout B values. It
+  rendered all 2D6 rows and showed `100.0%` target point probability for the selected coordinates.
+- Existing smoke routes rendered their expected SVG/raster surfaces with no console warnings/errors.
+- After final adversarial fixes, Browser QA was rerun. `/threat-range`, the 2D6 query path,
+  `/movement-reach`, `/los-checker`, `/viewer`, `/hidden-coverage`, `/settings`, and `/map-data`
+  had no navigation errors, missing text, scripts, forbidden estimated-result wording, or console
+  warnings/errors. `/heatmap` repeated the known Browser navigation timeout, but the resulting tab
+  state reached `/heatmap`, rendered one SVG and one `heatmap-image`, and had no warning/error logs.
+- The temporary QA process was terminated after Browser QA.
+
+Remaining blocker status:
+
+- Awaiting final consultant re-review and adversarial implementation review before staging and
+  atomic commit.

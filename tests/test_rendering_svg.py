@@ -17,6 +17,7 @@ from warhammer_companion.los.geometry import (
     visibility_polygon_from_base,
 )
 from warhammer_companion.los.movement import movement_envelope, swept_base_path
+from warhammer_companion.los.threat import threat_projection_regions
 from warhammer_companion.rendering.svg import render_map_svg
 from warhammer_companion.sample_data import SAMPLE_PACKETS
 
@@ -127,6 +128,37 @@ def test_movement_envelope_raster_preserves_visible_pixel_color_and_alpha() -> N
     visible = rgba[rgba[..., 3] > 0]
     assert visible.size > 0
     assert (75, 125, 178, 96) in {tuple(pixel) for pixel in visible}
+
+
+def test_threat_projection_renders_probability_raster_and_markers() -> None:
+    packet = SAMPLE_PACKETS[0]
+    regions = threat_projection_regions(
+        packet,
+        source_center=(16.0, 10.0),
+        base_diameter=1.57,
+        move_distance=6.0,
+        threat_range=2.0,
+        mode="2d6-move-plus-range",
+    )
+
+    svg = render_map_svg(
+        packet,
+        threat_regions=regions,
+        threat_source_center=(16.0, 10.0),
+        threat_target_point=(24.0, 10.0),
+        threat_base_diameter=1.57,
+    )
+
+    assert 'class="threat-projection-image"' in svg
+    assert 'class="threat-source-base"' in svg
+    assert 'class="threat-target-point"' in svg
+    assert "data:image/png;base64," in svg
+    image = _decoded_png_for_class(svg, "threat-projection-image")
+    assert image.size == (528, 720)
+    alpha = np.asarray(image, dtype=np.uint8)[..., 3]
+    positive_alpha = alpha[alpha > 0]
+    assert int(alpha.min()) == 0
+    assert int(positive_alpha.max()) > int(positive_alpha.min())
 
 
 def test_hidden_coverage_renders_as_embedded_exposure_heatmap() -> None:
