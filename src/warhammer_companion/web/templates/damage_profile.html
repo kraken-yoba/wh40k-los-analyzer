@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1>Damage Profile</h1>
+    <p class="lede">
+      Manual estimate for one fixed attack profile into one homogeneous target profile.
+      Effective save supplied by user; unsupported effects omitted.
+    </p>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="toolbar damage-profile-form" method="post" action="/damage-profile">
+    <label>
+      Attacks
+      <input name="attacks" type="number" min="1" max="120" step="1" value="{{ attacks }}">
+    </label>
+    <label>
+      Hit target
+      <input name="hit" type="number" min="2" max="6" step="1" value="{{ hit }}">
+    </label>
+    <label>
+      Wound target
+      <input name="wound" type="number" min="2" max="6" step="1" value="{{ wound }}">
+    </label>
+    <label>
+      Effective save
+      <input name="save" type="number" min="2" max="6" step="1" value="{{ save }}">
+    </label>
+    <label>
+      Damage
+      <input name="damage" type="number" min="0" max="100" step="0.01" value="{{ damage }}">
+    </label>
+    <label>
+      Wounds/model
+      <input name="wounds" type="number" min="1" max="100" step="1" value="{{ wounds }}">
+    </label>
+    <label>
+      Models
+      <input name="models" type="number" min="1" max="120" step="1" value="{{ models }}">
+    </label>
+    <button type="submit">Generate</button>
+  </form>
+
+  {% if warning_details %}
+  <ul class="warning-list" aria-label="Damage profile warnings">
+    {% for warning in warning_details %}
+    <li>{{ warning }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if is_blocked %}
+  <div class="diagnostic-summary" aria-label="Damage profile blocked reasons">
+    <strong>Status</strong>
+    <span>Blocked</span>
+    {% for reason in block_reason_details %}
+    <strong>Reason</strong>
+    <span>{{ reason }}</span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="diagnostic-summary" aria-label="Damage profile summary">
+    <strong>Expected hits</strong>
+    <span>{{ "%.2f"|format(expected_hits) }}</span>
+    <strong>Expected wounds</strong>
+    <span>{{ "%.2f"|format(expected_wounds) }}</span>
+    <strong>Expected unsaved wounds</strong>
+    <span>{{ "%.2f"|format(expected_unsaved_wounds) }}</span>
+    <strong>Expected damage</strong>
+    <span>{{ "%.2f"|format(expected_damage) }}</span>
+    <strong>Expected models destroyed</strong>
+    <span>{{ "%.2f"|format(expected_models_destroyed) }}</span>
+    <strong>At least one model destroyed</strong>
+    <span>{{ "%.1f"|format(probability_destroying_at_least_one_model * 100) }}%</span>
+  </div>
+
+  <div class="split-grid">
+    <div>
+      <h2>Unsaved Wounds</h2>
+      <table class="probability-table">
+        <thead>
+          <tr>
+            <th>Unsaved wounds</th>
+            <th>Probability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in unsaved_wound_distribution %}
+          <tr>
+            <td>{{ row.outcome }}</td>
+            <td>{{ row.numerator }}/{{ row.denominator }} ({{ "%.1f"|format(row.probability * 100) }}%)</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Models Destroyed</h2>
+      <table class="probability-table">
+        <thead>
+          <tr>
+            <th>Models destroyed</th>
+            <th>Probability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in models_destroyed_distribution %}
+          <tr>
+            <td>{{ row.outcome }}</td>
+            <td>{{ row.numerator }}/{{ row.denominator }} ({{ "%.1f"|format(row.probability * 100) }}%)</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

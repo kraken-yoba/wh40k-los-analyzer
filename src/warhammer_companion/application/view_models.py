@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from warhammer_companion.domain.damage import DamageProbabilityRow
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.threat import ThreatDiceOutcome
 from warhammer_companion.ingestion.packet_builder import IngestionReport
@@ -164,6 +165,28 @@ class DeploymentExposureState:
     placement_reason_details: list[str]
     warning_details: list[str]
     map_svg: str
+
+
+@dataclass(frozen=True)
+class DamageProfileState:
+    attacks: float
+    hit_target: int
+    wound_target: int
+    save_target: int
+    damage_per_unsaved_wound: float
+    target_wounds_per_model: float
+    target_model_count: float
+    is_blocked: bool
+    expected_hits: float
+    expected_wounds: float
+    expected_unsaved_wounds: float
+    expected_damage: float
+    expected_models_destroyed: float
+    probability_destroying_at_least_one_model: float
+    unsaved_wound_distribution: list[DamageProbabilityRow]
+    models_destroyed_distribution: list[DamageProbabilityRow]
+    warning_details: list[str]
+    block_reason_details: list[str]
 
 
 @dataclass(frozen=True)

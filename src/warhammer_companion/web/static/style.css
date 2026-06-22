@@ -536,6 +536,17 @@ button,
   text-transform: uppercase;
 }
 
+.split-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.split-grid h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
 .board {
   fill: #eee8d9;
   stroke: #2b322c;

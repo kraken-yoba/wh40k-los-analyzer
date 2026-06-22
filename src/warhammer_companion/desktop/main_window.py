@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (  # type: ignore[import-not-found]
 )
 
 from warhammer_companion.application.services import WarhammerCompanionService
+from warhammer_companion.desktop.screens.damage_profile import DamageProfileScreen
 from warhammer_companion.desktop.screens.deployment_exposure import DeploymentExposureScreen
 from warhammer_companion.desktop.screens.heatmap import HeatmapScreen
 from warhammer_companion.desktop.screens.hidden_coverage import HiddenCoverageScreen
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self._add_screen("Movement Reach", MovementReachScreen(service))
         self._add_screen("Threat Range", ThreatRangeScreen(service))
         self._add_screen("Deployment Exposure", DeploymentExposureScreen(service))
+        self._add_screen("Damage Profile", DamageProfileScreen(service))
         self._add_screen("Hidden Coverage", HiddenCoverageScreen(service))
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setCurrentRow(2)

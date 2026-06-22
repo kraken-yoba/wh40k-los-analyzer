@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from warhammer_companion.application.services import WarhammerCompanionService
 from warhammer_companion.application.view_models import (
+    DamageProfileState,
     DeploymentExposureState,
     DeploymentZoneSelectOption,
     HeatmapState,
@@ -14,6 +15,7 @@ from warhammer_companion.application.view_models import (
     TerrainSelectOption,
     ThreatRangeState,
 )
+from warhammer_companion.domain.damage import DamageProbabilityRow
 from warhammer_companion.domain.models import MapPacket
 from warhammer_companion.domain.packet_io import write_packet
 from warhammer_companion.domain.repository import FileBackedMapRepository, StaticMapRepository
@@ -596,6 +598,182 @@ def test_deployment_exposure_post_redirect_preserves_manual_values(monkeypatch) 
         "&friendly_x=10.0&friendly_y=5.0&friendly_base=1.57"
         "&enemy_x=38.0&enemy_y=52.0&enemy_base=1.57&enemy_move=0.0"
         "&enemy_threat=1.0&enemy_mode=raw-range&exposure_mode=threat-and-los"
+    )
+
+
+def test_damage_profile_route_uses_manual_math_controls_and_cautious_language(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[float, int, int, int, float, float, float]] = []
+
+    class FakeService:
+        def damage_profile_state(
+            self,
+            *,
+            attacks: float = 2,
+            hit: int = 4,
+            wound: int = 4,
+            save: int = 4,
+            damage: float = 2,
+            wounds: float = 2,
+            models: float = 3,
+        ) -> DamageProfileState:
+            calls.append((attacks, hit, wound, save, damage, wounds, models))
+            return DamageProfileState(
+                attacks=attacks,
+                hit_target=hit,
+                wound_target=wound,
+                save_target=save,
+                damage_per_unsaved_wound=damage,
+                target_wounds_per_model=wounds,
+                target_model_count=models,
+                is_blocked=False,
+                expected_hits=1.0,
+                expected_wounds=0.5,
+                expected_unsaved_wounds=0.25,
+                expected_damage=0.5,
+                expected_models_destroyed=0.25,
+                probability_destroying_at_least_one_model=15 / 64,
+                unsaved_wound_distribution=[
+                    DamageProbabilityRow(
+                        outcome=0, numerator=49, denominator=64, probability=49 / 64
+                    ),
+                    DamageProbabilityRow(
+                        outcome=1, numerator=14, denominator=64, probability=14 / 64
+                    ),
+                    DamageProbabilityRow(
+                        outcome=2, numerator=1, denominator=64, probability=1 / 64
+                    ),
+                ],
+                models_destroyed_distribution=[
+                    DamageProbabilityRow(
+                        outcome=0, numerator=49, denominator=64, probability=49 / 64
+                    ),
+                    DamageProbabilityRow(
+                        outcome=1, numerator=14, denominator=64, probability=14 / 64
+                    ),
+                    DamageProbabilityRow(
+                        outcome=2, numerator=1, denominator=64, probability=1 / 64
+                    ),
+                ],
+                warning_details=[
+                    (
+                        "Manual estimate; not roster-derived; not official/profile-resolved; "
+                        "effective save supplied by user; unsupported effects omitted; "
+                        "no source-backed rules/list claim."
+                    )
+                ],
+                block_reason_details=[],
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        "/damage-profile?attacks=2&hit=4&wound=4&save=4&damage=2&wounds=2&models=3"
+    )
+    normalized = " ".join(response.text.split()).lower()
+    normalized_without_negative_claim = normalized.replace("not official/profile-resolved", "")
+
+    assert response.status_code == 200
+    assert calls == [(2.0, 4, 4, 4, 2.0, 2.0, 3.0)]
+    assert "Damage Profile" in response.text
+    assert 'name="attacks"' in response.text
+    assert 'name="hit"' in response.text
+    assert 'name="wound"' in response.text
+    assert 'name="save"' in response.text
+    assert 'name="damage"' in response.text
+    assert 'name="wounds"' in response.text
+    assert 'name="models"' in response.text
+    assert "manual estimate" in normalized
+    assert "effective save supplied by user" in normalized
+    assert "expected damage" in normalized
+    assert "0.50" in response.text
+    assert "49/64" in response.text
+    assert "<script" not in response.text
+    for forbidden in (
+        "legal",
+        "optimal",
+        "recommended",
+        "likely",
+        "target priority",
+        "bad target",
+        "official",
+        "profile-resolved",
+    ):
+        assert forbidden not in normalized_without_negative_claim
+
+
+def test_damage_profile_route_shows_blocked_manual_inputs(monkeypatch) -> None:
+    class FakeService:
+        def damage_profile_state(
+            self,
+            *,
+            attacks: float = 2,
+            hit: int = 4,
+            wound: int = 4,
+            save: int = 4,
+            damage: float = 2,
+            wounds: float = 2,
+            models: float = 3,
+        ) -> DamageProfileState:
+            return DamageProfileState(
+                attacks=attacks,
+                hit_target=hit,
+                wound_target=wound,
+                save_target=save,
+                damage_per_unsaved_wound=damage,
+                target_wounds_per_model=wounds,
+                target_model_count=models,
+                is_blocked=True,
+                expected_hits=0.0,
+                expected_wounds=0.0,
+                expected_unsaved_wounds=0.0,
+                expected_damage=0.0,
+                expected_models_destroyed=0.0,
+                probability_destroying_at_least_one_model=0.0,
+                unsaved_wound_distribution=[],
+                models_destroyed_distribution=[],
+                warning_details=["Manual estimate cannot run until manual inputs are valid."],
+                block_reason_details=["Attack count must be a finite positive integer."],
+            )
+
+    monkeypatch.setattr(server, "service", FakeService())
+    client = TestClient(server.app)
+
+    response = client.get(
+        "/damage-profile?attacks=0&hit=4&wound=4&save=4&damage=2&wounds=2&models=3"
+    )
+    normalized = " ".join(response.text.split()).lower()
+
+    assert response.status_code == 200
+    assert "blocked" in normalized
+    assert "attack count must be a finite positive integer" in normalized
+    assert "traceback" not in normalized
+    assert "internal server error" not in normalized
+    assert "<script" not in response.text
+
+
+def test_damage_profile_post_redirect_preserves_manual_values() -> None:
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/damage-profile",
+        data={
+            "attacks": "2",
+            "hit": "4",
+            "wound": "4",
+            "save": "4",
+            "damage": "2",
+            "wounds": "2",
+            "models": "3",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == (
+        "/damage-profile?attacks=2.0&hit=4&wound=4&save=4&damage=2.0&wounds=2.0&models=3.0"
     )
 
 

@@ -510,3 +510,56 @@ def test_deployment_exposure_state_renders_component_overlays_by_mode(
 
     assert ('class="coverage-image"' in state.map_svg) is expected_los
     assert ('class="threat-projection-image"' in state.map_svg) is expected_threat
+
+
+def test_damage_profile_toolkit_result_wraps_manual_estimate() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    result = service.damage_profile_toolkit_result(
+        attacks=2,
+        hit=4,
+        wound=4,
+        save=4,
+        damage=2,
+        wounds=2,
+        models=3,
+    )
+
+    assert result.tool_id == "damage_profile"
+    assert result.readiness == "estimated"
+    assert not result.overlays
+    assert not result.source_ref_ids
+    assert result.payload.summary.expected_damage == pytest.approx(0.5)
+    assert not result.allows_recommendation_language()
+
+
+def test_damage_profile_state_exposes_summary_warnings_and_block_reasons() -> None:
+    service = WarhammerCompanionService(
+        paths=IngestionPaths(),
+        repository=StaticMapRepository(SAMPLE_PACKETS),
+        codex_backend=server.codex_backend,
+    )
+
+    state = service.damage_profile_state(
+        attacks=2,
+        hit=4,
+        wound=4,
+        save=4,
+        damage=2,
+        wounds=2,
+        models=3,
+    )
+    blocked = service.damage_profile_state(attacks=0)
+
+    assert state.is_blocked is False
+    assert state.expected_damage == pytest.approx(0.5)
+    assert state.expected_models_destroyed == pytest.approx(0.25)
+    assert state.probability_destroying_at_least_one_model == pytest.approx(15 / 64)
+    assert state.unsaved_wound_distribution
+    assert "manual estimate" in " ".join(state.warning_details).lower()
+    assert blocked.is_blocked is True
+    assert any("attack" in detail.lower() for detail in blocked.block_reason_details)

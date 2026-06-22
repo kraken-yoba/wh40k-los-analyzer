@@ -1748,3 +1748,103 @@ Review and blocker status:
   Phase 7.5 work-log entry was missing.
 - Protected-path scan passed: no generated/raw/binary/credential paths and no secret-pattern hits.
   `AGENTS.md` remained untracked and excluded from staging.
+
+## Phase 8A - Manual Damage Estimate
+
+Purpose:
+
+- Start Phase 8 without overclaiming roster-aware Damage And Survivability Profiles before
+  source/profile resolution authority exists.
+- Add a deterministic manual damage math toolkit for one fixed attack profile into one homogeneous
+  target profile.
+- Keep valid outputs `estimated`, invalid outputs `blocked`, and no outputs `trusted`.
+
+Artifacts:
+
+- `docs/superpowers/specs/2026-06-22-phase-8a-manual-damage-estimate.md`
+- `docs/superpowers/plans/2026-06-22-phase-8a-manual-damage-estimate.md`
+- `docs/superpowers/qa/2026-06-22-phase-8a-manual-damage-estimate-qa.md`
+- `docs/superpowers/reviews/2026-06-22-phase-8a-consultant-manual-damage-estimate.md`
+- `docs/superpowers/reviews/2026-06-22-phase-8a-adversarial-manual-damage-estimate.md`
+- `src/warhammer_companion/domain/damage.py`
+- `src/warhammer_companion/application/damage_profile.py`
+- `src/warhammer_companion/application/services.py`
+- `src/warhammer_companion/application/view_models.py`
+- `src/warhammer_companion/web/server.py`
+- `src/warhammer_companion/web/templates/damage_profile.html`
+- `src/warhammer_companion/desktop/screens/damage_profile.py`
+- `tests/test_damage_profile_toolkit.py`
+- `tests/test_application_service.py`
+- `tests/test_web_server.py`
+- `tests/test_desktop_app.py`
+
+Design decisions:
+
+- This slice is named Phase 8A Manual Damage Estimate, not full Phase 8 completion.
+- Inputs are manual only: fixed integer attacks, hit/wound/effective save targets from 2+ through
+  6+, flat non-negative damage, finite positive integer wounds/model, and finite positive integer
+  model count.
+- Effective save is supplied by the user after unmodeled AP, cover, and invulnerable decisions.
+- Unsaved-wound PMFs use exact binomial math and preserve a common denominator for readability.
+- Model destruction lets damage from separate unsaved wounds accumulate on the active model, but
+  excess damage from an attack after a model is destroyed is discarded.
+- No roster snapshot, profile, official rule text, AP/cover resolver, modifier, reroll, ability,
+  Feel No Pain, damage reduction, mission warning, target priority, or unit matrix behavior is
+  implemented in this slice.
+
+TDD and implementation results:
+
+- Red step: the new toolkit and route tests failed with expected missing-module and missing-state
+  import errors before implementation.
+- Initial green step found one PMF presentation mismatch: 14/64 was being reduced to 7/32. The
+  builder now preserves common binomial denominators and grouped model-destroyed denominators.
+- Adversarial implementation review found that a `+ 1e-9` kill-threshold tolerance could overkill
+  fractional damage just below a target wound threshold. The tolerance was removed and a regression
+  covers 3 unsaved wounds at 0.333333333 damage into a 1-wound target.
+- The web route `/damage-profile` is server-rendered with one form, no custom JavaScript, caution
+  copy, summary values, unsaved-wound PMF, model-destroyed PMF, and blocked invalid-input reasons.
+- The desktop screen `Damage Profile` is a thin PySide6 adapter over `damage_profile_state(...)`.
+- Desktop smoke now reports `damage_profile_estimate: true`.
+
+Verification completed:
+
+- Red check before implementation failed as expected:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_damage_profile_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  reported missing `warhammer_companion.application.damage_profile` and missing
+  `DamageProfileState`.
+- Focused toolkit command passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_damage_profile_toolkit.py -q`
+  returned 21 passed after the fractional-damage regression was added.
+- Focused Phase 8A batch passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_damage_profile_toolkit.py tests\test_application_service.py tests\test_web_server.py tests\test_desktop_app.py -q`
+  returned 74 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed: 119 files already
+  formatted.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- Full `.\.venv\Scripts\python.exe -m pytest` passed: 393 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Desktop smoke passed with `status: ok`, official packet count 45, and
+  `damage_profile_estimate: true`.
+
+Browser QA:
+
+- The local app was launched through a detached Node child process on `http://127.0.0.1:8000`.
+- Built-in Browser QA passed for `/damage-profile`, the valid sample query
+  `/damage-profile?attacks=2&hit=4&wound=4&save=4&damage=2&wounds=2&models=3`, and the blocked
+  invalid query `/damage-profile?attacks=0&hit=4&wound=4&save=4&damage=2&wounds=2&models=3`.
+- Each route rendered heading `Damage Profile`, exactly one form, zero `<script>` tags, all manual
+  inputs, required manual-estimate/effective-save/unsupported-effects warning copy, no traceback or
+  internal-error text, no forbidden positive claim wording, and no localhost warning/error console
+  logs.
+- Valid routes showed expected damage `0.50` and distribution rows `49/64`, `14/64`, and `1/64`.
+- The invalid route showed blocked status and attack-count block reason text.
+- The temporary QA tab and server process were closed after Browser QA.
+
+Review and blocker status:
+
+- Consultant reviewer approved the narrowed Phase 8A spec, plan, and QA pathway.
+- Adversarial reviewer initially required stricter finite-positive-integer target semantics and
+  explicit invalid-input fixtures. The docs were patched and re-review approved the scope.
+- Adversarial implementation review required a fractional-damage threshold fix; the fix and
+  regression were applied before final re-review.

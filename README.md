@@ -14,7 +14,8 @@ frontend JavaScript.
 - Server-rendered map viewer.
 - LOS heatmap generated from a deployment zone.
 - Base-aware LOS checker that places a model base and renders visibility rays.
-- Movement reach, hidden coverage, threat range, and deployment exposure diagnostics.
+- Movement reach, hidden coverage, threat range, deployment exposure, and manual damage profile
+  diagnostics.
 - Official source registry for Games Workshop PDFs.
 - Python package, CLI, desktop smoke test, tests, linting, and docs.
 
@@ -42,6 +43,7 @@ Useful toolkit routes:
 - `/hidden-coverage`
 - `/threat-range`
 - `/deployment-exposure`
+- `/damage-profile`
 
 Desktop smoke:
 

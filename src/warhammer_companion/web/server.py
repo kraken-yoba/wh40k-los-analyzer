@@ -433,6 +433,55 @@ def deployment_exposure(
     )
 
 
+@app.get("/damage-profile", response_class=HTMLResponse)
+def damage_profile(
+    request: Request,
+    attacks: float = 2.0,
+    hit: int = 4,
+    wound: int = 4,
+    save: int = 4,
+    damage: float = 2.0,
+    wounds: float = 2.0,
+    models: float = 3.0,
+) -> HTMLResponse:
+    state = service.damage_profile_state(
+        attacks=attacks,
+        hit=hit,
+        wound=wound,
+        save=save,
+        damage=damage,
+        wounds=wounds,
+        models=models,
+    )
+    return templates.TemplateResponse(
+        request,
+        "damage_profile.html",
+        {
+            "active_page": "damage-profile",
+            "attacks": state.attacks,
+            "hit": state.hit_target,
+            "wound": state.wound_target,
+            "save": state.save_target,
+            "damage": state.damage_per_unsaved_wound,
+            "wounds": state.target_wounds_per_model,
+            "models": state.target_model_count,
+            "is_blocked": state.is_blocked,
+            "expected_hits": state.expected_hits,
+            "expected_wounds": state.expected_wounds,
+            "expected_unsaved_wounds": state.expected_unsaved_wounds,
+            "expected_damage": state.expected_damage,
+            "expected_models_destroyed": state.expected_models_destroyed,
+            "probability_destroying_at_least_one_model": (
+                state.probability_destroying_at_least_one_model
+            ),
+            "unsaved_wound_distribution": state.unsaved_wound_distribution,
+            "models_destroyed_distribution": state.models_destroyed_distribution,
+            "warning_details": state.warning_details,
+            "block_reason_details": state.block_reason_details,
+        },
+    )
+
+
 @app.post("/los-checker", response_class=HTMLResponse)
 def update_los_checker(
     packet_id: str | None = Form(None),
@@ -533,6 +582,33 @@ def update_deployment_exposure(
                 "enemy_threat": enemy_threat,
                 "enemy_mode": enemy_mode,
                 "exposure_mode": exposure_mode,
+            }
+        ),
+        status_code=303,
+    )
+
+
+@app.post("/damage-profile", response_class=HTMLResponse)
+def update_damage_profile(
+    attacks: float = Form(...),
+    hit: int = Form(...),
+    wound: int = Form(...),
+    save: int = Form(...),
+    damage: float = Form(...),
+    wounds: float = Form(...),
+    models: float = Form(...),
+) -> RedirectResponse:
+    return RedirectResponse(
+        "/damage-profile?"
+        + urlencode(
+            {
+                "attacks": attacks,
+                "hit": hit,
+                "wound": wound,
+                "save": save,
+                "damage": damage,
+                "wounds": wounds,
+                "models": models,
             }
         ),
         status_code=303,

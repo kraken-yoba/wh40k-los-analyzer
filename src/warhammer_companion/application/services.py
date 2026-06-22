@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Protocol
 
+from warhammer_companion.application.damage_profile import build_damage_profile_toolkit_result
 from warhammer_companion.application.deployment_exposure import (
     build_deployment_exposure_toolkit_result,
 )
@@ -16,6 +17,7 @@ from warhammer_companion.application.movement_reach import build_movement_reach_
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
 from warhammer_companion.application.view_models import (
+    DamageProfileState,
     DeploymentExposureState,
     DeploymentZoneSelectOption,
     HeatmapState,
@@ -32,6 +34,7 @@ from warhammer_companion.application.view_models import (
     ThreatRangeState,
     ViewerState,
 )
+from warhammer_companion.domain.damage import DamageEstimatePayload
 from warhammer_companion.domain.exposure import (
     EXPOSURE_MODES,
     DeploymentExposurePayload,
@@ -535,6 +538,72 @@ class WarhammerCompanionService:
             enemy_threat_range=enemy_threat,
             enemy_threat_mode=enemy_mode,
             exposure_mode=exposure_mode,
+        )
+
+    def damage_profile_state(
+        self,
+        *,
+        attacks: float = 2.0,
+        hit: int = 4,
+        wound: int = 4,
+        save: int = 4,
+        damage: float = 2.0,
+        wounds: float = 2.0,
+        models: float = 3.0,
+    ) -> DamageProfileState:
+        result = self.damage_profile_toolkit_result(
+            attacks=attacks,
+            hit=hit,
+            wound=wound,
+            save=save,
+            damage=damage,
+            wounds=wounds,
+            models=models,
+        )
+        payload = result.payload
+        summary = payload.summary
+        return DamageProfileState(
+            attacks=payload.profile.attacks,
+            hit_target=payload.profile.hit_target,
+            wound_target=payload.profile.wound_target,
+            save_target=payload.profile.save_target,
+            damage_per_unsaved_wound=payload.profile.damage_per_unsaved_wound,
+            target_wounds_per_model=payload.target.wounds_per_model,
+            target_model_count=payload.target.model_count,
+            is_blocked=result.is_blocked,
+            expected_hits=summary.expected_hits,
+            expected_wounds=summary.expected_wounds,
+            expected_unsaved_wounds=summary.expected_unsaved_wounds,
+            expected_damage=summary.expected_damage,
+            expected_models_destroyed=summary.expected_models_destroyed,
+            probability_destroying_at_least_one_model=(
+                summary.probability_destroying_at_least_one_model
+            ),
+            unsaved_wound_distribution=list(payload.unsaved_wound_distribution),
+            models_destroyed_distribution=list(payload.models_destroyed_distribution),
+            warning_details=[warning.detail for warning in result.warnings],
+            block_reason_details=[reason.detail for reason in result.block_reasons],
+        )
+
+    def damage_profile_toolkit_result(
+        self,
+        *,
+        attacks: float = 2.0,
+        hit: int = 4,
+        wound: int = 4,
+        save: int = 4,
+        damage: float = 2.0,
+        wounds: float = 2.0,
+        models: float = 3.0,
+    ) -> ToolkitResult[DamageEstimatePayload]:
+        return build_damage_profile_toolkit_result(
+            attacks=attacks,
+            hit_target=hit,
+            wound_target=wound,
+            save_target=save,
+            damage_per_unsaved_wound=damage,
+            target_wounds_per_model=wounds,
+            target_model_count=models,
         )
 
     def hidden_coverage_state(

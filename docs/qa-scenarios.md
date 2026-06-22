@@ -35,6 +35,7 @@ Steps:
 8. Open Hidden Coverage.
 9. Open Threat Range.
 10. Open Deployment Exposure.
+11. Open Damage Profile.
 
 Expected result:
 
@@ -274,7 +275,41 @@ Manual check:
 
 - Visual plausibility of candidate staging regions, enemy threat/LOS overlap, and warning copy.
 
-## Scenario 10: Cross-Workflow Consistency
+## Scenario 10: Damage Profile Manual Estimate
+
+Steps:
+
+1. Open Damage Profile.
+2. Enter 2 attacks, hit 4+, wound 4+, effective save 4+, damage 2, 2 wounds/model, and 3 models.
+3. Generate the estimate.
+4. Enter an invalid attack count of 0.
+
+Expected result:
+
+- Valid inputs show expected hits, wounds, unsaved wounds, damage, models destroyed, and
+  probability distributions.
+- The sample input shows expected damage 0.50 and common-denominator distribution rows 49/64,
+  14/64, and 1/64.
+- Warning copy says manual estimate, not roster-derived, not official/profile-resolved, effective
+  save supplied by user, and unsupported effects omitted.
+- Invalid manual inputs are blocked with user-facing messages and no tactical overlays.
+- The page does not claim legal, optimal, recommended, target-priority, roster, profile, or
+  source-backed authority.
+
+Automation:
+
+- Toolkit tests cover D6 probabilities, binomial PMFs, no-spillover model destruction,
+  invalid-input blockers, input identity, and trust wording.
+- Web tests cover controls, caution copy, distributions, blocked route, POST preservation, and no
+  custom frontend JavaScript.
+- Desktop smoke checks screen presence and manual-estimate summary text.
+
+Manual check:
+
+- Browser QA checks `/damage-profile`, a valid sample query, and a blocked invalid query with no
+  console warning/error logs.
+
+## Scenario 11: Cross-Workflow Consistency
 
 Steps:
 
@@ -299,15 +334,15 @@ Manual check:
 
 - Side-by-side web/desktop rendering comparison for known complex layouts.
 
-## Scenario 11: Packaged Windows Desktop Smoke
+## Scenario 12: Packaged Windows Desktop Smoke
 
 Steps:
 
 1. Install or unzip the Windows desktop build on a clean profile with no Python installed.
 2. Launch from the Start Menu or desktop shortcut.
 3. Run the built-in smoke command if available.
-4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, and Deployment
-   Exposure with bundled or generated packet data.
+4. Open Viewer, Heatmap, LOS Checker, Movement Reach, Hidden Coverage, Threat Range, Deployment
+   Exposure, and Damage Profile with bundled or generated packet data.
 5. Trigger a non-destructive settings/status check.
 
 Expected result:
