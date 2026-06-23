@@ -3087,3 +3087,42 @@ Next loop trigger:
 - Open a controlled TTS table, check localhost port 39999, and run the reviewed
   `tts-execute-lua` helper. If port 39999 is unavailable, use the operator-assisted reviewed Global
   Lua path instead.
+
+## 2026-06-23 - TTS Phase 1 Reviewed Helper Live Attempt
+
+Purpose:
+
+- Attempt the live round-trip proof using the reviewed External Editor helper path, with no
+  Computer Use, no temporary startup script, and no generated command-line Lua payload.
+
+Attempt result:
+
+- Phase 1 contracts commit `887335c` was confirmed as an ancestor of HEAD.
+- Preflight found no temporary `bootexec.cfg`, no running TTS process, and no listeners on ports
+  8000 or 39999 at the initial check.
+- TTS launched through the installed executable and a `Tabletop Simulator` process remained
+  responsive.
+- TTS did not expose localhost port 39999 during the polling window.
+- The companion proof server attempt was invalid: a non-proof listener answered the health check
+  while the process launched for the proof failed to bind port 8000.
+- No reviewed helper message was sent to TTS.
+- No TTS `WebRequest.custom` round trip was observed.
+- Temporary proof logs were removed and not committed.
+- Cleanup left no listener on ports 8000 or 39999, and the TTS process launched by this loop was
+  closed.
+
+Decision:
+
+- The live proof plan now requires comparing port 8000 `OwningProcess` to the recorded
+  proof-server PID before treating health or receipt responses as evidence.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`.
+- No live TTS feasibility claim.
+
+Next loop trigger:
+
+- Start with a clean port 8000, compare port ownership to the recorded proof-server PID, then open
+  a controlled TTS table and run the reviewed `tts-execute-lua` helper only after port 39999 is
+  available.

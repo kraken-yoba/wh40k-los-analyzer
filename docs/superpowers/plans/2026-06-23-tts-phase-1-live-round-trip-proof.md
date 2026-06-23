@@ -141,15 +141,22 @@ Patch accepted P0/P1 findings and resubmit until both reviews pass.
 
 - [ ] **Step 1: Start companion server**
 
-Start `.\.venv\Scripts\python.exe -m warhammer_companion.app` in a controlled background process.
+Start `.\.venv\Scripts\python.exe -m warhammer_companion.app` in a controlled background process
+and record its process id as `<proof-server-pid>`. Before using the server for receipt proof,
+confirm that `<proof-server-pid>` owns port 8000. A 200 health response alone is not sufficient
+because it could come from a non-proof listener.
 
 Verify:
 
 ```powershell
 Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/tts/health' -UseBasicParsing -TimeoutSec 2
+$listener = Get-NetTCPConnection -LocalPort 8000 -State Listen
+if ($listener.OwningProcess -ne <proof-server-pid>) { throw "proof server does not own port 8000" }
 ```
 
-Expected: status 200 and `readiness=contracts-only`.
+Expected: status 200, `readiness=contracts-only`, and port 8000 owned by the process launched for
+this proof loop. If the owner mismatches `<proof-server-pid>`, stop the proof server, record the
+blocker, and do not treat any health or receipt response as proof evidence.
 
 - [ ] **Step 2: Operator opens controlled TTS table**
 

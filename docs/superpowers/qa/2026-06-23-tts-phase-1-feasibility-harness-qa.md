@@ -218,3 +218,38 @@ Live proof status:
 - `live_tts_round_trip_observed=false`
 - Next loop should open a controlled TTS table and run the reviewed helper if port 39999 is
   available; otherwise use the operator-assisted reviewed Global Lua path.
+
+## Reviewed Helper Live Attempt - 2026-06-23
+
+Plan:
+
+- Launch TTS without Computer Use or temporary startup scripts.
+- Use only the reviewed External Editor helper if TTS exposes localhost port 39999.
+- Verify a short server-side receipt before claiming live proof.
+
+Result:
+
+- Status: blocked
+- Phase 1 contracts commit `887335c` ancestor check: true
+- Temporary `bootexec.cfg` present before attempt: false
+- TTS launched through the installed executable: true
+- TTS process observed: true
+- TTS External Editor API port 39999 observed: false
+- Companion server proof process owned port 8000: false
+- Companion health response usable as proof evidence: false
+- Blocker: a non-proof listener answered the health check while the proof server failed to bind port
+  8000. The raw temporary log was not committed and was removed after diagnosis.
+- Reviewed helper executed against TTS: false
+- Health round trip from TTS observed: false
+- Snapshot round trip from TTS observed: false
+- Server-side TTS receipt observed: false
+- Cleanup: temporary logs removed; no listener remained on ports 8000 or 39999; TTS process launched
+  by the loop was closed.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`
+- No live TTS feasibility claim.
+- Next loop must compare the port 8000 `OwningProcess` to the recorded proof-server PID before
+  health/receipt checks, then use the reviewed helper after a controlled TTS table exposes port
+  39999.
