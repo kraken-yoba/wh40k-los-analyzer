@@ -12,7 +12,10 @@ from warhammer_companion.application.tts_external_editor import (
     render_lua_probe_template,
     resolve_reviewed_lua_template,
 )
-from warhammer_companion.application.tts_live_proof import run_tts_health_proof
+from warhammer_companion.application.tts_live_proof import (
+    run_tts_health_proof,
+    run_tts_manual_health_proof,
+)
 from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.manifest import write_source_manifest
@@ -237,6 +240,34 @@ def tts_proof_health(
         )
     except ValueError as exc:
         typer.echo(f"TTS health proof failed: {exc}")
+        raise typer.Exit(1) from exc
+
+    typer.echo(json.dumps(result.to_sanitized_dict(), sort_keys=True))
+    if not result.live_tts_round_trip_observed:
+        raise typer.Exit(1)
+
+
+@cli.command()
+def tts_manual_health(
+    receipt: TtsOptionalReceiptOption = None,
+    wait_seconds: TtsProofWaitSecondsOption = 60.0,
+) -> None:
+    """Run an operator-assisted TTS Global Lua health receipt proof."""
+
+    def print_manual_script(_base_url: str, _receipt: str, script: str) -> None:
+        typer.echo("Paste this reviewed Lua into TTS Global Lua and run it:")
+        typer.echo(script)
+        typer.echo("Waiting for the exact TTS receipt...")
+
+    try:
+        result = run_tts_manual_health_proof(
+            project_root=Path.cwd(),
+            receipt=receipt,
+            timeout_seconds=wait_seconds,
+            on_server_ready=print_manual_script,
+        )
+    except ValueError as exc:
+        typer.echo(f"TTS manual health proof failed: {exc}")
         raise typer.Exit(1) from exc
 
     typer.echo(json.dumps(result.to_sanitized_dict(), sort_keys=True))

@@ -7,11 +7,13 @@
 **Goal:** Prove or explicitly block the real Tabletop Simulator Global Lua `WebRequest.custom`
 round trip to the local companion without committing raw local TTS artifacts.
 
-**Architecture:** Reuse the committed Phase 1 contracts and `docs/tts/global_lua_echo.lua`. The
-Python companion remains the server of record. This loop may use a local-only server stdout line or
-in-memory receipt counter as proof evidence, but committed evidence is limited to sanitized booleans,
-schema labels, endpoint path, and a short receipt id. TTS may claim it sent a request, but companion
-readiness remains contracts-only until a later server-side observation gate is implemented.
+**Architecture:** Reuse the committed Phase 1 contracts and reviewed Lua templates under
+`docs/tts/`. The Python companion remains the server of record. This loop may use a runner-owned
+loopback receipt server as proof evidence, but committed evidence is limited to sanitized booleans,
+schema labels, endpoint path, and a short receipt id. Receipt acceptance must require both the exact
+receipt query parameter and the reviewed `X-Warhammer-TTS-Proof` header so browser, PowerShell, and
+ordinary health probes do not count as proof. This is still an operator-assisted transport proof, not
+a cryptographic origin proof.
 
 **Tech Stack:** Local FastAPI companion, Tabletop Simulator Global Lua, `WebRequest.custom`, scoped
 PowerShell HTTP checks, operator-assisted TTS steps, and factual QA logging.
@@ -23,15 +25,16 @@ PowerShell HTTP checks, operator-assisted TTS steps, and factual QA logging.
 Allowed:
 
 - Launch the local companion and TTS.
-- Prefer an operator-assisted proof path using repo-reviewed Lua from `docs/tts/global_lua_echo.lua`.
+- Prefer an operator-assisted proof path using `warhammer-companion tts-manual-health` when TTS has
+  an active table but does not expose the External Editor listener.
 - Prefer the programmatic TTS External Editor health proof through
   `warhammer-companion tts-proof-health` when localhost port 39999 is available. It verifies that
   the External Editor listener is owned by a Tabletop Simulator process, owns a temporary loopback
   health listener, and waits for an exact receipt before reporting success.
 - Keep `warhammer-companion tts-execute-lua` as a lower-level reviewed Lua sender only; a sent
   message is not live proof without a server-side receipt.
-- Use sanitized companion access-log receipt ids to distinguish TTS-originated traffic from shell
-  probes.
+- Use sanitized receipt ids plus the reviewed `X-Warhammer-TTS-Proof` header to distinguish the
+  intended TTS proof request from shell/browser health probes.
 - Use the External Editor API only through reviewed package code and reviewed Lua templates, not
   ad hoc command-line payloads.
 - If TTS is visible to the operator but not visible to process/window/API tooling, record that as a
@@ -61,10 +64,10 @@ Minimum proof for this loop:
 - Phase 1 contracts commit `887335c` is HEAD or an ancestor of HEAD before proof starts.
 - TTS is open on a controlled table according to the operator, or TTS exposes the External Editor
   API on localhost port 39999.
-- The operator runs the reviewed Global Lua harness from `docs/tts/global_lua_echo.lua`, or the
-  reviewed CLI helper runs `docs/tts/external_editor_health_receipt.lua` through the TTS External
-  Editor API.
-- Global Lua harness can run `ttsHealth()` or `ttsSendSnapshot()` from TTS.
+- The operator runs the reviewed `tts-manual-health` snippet for health proof, or the reviewed CLI
+  helper runs `docs/tts/external_editor_health_receipt.lua` through the TTS External Editor API.
+- The broader `docs/tts/global_lua_echo.lua` harness remains for the later snapshot step after the
+  health proof succeeds.
 - The companion receives a real request from TTS using `WebRequest.custom`.
 - Proof evidence distinguishes the TTS-originated request from PowerShell probes through a
   local-only server receipt: endpoint path, timestamp/sequence, request id if available, and the
@@ -94,8 +97,12 @@ or reviewed-helper proof path.
   - Runner-owned loopback health receipt proof.
 - Add: `docs/tts/external_editor_health_receipt.lua`
   - Reviewed transient Lua proof template.
+- Add: `docs/tts/manual_global_health_receipt.lua`
+  - Reviewed operator-assisted Global Lua health proof template.
 - Add: `tests/test_tts_external_editor.py`
   - Helper, runner-owned health proof, and CLI contract tests.
+- Add: `tests/test_tts_manual_proof.py`
+  - Operator-assisted health proof tests, including non-proof shell/browser request rejection.
 
 ## Task 1: Preflight
 
@@ -198,15 +205,25 @@ sender only after confirming that the recorded proof-server PID owns port 8000:
 
 - [ ] **Step 4: Operator runs repo-reviewed Lua if helper path is unavailable**
 
-Ask the operator to load or paste only the reviewed Lua in `docs/tts/global_lua_echo.lua` into
-Global for the controlled table and run `ttsHealth()` first. If the controlled table has the
-required tags (`tts-attacker`, `tts-target`, `tts-terrain`), run `ttsSendSnapshot()` second.
+Run:
+
+```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300
+```
+
+Ask the operator to paste only the Lua printed by that command into the TTS Global Lua execution
+surface for the controlled table, without pressing Save, Save & Play, Workshop upload, export, or
+any mutation control. The printed snippet performs one `WebRequest.custom` GET to the runner-owned
+loopback server and includes `X-Warhammer-TTS-Proof=<receipt>`.
+
+If the health proof succeeds and the controlled table has the required tags (`tts-attacker`,
+`tts-target`, `tts-terrain`), use `docs/tts/global_lua_echo.lua` for the later snapshot proof.
 
 Do not press Save, Save & Play, Workshop upload, export, or any mutation control.
 
-Expected: the companion receives a request from TTS and returns the typed bridge response.
-Acceptable proof must include a sanitized server-side receipt that distinguishes the TTS-originated
-request from the PowerShell health probe.
+Expected: the runner prints sanitized JSON with `live_tts_round_trip_observed=true`,
+`source=TTS Global Lua WebRequest.custom`, and the receipt endpoint/status. The proof rejects
+plain URL hits without the reviewed proof header.
 
 - [ ] **Step 5: Cleanup**
 
@@ -292,7 +309,7 @@ git commit -m "Record TTS phase 1 live round trip"
 
 ## Next Loop Trigger
 
-If blocked: perform an operator-assisted TTS Lua round-trip proof, or debug why TTS is not exposing
+If blocked: perform `tts-manual-health` with the active TTS table, or debug why TTS is not exposing
 localhost port 39999 for the reviewed `tts-proof-health` command.
 
 If proven: start Phase 1.5 TTS bridge housekeeping.

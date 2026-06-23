@@ -605,11 +605,21 @@ Expected result:
 - No raw TTS save, screenshot, roster, server log, command-line payload, credential, or local path
   is committed as evidence.
 
+Fallback:
+
+- If a controlled table is active but port 39999 remains unavailable, run
+  `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`.
+- Paste only the reviewed Lua printed by the command into the TTS Global Lua execution surface.
+- Success requires `live_tts_round_trip_observed=true`, `readiness=contracts-only`, and
+  `source=TTS Global Lua WebRequest.custom`.
+- The fallback proof accepts only the exact receipt plus the reviewed
+  `X-Warhammer-TTS-Proof` header, so plain browser or PowerShell URL hits remain non-proof.
+
 Automation:
 
 - Unit tests use a fake External Editor socket plus a runner-owned local HTTP receipt server.
 - Fake-socket tests inject the process-verification preflight and do not claim real TTS coverage.
-- CLI tests assert sanitized JSON output and exact receipt matching.
+- CLI tests assert sanitized JSON output, exact receipt matching, and rejection of plain URL hits.
 
 Manual check:
 

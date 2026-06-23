@@ -392,7 +392,13 @@ def _start_fake_external_editor_that_calls_rendered_health_url() -> _CapturedExt
             message = json.loads(payload.decode("utf-8"))
             captured.script = message["script"]
             url = _rendered_health_url_from_lua(captured.script)
-            with urllib.request.urlopen(url, timeout=2) as response:
+            request = urllib.request.Request(
+                url,
+                headers={
+                    "X-Warhammer-TTS-Proof": _lua_string_assignment(captured.script, "RECEIPT"),
+                },
+            )
+            with urllib.request.urlopen(request, timeout=2) as response:
                 assert response.status == 200
 
     captured.thread = threading.Thread(target=run_server, daemon=True)

@@ -23,9 +23,14 @@ from warhammer_companion.application.tts_external_editor import (
 REVIEWED_EXTERNAL_EDITOR_PROOF_TEMPLATE: Final = (
     Path("docs") / "tts" / "external_editor_health_receipt.lua"
 )
+REVIEWED_MANUAL_GLOBAL_PROOF_TEMPLATE: Final = (
+    Path("docs") / "tts" / "manual_global_health_receipt.lua"
+)
 TTS_PROCESS_NAME_MARKER: Final = "tabletop"
+TTS_PROOF_HEADER_NAME: Final = "X-Warhammer-TTS-Proof"
 
 LuaExecutor = Callable[[str], None]
+ManualProofReadyCallback = Callable[[str, str, str], None]
 ProcessVerifier = Callable[[str, int], "TtsExternalEditorProcessCheck"]
 
 
@@ -70,6 +75,37 @@ class TtsHealthProofResult:
             "tts_external_editor_process_verified": (self.tts_external_editor_process_verified),
             "tts_external_editor_process_name": self.tts_external_editor_process_name,
             "external_editor_message_sent": self.external_editor_message_sent,
+            "companion_receipt_observed": self.companion_receipt_observed,
+            "live_tts_round_trip_observed": self.live_tts_round_trip_observed,
+            "readiness": self.readiness,
+            "source": self.source,
+            "receipt_endpoint_path": self.receipt_endpoint_path,
+            "receipt_status_code": self.receipt_status_code,
+            "blocker": self.blocker,
+        }
+
+
+@dataclass(frozen=True)
+class TtsManualHealthProofResult:
+    receipt: str
+    proof_server_host: str | None
+    proof_server_port: int | None
+    proof_server_owned_listener: bool
+    companion_receipt_observed: bool
+    live_tts_round_trip_observed: bool
+    readiness: str
+    source: str
+    blocker: str | None
+    receipt_endpoint_path: str | None = None
+    receipt_status_code: int | None = None
+
+    def to_sanitized_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": "tts-manual-health-proof/v0",
+            "receipt": self.receipt,
+            "proof_server_host": self.proof_server_host,
+            "proof_server_port": self.proof_server_port,
+            "proof_server_owned_listener": self.proof_server_owned_listener,
             "companion_receipt_observed": self.companion_receipt_observed,
             "live_tts_round_trip_observed": self.live_tts_round_trip_observed,
             "readiness": self.readiness,
@@ -157,6 +193,41 @@ def run_tts_health_proof(
         )
 
 
+def run_tts_manual_health_proof(
+    *,
+    project_root: Path,
+    receipt: str | None = None,
+    timeout_seconds: float = 60.0,
+    on_server_ready: ManualProofReadyCallback | None = None,
+) -> TtsManualHealthProofResult:
+    safe_receipt = _validate_receipt(generate_receipt() if receipt is None else receipt)
+    if timeout_seconds < 0:
+        raise ValueError("Timeout seconds must be non-negative.")
+
+    try:
+        with _RunnerOwnedHealthServer(receipt=safe_receipt) as proof_server:
+            script = _render_reviewed_manual_global_script(
+                project_root=project_root,
+                companion_base_url=proof_server.base_url,
+                receipt=safe_receipt,
+            )
+            if on_server_ready is not None:
+                on_server_ready(proof_server.base_url, safe_receipt, script)
+            observation = proof_server.wait_for_receipt(timeout_seconds=timeout_seconds)
+            return _manual_health_result(
+                receipt=safe_receipt,
+                proof_server=proof_server,
+                blocker=None if observation is not None else "companion-receipt-not-observed",
+                observation=observation,
+            )
+    except OSError:
+        return _manual_health_result(
+            receipt=safe_receipt,
+            proof_server=None,
+            blocker="proof-server-bind-failed",
+        )
+
+
 def verify_tts_external_editor_process(host: str, port: int) -> TtsExternalEditorProcessCheck:
     _ = TtsExternalEditorClient(host=host, port=port)
     if platform.system() != "Windows":
@@ -239,6 +310,23 @@ def _render_reviewed_external_editor_script(
     )
 
 
+def _render_reviewed_manual_global_script(
+    *,
+    project_root: Path,
+    companion_base_url: str,
+    receipt: str,
+) -> str:
+    template = resolve_reviewed_lua_template(
+        project_root / REVIEWED_MANUAL_GLOBAL_PROOF_TEMPLATE,
+        project_root=project_root,
+    )
+    return render_lua_probe_template(
+        template,
+        companion_base_url=companion_base_url,
+        receipt=receipt,
+    )
+
+
 def _health_result(
     *,
     receipt: str,
@@ -271,6 +359,30 @@ def _health_result(
             if external_editor_process.verified
             else "unverified TTS External Editor process"
         ),
+        receipt_endpoint_path=observation.path if observation is not None else None,
+        receipt_status_code=observation.status_code if observation is not None else None,
+        blocker=blocker,
+    )
+
+
+def _manual_health_result(
+    *,
+    receipt: str,
+    proof_server: _RunnerOwnedHealthServer | None,
+    blocker: str | None,
+    observation: TtsReceiptObservation | None = None,
+) -> TtsManualHealthProofResult:
+    receipt_observed = observation is not None
+    proof_server_owned_listener = proof_server is not None
+    return TtsManualHealthProofResult(
+        receipt=receipt,
+        proof_server_host=proof_server.host if proof_server is not None else None,
+        proof_server_port=proof_server.port if proof_server is not None else None,
+        proof_server_owned_listener=proof_server_owned_listener,
+        companion_receipt_observed=receipt_observed,
+        live_tts_round_trip_observed=proof_server_owned_listener and receipt_observed,
+        readiness="contracts-only",
+        source="TTS Global Lua WebRequest.custom",
         receipt_endpoint_path=observation.path if observation is not None else None,
         receipt_status_code=observation.status_code if observation is not None else None,
         blocker=blocker,
@@ -323,7 +435,12 @@ def _build_health_handler(
         def do_GET(self) -> None:
             parsed = urlsplit(self.path)
             receipt_values = parse_qs(parsed.query, keep_blank_values=True).get("receipt")
-            if parsed.path == "/api/tts/health" and receipt_values == [state.receipt]:
+            proof_header = self.headers.get(TTS_PROOF_HEADER_NAME)
+            if (
+                parsed.path == "/api/tts/health"
+                and receipt_values == [state.receipt]
+                and proof_header == state.receipt
+            ):
                 self._send_json_response(200, TtsBridgeService().health().model_dump(mode="json"))
                 state.record(
                     TtsReceiptObservation(

@@ -13,6 +13,7 @@ LOCAL_COMPANION_HOSTS: Final = frozenset({"127.0.0.1", "localhost"})
 REVIEWED_TTS_LUA_TEMPLATES: Final = frozenset(
     {
         Path("docs") / "tts" / "external_editor_health_receipt.lua",
+        Path("docs") / "tts" / "manual_global_health_receipt.lua",
     }
 )
 

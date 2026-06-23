@@ -9,6 +9,7 @@ local URL = COMPANION_BASE_URL .. "/api/tts/health?receipt=" .. RECEIPT
 WebRequest.custom(URL, "GET", true, "", {
     ["Content-Type"] = "application/json",
     Accept = "application/json",
+    ["X-Warhammer-TTS-Proof"] = RECEIPT,
 }, function(request)
     local status = "unknown"
     if request ~= nil and request.response_code ~= nil then

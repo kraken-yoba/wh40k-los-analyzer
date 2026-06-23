@@ -374,3 +374,106 @@ Closeout:
   `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30`.
 - If port 39999 still does not appear after a loaded game is confirmed, investigate TTS External
   Editor configuration or continue with the reviewed Global Lua operator path.
+
+## Active Table External Editor Investigation - 2026-06-23
+
+Result:
+
+- Status: blocked
+- Operator confirmed an active TTS table with terrain and two armies.
+- TTS process observed: true
+- TTS process path: installed Steam Tabletop Simulator executable.
+- TTS process responsive: true
+- TTS External Editor API port 39999 observed: false
+- TTS editor-side port 39998 observed: false
+- TTS-owned TCP listener observed: false
+- `tts-proof-health --receipt active-table-check --wait-seconds 0.01` exited nonzero with
+  `blocker=tts-external-editor-unavailable`.
+- Local `atom` command observed on PATH: false
+- Local `code` command observed on PATH: false
+- Local Atom/VS Code TTS scripting package observed in standard user package directories: false
+- Targeted TTS log keyword scan found no External Editor, Atom, Lua, WebRequest, 39999, or 39998
+  initialization clue.
+- TTS build id observed from Steam appmanifest: `22179756`.
+
+Reference:
+
+- Official TTS External Editor API documentation says TTS listens for editor messages on localhost
+  port 39999: `https://api.tabletopsimulator.com/externaleditorapi/`.
+- Official TTS Atom integration documentation says TTS must be running with a game loaded for
+  integration commands to work: `https://api.tabletopsimulator.com/atom/`.
+
+Closeout:
+
+- Active table alone is not sufficient to expose the External Editor listener in this local setup.
+- `live_tts_round_trip_observed=false`
+- Continue with the operator-assisted Global Lua receipt path while separately investigating
+  External Editor activation/configuration.
+
+## Operator-Assisted Manual Proof Hardening - 2026-06-23
+
+Reason:
+
+- Adversarial review found that an exact receipt alone can be satisfied by any local process with
+  the URL, so it proves only "some local caller had the URL" rather than a TTS Global Lua request.
+- The existing plan also still pointed at `docs/tts/global_lua_echo.lua` for health proof even
+  though that script has no receipt.
+
+Implementation:
+
+- Added `docs/tts/manual_global_health_receipt.lua`.
+- Added `warhammer-companion tts-manual-health`.
+- The manual proof command owns a loopback-only ephemeral health server and prints only reviewed Lua.
+- The runner accepts proof only when the request has both the exact receipt query parameter and the
+  reviewed `X-Warhammer-TTS-Proof` header emitted by `WebRequest.custom`.
+- The evidence boundary remains narrow: this rejects browser/PowerShell/plain URL hits, but is still
+  an operator-assisted local transport proof rather than cryptographic TTS-origin attestation.
+
+Verification:
+
+- Red test first failed with missing `run_tts_manual_health_proof`.
+- Focused hardened proof tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_manual_proof.py tests\test_tts_external_editor.py -q`
+  returned 26 passed.
+- Zero-wait CLI check printed the reviewed Lua with `X-Warhammer-TTS-Proof` and exited nonzero with
+  `blocker=companion-receipt-not-observed`.
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Focused TTS/web regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_manual_proof.py tests\test_tts_external_editor.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 72 passed with the existing Starlette `TestClient` deprecation warning.
+- Broad non-desktop regression passed:
+  `.\.venv\Scripts\python.exe -m pytest --ignore=tests\test_desktop_app.py -q` returned
+  505 passed with the existing Starlette `TestClient` deprecation warning.
+- `git diff --check` passed with only existing CRLF normalization warnings.
+- First adversarial review found the exact-receipt false-positive risk and stale plan references to
+  the no-receipt `global_lua_echo.lua` health path. Those findings were accepted and fixed.
+- Adversarial re-review passed with no actionable findings.
+- CodeRabbit was attempted but unavailable: `coderabbit` is not on the PowerShell PATH, and WSL
+  fallback failed with `Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa`.
+
+Live proof status:
+
+- Operator-assisted proof helper implemented: true
+- Health round trip from real TTS observed: false
+- Server-side TTS receipt observed from real TTS: false
+- `live_tts_round_trip_observed=false`
+
+Manual live attempt:
+
+- Receipt: `active-table-manual-5`
+- Proof server owned listener: true
+- Proof server port: ephemeral loopback port 51688
+- Runner stayed open for the 300-second proof window through the persistent Node REPL.
+- Companion receipt observed: false
+- Exit code: 1
+- Blocker: `companion-receipt-not-observed`
+- `live_tts_round_trip_observed=false`
+
+Next step:
+
+- With the active TTS table still open, run
+  `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`, paste only the
+  printed Lua into TTS Global Lua, and record whether the sanitized result reports
+  `live_tts_round_trip_observed=true`.

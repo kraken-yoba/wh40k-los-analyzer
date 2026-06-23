@@ -67,6 +67,16 @@ renders the reviewed Lua proof template with a safe receipt, sends it through TT
 API, and prints sanitized JSON. Treat the proof as live only when the output reports
 `tts_external_editor_process_verified=true` and `live_tts_round_trip_observed=true`.
 
+Operator-assisted fallback when TTS does not expose port 39999:
+
+```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300
+```
+
+Paste only the reviewed Lua printed by that command into TTS Global Lua. The fallback accepts proof
+only when the runner-owned server receives the exact receipt plus the reviewed
+`X-Warhammer-TTS-Proof` header from `WebRequest.custom`.
+
 Lower-level reviewed Lua sender:
 
 ```powershell
