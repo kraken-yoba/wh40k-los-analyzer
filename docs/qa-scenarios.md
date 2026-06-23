@@ -581,3 +581,37 @@ Automation:
 Manual check:
 
 - Installer copy, Start Menu shortcut, uninstall entry, SmartScreen/signing warning, high-DPI rendering, and path-with-spaces behavior.
+
+## Scenario 14: TTS External Editor Health Proof
+
+Steps:
+
+1. Open a controlled local Tabletop Simulator table without saving or uploading it.
+2. Confirm the TTS External Editor API is listening on localhost port 39999.
+3. Run `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30`.
+4. Inspect only the sanitized JSON result.
+
+Expected result:
+
+- The proof runner owns its temporary loopback health listener.
+- The External Editor listener is verified as owned by a Tabletop Simulator process before the
+  runner sends Lua.
+- The runner sends only reviewed Lua from `docs/tts/external_editor_health_receipt.lua`.
+- Success requires `tts_external_editor_process_verified=true`,
+  `live_tts_round_trip_observed=true`, `readiness=contracts-only`, and
+  `source=TTS External Editor WebRequest.custom`.
+- If TTS does not expose port 39999, the command exits nonzero with
+  `blocker=tts-external-editor-unavailable`.
+- No raw TTS save, screenshot, roster, server log, command-line payload, credential, or local path
+  is committed as evidence.
+
+Automation:
+
+- Unit tests use a fake External Editor socket plus a runner-owned local HTTP receipt server.
+- Fake-socket tests inject the process-verification preflight and do not claim real TTS coverage.
+- CLI tests assert sanitized JSON output and exact receipt matching.
+
+Manual check:
+
+- Run the command against a real TTS instance and record only sanitized booleans, receipt id,
+  readiness, source, endpoint path, HTTP status, and blocker label.

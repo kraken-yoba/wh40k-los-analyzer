@@ -58,6 +58,18 @@ Desktop smoke:
 TTS bridge proof helper:
 
 ```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30
+```
+
+This is the preferred programmatic health proof. It starts a temporary loopback-only companion
+health server, verifies that the External Editor listener is owned by a Tabletop Simulator process,
+renders the reviewed Lua proof template with a safe receipt, sends it through TTS's External Editor
+API, and prints sanitized JSON. Treat the proof as live only when the output reports
+`tts_external_editor_process_verified=true` and `live_tts_round_trip_observed=true`.
+
+Lower-level reviewed Lua sender:
+
+```powershell
 .\.venv\Scripts\warhammer-companion.exe tts-execute-lua `
   --script-file docs\tts\external_editor_health_receipt.lua `
   --receipt phase1-local-proof
@@ -65,8 +77,8 @@ TTS bridge proof helper:
 
 Use this only with a controlled local Tabletop Simulator table where the External Editor API is
 listening on localhost port 39999. The helper sends reviewed Lua through TTS's documented localhost
-JSON API and uses only a short receipt id. Treat the proof as live only after the companion receives
-that receipt from TTS.
+JSON API and uses only a short receipt id. This command only proves that bytes were sent; a
+server-side receipt is still required before claiming live TTS transport.
 
 ## Source Documents
 

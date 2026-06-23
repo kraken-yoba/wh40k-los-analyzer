@@ -3126,3 +3126,73 @@ Next loop trigger:
 - Start with a clean port 8000, compare port ownership to the recorded proof-server PID, then open
   a controlled TTS table and run the reviewed `tts-execute-lua` helper only after port 39999 is
   available.
+
+## 2026-06-23 - TTS Phase 1 Runner-Owned Health Proof Helper
+
+Purpose:
+
+- Preserve programmatic TTS integration for manual end-to-end QA while avoiding Computer Use,
+  temporary startup scripts, generated command-line Lua payloads, and ambiguous port 8000 evidence.
+
+Decision:
+
+- Add `warhammer-companion tts-proof-health` as the preferred programmatic health proof.
+- The command first verifies that the target External Editor listener is owned by a Tabletop
+  Simulator process, owns a temporary loopback-only health listener on an ephemeral port, renders
+  the reviewed External Editor Lua template with a safe receipt, sends it through TTS External
+  Editor, and waits for the exact receipt.
+- Process-verification timeout or startup failure returns sanitized blocked JSON rather than a
+  traceback.
+- Keep `tts-execute-lua` as a lower-level sender for later full-app receipt checks, but do not
+  treat a sent External Editor message as live proof by itself.
+
+Artifacts:
+
+- `src/warhammer_companion/application/tts_live_proof.py`
+- `src/warhammer_companion/cli.py`
+- `tests/test_tts_external_editor.py`
+- `README.md`
+- `docs/qa-scenarios.md`
+- `docs/superpowers/plans/2026-06-23-tts-phase-1-live-round-trip-proof.md`
+- `docs/superpowers/qa/2026-06-23-tts-phase-1-feasibility-harness-qa.md`
+
+Verification:
+
+- Red test first failed with missing `warhammer_companion.application.tts_live_proof`.
+- `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py -q` returned 21 passed.
+- `.\.venv\Scripts\python.exe -m ruff format --check src tests` passed.
+- `.\.venv\Scripts\python.exe -m ruff check .` passed.
+- `.\.venv\Scripts\mypy.exe src` passed.
+- `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 67 passed with the existing Starlette `TestClient` deprecation warning.
+- `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --receipt no-tts-local-check --wait-seconds 0.01`
+  exited nonzero with sanitized JSON and `blocker=tts-external-editor-unavailable`; no proof
+  listener was started, no Lua was sent, no receipt was observed, and
+  `live_tts_round_trip_observed=false`.
+- `.\.venv\Scripts\python.exe -m pytest --ignore=tests\test_desktop_app.py -q` returned
+  500 passed with the existing Starlette `TestClient` deprecation warning.
+- Full `.\.venv\Scripts\python.exe -m pytest` was attempted with a 300-second timeout and did not
+  complete. Isolating `tests\test_desktop_app.py -q` also timed out after 180 seconds, indicating
+  an existing desktop-suite blocker outside the TTS proof runner.
+- Adversarial reviewer passed after the Tabletop-owned External Editor process preflight was added.
+- Code-quality reviewer passed after subprocess timeout/startup failures were converted into
+  sanitized unverified-process blockers.
+- CodeRabbit review was attempted. The CLI was unavailable on the PowerShell PATH, and WSL fallback
+  failed with `Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa`, so no CodeRabbit review result
+  was obtained.
+
+Live proof status:
+
+- Programmatic proof runner implemented: true.
+- Fake External Editor plus runner-owned HTTP receipt test passed with injected process
+  verification: true.
+- Real success requires `tts_external_editor_process_verified=true`: true.
+- Real TTS External Editor health proof observed: false.
+- `live_tts_round_trip_observed=false`.
+
+Next loop trigger:
+
+- With a controlled TTS table open, run
+  `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30`.
+- If it returns `blocker=tts-external-editor-unavailable`, investigate TTS External Editor
+  availability or continue with the operator-assisted reviewed Global Lua path.

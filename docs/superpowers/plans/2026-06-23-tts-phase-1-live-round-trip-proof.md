@@ -24,8 +24,12 @@ Allowed:
 
 - Launch the local companion and TTS.
 - Prefer an operator-assisted proof path using repo-reviewed Lua from `docs/tts/global_lua_echo.lua`.
-- Prefer a programmatic TTS External Editor proof through
-  `warhammer-companion tts-execute-lua` when localhost port 39999 is available.
+- Prefer the programmatic TTS External Editor health proof through
+  `warhammer-companion tts-proof-health` when localhost port 39999 is available. It verifies that
+  the External Editor listener is owned by a Tabletop Simulator process, owns a temporary loopback
+  health listener, and waits for an exact receipt before reporting success.
+- Keep `warhammer-companion tts-execute-lua` as a lower-level reviewed Lua sender only; a sent
+  message is not live proof without a server-side receipt.
 - Use sanitized companion access-log receipt ids to distinguish TTS-originated traffic from shell
   probes.
 - Use the External Editor API only through reviewed package code and reviewed Lua templates, not
@@ -86,10 +90,12 @@ or reviewed-helper proof path.
   - Append live-proof attempt result and next loop trigger.
 - Add: `src/warhammer_companion/application/tts_external_editor.py`
   - Reviewed localhost External Editor API helper.
+- Add: `src/warhammer_companion/application/tts_live_proof.py`
+  - Runner-owned loopback health receipt proof.
 - Add: `docs/tts/external_editor_health_receipt.lua`
   - Reviewed transient Lua proof template.
 - Add: `tests/test_tts_external_editor.py`
-  - Helper and CLI contract tests.
+  - Helper, runner-owned health proof, and CLI contract tests.
 
 ## Task 1: Preflight
 
@@ -165,19 +171,30 @@ use Computer Use, temporary boot scripts, or generated command-line Lua payloads
 
 Expected: TTS is open on a controlled table according to the operator.
 
-- [ ] **Step 3: Try reviewed External Editor helper**
+- [ ] **Step 3: Try reviewed External Editor health proof**
 
 If TTS exposes localhost port 39999, run:
+
+```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30
+```
+
+Expected: the External Editor listener is verified as owned by a Tabletop Simulator process, the
+runner-owned loopback health server receives `GET /api/tts/health?receipt=<short-receipt>` from
+TTS, and the command prints sanitized JSON with `tts_external_editor_process_verified=true`,
+`live_tts_round_trip_observed=true`, `readiness=contracts-only`, and
+`source=TTS External Editor WebRequest.custom`. This proves programmatic TTS-to-Python health
+transport through reviewed code and reviewed Lua without saving a TTS script. It does not prove
+snapshot correctness, LOS correctness, save automation, or production readiness.
+
+If a full FastAPI-app receipt is needed after this health proof, use the lower-level reviewed
+sender only after confirming that the recorded proof-server PID owns port 8000:
 
 ```powershell
 .\.venv\Scripts\warhammer-companion.exe tts-execute-lua `
   --script-file docs\tts\external_editor_health_receipt.lua `
   --receipt <short-receipt>
 ```
-
-Expected: the companion receives a `GET /api/tts/health?receipt=<short-receipt>` request from TTS.
-This proves programmatic TTS-to-companion transport through reviewed code and reviewed Lua without
-saving a TTS script.
 
 - [ ] **Step 4: Operator runs repo-reviewed Lua if helper path is unavailable**
 
@@ -275,10 +292,12 @@ git commit -m "Record TTS phase 1 live round trip"
 
 ## Next Loop Trigger
 
-If blocked: perform an operator-assisted TTS Lua round-trip proof, or build a small reviewed helper
-that avoids Computer Use, temporary boot scripts, and generated command-line Lua payloads.
+If blocked: perform an operator-assisted TTS Lua round-trip proof, or debug why TTS is not exposing
+localhost port 39999 for the reviewed `tts-proof-health` command.
 
 If proven: start Phase 1.5 TTS bridge housekeeping.
 Success wording must remain narrow: `live_tts_round_trip_observed=true`,
-`readiness=contracts-only`, `source=TTS Global Lua WebRequest.custom`. Do not claim LOS
-correctness, production readiness, save automation reliability, or broader TTS feasibility.
+`readiness=contracts-only`, `source=TTS External Editor WebRequest.custom` for the programmatic
+health proof or `source=TTS Global Lua WebRequest.custom` for the operator-assisted Global Lua
+proof. Do not claim LOS correctness, production readiness, save automation reliability, or broader
+TTS feasibility.

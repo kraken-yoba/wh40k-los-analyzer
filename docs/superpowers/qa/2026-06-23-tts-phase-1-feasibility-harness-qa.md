@@ -253,3 +253,77 @@ Closeout:
 - Next loop must compare the port 8000 `OwningProcess` to the recorded proof-server PID before
   health/receipt checks, then use the reviewed helper after a controlled TTS table exposes port
   39999.
+
+## Runner-Owned Health Proof Helper - 2026-06-23
+
+Reason:
+
+- Manual end-to-end QA and future TTS harness work require a programmatic interface, not only an
+  operator-assisted proof path.
+- The previous full-app proof attempt was ambiguous because a non-proof listener answered health
+  while the proof server failed to bind port 8000.
+
+Implementation:
+
+- Added `warhammer_companion.application.tts_live_proof`.
+- Added `warhammer-companion tts-proof-health`.
+- The proof command verifies that the target External Editor listener is owned by a Tabletop
+  Simulator process before it sends Lua.
+- The proof command starts a temporary loopback-only health server on an ephemeral port.
+- It renders only `docs/tts/external_editor_health_receipt.lua` with a safe receipt and the
+  runner-owned local base URL.
+- It sends the reviewed Lua through the TTS External Editor API and waits for the exact receipt.
+- PowerShell process-verification timeout or startup failure returns a sanitized unverified-process
+  blocker rather than a traceback.
+- It prints sanitized JSON only: booleans, receipt id, readiness, source, endpoint path, status,
+  process-verification status, local listener host/port, and blocker label.
+
+Verification:
+
+- Red test first failed with missing `warhammer_companion.application.tts_live_proof`.
+- Focused proof-helper tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py -q`
+  returned 21 passed.
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Focused TTS/web regression tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 67 passed with the existing Starlette `TestClient` deprecation warning.
+- The fake-TTS test used a fake External Editor socket plus the runner-owned HTTP server. It did
+  not require a real TTS instance because the process-verification preflight was injected.
+- No-TTS CLI probe passed fail-closed:
+  `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --receipt no-tts-local-check --wait-seconds 0.01`
+  exited nonzero with `blocker=tts-external-editor-unavailable`, no proof listener, no sent Lua,
+  no observed receipt, and `live_tts_round_trip_observed=false`.
+- Broad non-desktop regression passed:
+  `.\.venv\Scripts\python.exe -m pytest --ignore=tests\test_desktop_app.py -q` returned
+  500 passed with the existing Starlette `TestClient` deprecation warning.
+- Full `.\.venv\Scripts\python.exe -m pytest` was attempted with a 300-second timeout and did not
+  complete. Isolating `tests\test_desktop_app.py -q` also timed out after 180 seconds, so the
+  remaining full-suite blocker is the desktop test file rather than the new TTS proof runner.
+- Adversarial reviewer approved the false-positive guard after the Tabletop-owned External Editor
+  process preflight was added.
+- Code-quality reviewer approved the final proof runner and CLI changes after the subprocess
+  timeout/startup fail-closed regression was added.
+- CodeRabbit review was attempted. The CLI was unavailable on the PowerShell PATH, and WSL fallback
+  failed with `Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa`, so no CodeRabbit review result
+  was obtained.
+
+Live proof status:
+
+- Runner-owned health proof helper implemented: true
+- Tabletop-owned External Editor listener required for real success: true
+- Runner-owned health proof live-tested against real TTS: false
+- Health round trip from real TTS observed: false
+- Snapshot round trip from real TTS observed: false
+- Server-side TTS receipt observed from real TTS: false
+- `live_tts_round_trip_observed=false`
+
+Next loop:
+
+- Open a controlled local TTS table and run
+  `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30`.
+- If TTS still does not expose localhost port 39999, record
+  `blocker=tts-external-editor-unavailable` and continue with the operator-assisted reviewed
+  Global Lua path.

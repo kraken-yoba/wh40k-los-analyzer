@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -11,6 +12,7 @@ from warhammer_companion.application.tts_external_editor import (
     render_lua_probe_template,
     resolve_reviewed_lua_template,
 )
+from warhammer_companion.application.tts_live_proof import run_tts_health_proof
 from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.manifest import write_source_manifest
@@ -69,6 +71,13 @@ TtsReceiptOption = Annotated[
         help="Short sanitized receipt id used to distinguish the TTS-originated request.",
     ),
 ]
+TtsOptionalReceiptOption = Annotated[
+    str | None,
+    typer.Option(
+        "--receipt",
+        help="Optional sanitized receipt id. If omitted, a safe nonce is generated.",
+    ),
+]
 CompanionBaseUrlOption = Annotated[
     str,
     typer.Option(
@@ -88,6 +97,13 @@ TtsExternalEditorPortOption = Annotated[
     typer.Option(
         "--port",
         help="TTS External Editor API port.",
+    ),
+]
+TtsProofWaitSecondsOption = Annotated[
+    float,
+    typer.Option(
+        "--wait-seconds",
+        help="Seconds to wait for the runner-owned health server to receive the receipt.",
     ),
 ]
 
@@ -201,6 +217,31 @@ def tts_execute_lua(
         f"Sent TTS External Editor Execute Lua message to {host}:{port} with receipt {receipt}. "
         "Verify the companion receipt before treating the proof as live."
     )
+
+
+@cli.command()
+def tts_proof_health(
+    receipt: TtsOptionalReceiptOption = None,
+    host: TtsExternalEditorHostOption = "127.0.0.1",
+    port: TtsExternalEditorPortOption = 39999,
+    wait_seconds: TtsProofWaitSecondsOption = 30.0,
+) -> None:
+    """Run a runner-owned TTS External Editor health receipt proof."""
+    try:
+        result = run_tts_health_proof(
+            project_root=Path.cwd(),
+            receipt=receipt,
+            host=host,
+            port=port,
+            timeout_seconds=wait_seconds,
+        )
+    except ValueError as exc:
+        typer.echo(f"TTS health proof failed: {exc}")
+        raise typer.Exit(1) from exc
+
+    typer.echo(json.dumps(result.to_sanitized_dict(), sort_keys=True))
+    if not result.live_tts_round_trip_observed:
+        raise typer.Exit(1)
 
 
 def main() -> None:
