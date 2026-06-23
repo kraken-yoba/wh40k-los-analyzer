@@ -327,3 +327,50 @@ Next loop:
 - If TTS still does not expose localhost port 39999, record
   `blocker=tts-external-editor-unavailable` and continue with the operator-assisted reviewed
   Global Lua path.
+
+## Real TTS Port Availability Attempt - 2026-06-23
+
+Plan:
+
+- Launch TTS directly through its installed executable.
+- Avoid Computer Use, temporary boot scripts, generated command-line Lua payloads, Save & Play, and
+  save mutation.
+- Poll for a Tabletop-owned External Editor listener on localhost port 39999.
+- If port 39999 appears, run `warhammer-companion tts-proof-health`.
+
+Reference:
+
+- Official TTS External Editor API documentation says TTS listens for editor messages on localhost
+  port 39999: `https://api.tabletopsimulator.com/externaleditorapi/`.
+- Official TTS Atom integration documentation says TTS must be running with a game loaded for
+  integration commands to work: `https://api.tabletopsimulator.com/atom/`.
+
+Result:
+
+- Status: blocked
+- Baseline `tts-proof-health --receipt baseline-no-tts --wait-seconds 0.01` exited nonzero with
+  `blocker=tts-external-editor-unavailable`.
+- TTS launched through the installed executable: true
+- TTS process observed: true
+- TTS process remained responsive during polling: true
+- Poll duration before operator prompt: 90 seconds
+- Poll duration after operator prompt: 5 minutes
+- TTS External Editor API port 39999 observed: false
+- Reviewed Lua sent to TTS: false
+- Runner-owned proof listener started for live proof: false
+- Health round trip from TTS observed: false
+- Snapshot round trip from TTS observed: false
+- Server-side TTS receipt observed from real TTS: false
+- Targeted local TTS log scan found no useful External Editor or port initialization clue.
+- Raw local logs, save files, workshop files, screenshots, rosters, and command-line payloads were
+  not committed.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`
+- No live TTS feasibility claim.
+- Most likely next step is operator-assisted: load a controlled local TTS table/save, verify that
+  the External Editor listener appears on localhost port 39999, then run
+  `.\.venv\Scripts\warhammer-companion.exe tts-proof-health --wait-seconds 30`.
+- If port 39999 still does not appear after a loaded game is confirmed, investigate TTS External
+  Editor configuration or continue with the reviewed Global Lua operator path.
