@@ -97,6 +97,31 @@ It needs:
 The runtime should be replaceable later. The stable boundary is the typed action, event, belief, and
 approval contracts, not Codex CLI itself.
 
+### Existing Codex Backend Reuse
+
+The previous app iteration already has a `CodexBackend` integration. It is useful starting
+infrastructure, but it is not yet the self-play agent runner.
+
+Usable now:
+
+- `openai-codex` dependency and bundled runtime packaging;
+- sanitized runtime/account status;
+- browser and device-code login starts;
+- logout;
+- app-local Codex state path selection;
+- credential guardrails that avoid displaying or bundling auth files.
+
+Still needed for the harness:
+
+- an agent execution adapter that submits planner prompts or tool calls;
+- a typed `ActionProposal` output contract;
+- side-private planning-state storage;
+- proposal validation before supervisor approval;
+- replay/event links from agent output to game-state reducers.
+
+The existing backend should be treated as the authentication and runtime-status layer for the first
+agent adapter, not as proof that autonomous proposal generation is already available.
+
 ### Secrets And Accounts
 
 Do not commit or package credentials. Required local credentials, if any, stay outside the repo:
