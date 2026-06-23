@@ -2052,6 +2052,83 @@ Review and blocker status:
   diff; the Phase 9 diff itself adds no credential or secret material.
 - `AGENTS.md` remains user-owned and must stay untracked unless explicitly requested.
 
+## 2026-06-23 - TTS Phase 0 - Safety Baseline
+
+Purpose:
+
+- Prepare the TTS bridge and supervised self-play harness without runtime behavior changes.
+
+Artifacts:
+
+- `docs/superpowers/plans/2026-06-23-tts-phase-0-safety-baseline.md`
+- `docs/tts-harness-safety-baseline.md`
+- `docs/superpowers/qa/2026-06-23-tts-phase-0-safety-baseline-qa.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-consultant-plan.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-adversarial-plan.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-consultant-closeout.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-adversarial-closeout.md`
+- `.gitignore`
+
+Decisions:
+
+- Phase 0 is docs and safety baseline only.
+- Phase 1 owns Python TTS records, companion endpoints, and Lua bridge template work.
+- Existing `CodexBackend` is auth/runtime-status infrastructure, not a self-play agent runner.
+- `AGENTS.md` remains user-owned and unstaged.
+- Manual QA reporting for local TTS, Hutber, ForceOrg, and War Organ readiness is boolean-only;
+  logs must not include screenshots, raw file contents, copied metadata, full local paths, shortcut
+  targets, Steam account details, TTS save names, War Organ local data, or credential material.
+
+Planning review:
+
+- 2026-06-23: consultant reviewer `019ef368-e5ea-7082-88b3-79415e86d118` approved the Phase 0
+  plan.
+- 2026-06-23: adversarial reviewer `019ef369-119e-79a1-a4f8-0f74199ab8d8` raised three P1 issues:
+  preflight allowlist did not mention the plan file, ignored paths did not cover the full protected
+  artifact set, and manual QA reporting could leak local metadata.
+- 2026-06-23: the plan was patched to allow the plan file during preflight, add explicit ignored
+  buckets for TTS saves/screenshots, raw rosters, Steam state, War Organ data, Codex/OpenAI state,
+  and require boolean-only manual QA output.
+- 2026-06-23: adversarial re-reviewer `019ef36c-1a8b-7c63-995d-abfd570d2eaa` approved the patched
+  plan.
+
+Review plan:
+
+- Consultant closeout review checks sufficiency for Phase 1.
+- Adversarial closeout review checks overclaiming, artifact safety, and QA executability.
+- CodeRabbit review is attempted on the uncommitted Phase 0 diff; exact install/auth blockers are
+  logged if it cannot run.
+
+Verification:
+
+- Ignore verification passed for local TTS, TTS harness, TTS save, TTS screenshot, snapshot,
+  replay, raw roster, Steam state, War Organ, Codex state, OpenAI state, logs, `data/codex-home`,
+  and `.env.local` example paths.
+- Placeholder and ASCII scan passed for `.gitignore`, the Phase 0 safety baseline, plan, QA file,
+  and work log.
+- Visible changed files were limited to Phase 0 artifacts plus user-owned untracked `AGENTS.md`.
+- Static checks passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Focused Codex backend tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_codex_backend.py -q` returned 14 passed.
+- Manual QA returned boolean-only true results for TTS executable, TTS mods directory, TTS saves
+  directory, Hutber metadata, ForceOrg metadata, War Organ shortcut, War Organ target, and no
+  protected artifacts staged.
+- A broad local-state string scan hit existing older work-log paths and example ignore-check strings;
+  the new Phase 0 manual QA output remains boolean-only and contains no copied local metadata.
+- CodeRabbit Windows check failed because `coderabbit` is not installed on the PowerShell PATH.
+- CodeRabbit WSL fallback failed with `Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa`
+  insufficient system resources. No manual review was presented as CodeRabbit output.
+- 2026-06-23: consultant closeout reviewer `019ef374-ce00-73b3-9c2e-89936be94039` approved Phase
+  0 with no P0/P1 findings.
+- 2026-06-23: adversarial closeout reviewer `019ef375-041c-7843-8216-d5646a5e6959` approved Phase
+  0 with no P0/P1 blockers.
+
+Next loop trigger:
+
+- Start Phase 0.5 TTS housekeeping semantics-preserving cleanup.
+
 ## Phase 9.5 - Mission Source Metadata Housekeeping
 
 Purpose:

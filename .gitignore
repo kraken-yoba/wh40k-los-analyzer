@@ -11,6 +11,17 @@ __pycache__/
 data/raw/
 data/processed/
 data/cache/
+data/tts/
+data/tts-harness/
+data/tts-saves/
+data/tts-screenshots/
+data/snapshots/
+data/replays/
+data/rosters/raw/
+data/steam-state/
+data/war-organ/
+data/codex-state/
+data/openai-state/
 data/codex-home/
 data/codex-home*/
 *.sqlite3
