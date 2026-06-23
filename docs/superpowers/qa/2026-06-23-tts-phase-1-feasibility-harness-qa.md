@@ -127,3 +127,94 @@ Closeout:
 - `live_tts_round_trip_observed=false`
 - No live TTS feasibility claim.
 - Next loop should resume with an operator-approved or operator-assisted TTS UI path.
+
+## Live Proof Continuation - 2026-06-23
+
+Plan adjustment:
+
+- Prefer the TTS External Editor API proof path when localhost port 39999 is available.
+- Do not send External Editor `Save & Play`, do not update `scriptStates`, and do not persist a TTS
+  save.
+- Treat a TTS window that is visible to the operator but not visible to process/window/API tooling
+  as a tooling blocker, not as evidence that TTS is unavailable.
+
+Result:
+
+- Status: blocked
+- Companion health before TTS launch: true
+- Companion readiness before TTS launch: `contracts-only`
+- Direct executable launch returned a short-lived TTS process and then handed off to Steam.
+- Steam launch request was accepted.
+- TTS visible to operator: true
+- TTS visible to process/API tooling during the proof window: false
+- External Editor API port 39999 observed: false
+- Health round trip from TTS observed: false
+- Snapshot round trip from TTS observed: false
+- Server-side TTS receipt observed: false
+- User closed TTS after reporting the visibility mismatch.
+- Cleanup: no companion listener remained on port 8000; no TTS process was visible to process
+  tooling; Steam background processes remained.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`
+- No live TTS feasibility claim.
+- Next loop should use an operator-assisted proof step with TTS already on a controlled table, or
+  use the reviewed External Editor helper when localhost port 39999 is available.
+
+## Programmatic Proof Helper - 2026-06-23
+
+Reason:
+
+- Programmatic TTS integration remains required for manual end-to-end QA and later harness work.
+- Windows Security flagged a Computer Use generated command-line event from this thread. The report
+  indicated the event did not execute, was not active, and removal succeeded. No repo artifact,
+  downloaded file, raw TTS save, roster, or companion source path was identified as the affected
+  resource.
+
+Policy update:
+
+- Keep Computer Use and startup-script mechanisms available only after explicit review of their
+  command-line/payload shape.
+- Prefer small reviewed package code and reviewed Lua templates for TTS integration.
+- Do not use temporary `bootexec.cfg`, long generated command-line Lua payloads, or unreviewed
+  paste-and-run artifacts for the current proof path.
+
+Artifacts:
+
+- `src/warhammer_companion/application/tts_external_editor.py`
+- `docs/tts/external_editor_health_receipt.lua`
+- `tests/test_tts_external_editor.py`
+
+Verification:
+
+- `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py -q`
+- Initial red run failed with missing `warhammer_companion.application.tts_external_editor`.
+- After the first implementation, targeted helper tests returned 5 passed.
+- Consultant and adversarial reviewers required stricter local-origin, loopback-host, and
+  reviewed-template enforcement.
+- Post-fix targeted helper tests returned 14 passed.
+- Focused regression tests returned 63 passed with the existing Starlette `TestClient`
+  deprecation warning:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py tests\test_cli.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check src tests`, and
+  `.\.venv\Scripts\mypy.exe src`.
+- Full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 515 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Consultant re-review passed.
+- Adversarial re-review passed.
+- CodeRabbit was attempted but unavailable on the PowerShell PATH.
+
+Live proof status:
+
+- External Editor helper implemented: true
+- External Editor helper live-tested against TTS: false
+- Health round trip from TTS observed: false
+- Snapshot round trip from TTS observed: false
+- Server-side TTS receipt observed: false
+- `live_tts_round_trip_observed=false`
+- Next loop should open a controlled TTS table and run the reviewed helper if port 39999 is
+  available; otherwise use the operator-assisted reviewed Global Lua path.

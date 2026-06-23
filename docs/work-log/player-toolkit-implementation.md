@@ -2983,3 +2983,107 @@ Closeout:
 Next loop trigger:
 
 - Resume live TTS round-trip proof with an operator-approved or operator-assisted TTS UI path.
+
+## 2026-06-23 - TTS Phase 1 Live Proof Continuation
+
+Purpose:
+
+- Continue the narrow live TTS round-trip proof without blind UI automation after the prior
+  Computer Use interruption.
+
+Decision:
+
+- The proof plan now prefers the documented TTS External Editor API path when TTS exposes localhost
+  port 39999. That path can execute transient Global Lua without pressing Save, sending `Save &
+  Play`, updating `scriptStates`, or persisting a TTS save.
+- If TTS is visible to the operator but not visible to process/window/API tooling, treat that as a
+  tooling blocker and switch to an explicit operator-assisted proof step.
+
+Attempt result:
+
+- The companion server launched and `/api/tts/health` returned `ok=true` with
+  `readiness=contracts-only`.
+- Direct TTS executable launch returned a short-lived TTS process and then handed off to Steam.
+- Steam accepted a `steam://rungameid/286160` launch request.
+- The user reported that TTS was open, but the proof tooling did not observe a TTS process or
+  localhost port 39999 during the proof window.
+- The user closed TTS after reporting the visibility mismatch.
+- No TTS `WebRequest.custom` round trip was observed.
+- Cleanup checks found no companion listener on port 8000, no TTS process visible to process
+  tooling, and no External Editor API listener on port 39999.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`.
+- No live TTS feasibility claim.
+
+Next loop trigger:
+
+- Resume with an operator-assisted proof step from an already-open controlled TTS table, or obtain
+  explicit approval for a temporary local TTS `bootexec.cfg` path.
+
+## 2026-06-23 - TTS Phase 1 Programmatic Proof Helper
+
+Purpose:
+
+- Preserve programmatic TTS integration as a first-class requirement for manual end-to-end QA and
+  future harness work, while reducing Windows Security false-positive risk.
+
+Decision:
+
+- Computer Use and startup-script mechanisms are not removed from the long-term toolbox, but they
+  need explicit review of their command-line and payload shape before reuse in this proof path.
+- The immediate proof path uses small reviewed package code plus a reviewed Lua template:
+  `warhammer-companion tts-execute-lua --script-file docs\tts\external_editor_health_receipt.lua
+  --receipt <short-receipt>`.
+- The helper speaks only the documented TTS External Editor API on localhost port 39999 and sends
+  `messageID=3`, `guid=-1`, and the reviewed Lua template with a sanitized receipt.
+- Temporary `bootexec.cfg`, long generated command-line Lua payloads, and unreviewed paste-and-run
+  artifacts are excluded from the current proof path.
+
+Security/tooling note:
+
+- Windows Security flagged a Computer Use generated command-line event from this thread as severe,
+  but reported it did not execute, was not active, and was removed. No repo artifact, downloaded
+  file, raw TTS save, roster, or companion source path was identified as the affected resource.
+- The work log intentionally records only sanitized status, not the raw command-line payload.
+
+Artifacts:
+
+- `src/warhammer_companion/application/tts_external_editor.py`
+- `docs/tts/external_editor_health_receipt.lua`
+- `tests/test_tts_external_editor.py`
+
+Verification:
+
+- Red test first failed with missing `warhammer_companion.application.tts_external_editor`.
+- After implementation, `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py -q`
+- After the first implementation, targeted helper tests returned 5 passed.
+- Consultant and adversarial reviewers required stricter companion URL canonicalization,
+  loopback-only TTS host validation, reviewed Lua template allowlisting, and wording that a sent
+  External Editor message is not proof until the companion receipt is observed.
+- Post-fix targeted helper tests returned 14 passed.
+- Focused regression tests returned 63 passed with the existing Starlette `TestClient`
+  deprecation warning:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_external_editor.py tests\test_cli.py tests\test_tts_bridge.py tests\test_web_server.py -q`.
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check src tests`, and
+  `.\.venv\Scripts\mypy.exe src`.
+- Full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 515 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Consultant re-review passed.
+- Adversarial re-review passed.
+- CodeRabbit was attempted but unavailable on the PowerShell PATH.
+
+Live proof status:
+
+- No TTS `WebRequest.custom` round trip has been observed yet through the helper.
+- `live_tts_round_trip_observed=false`.
+
+Next loop trigger:
+
+- Open a controlled TTS table, check localhost port 39999, and run the reviewed
+  `tts-execute-lua` helper. If port 39999 is unavailable, use the operator-assisted reviewed Global
+  Lua path instead.

@@ -37,3 +37,37 @@ Accepted fixes:
 Re-review result:
 
 - PASS.
+
+## Programmatic Helper Review
+
+Reviewer: adversarial subagent `019ef3e7-f623-7281-9111-ebdab60c7942`
+
+Initial result:
+
+- CHANGES_REQUIRED.
+
+P1 findings:
+
+- The companion base URL could alter the reviewed Lua template because raw local URL content was
+  inserted into a quoted Lua string.
+- The documented local/reviewed boundary was not enforced because the CLI accepted arbitrary script
+  files and arbitrary TTS hosts.
+
+P2 findings:
+
+- CLI success meant only "bytes sent" and did not prove companion receipt.
+- Tests covered broad unsafe behavior but lacked negative coverage for unsafe URL, host, and script
+  inputs.
+
+Accepted fixes:
+
+- Companion base URLs are canonicalized to local HTTP origins only.
+- TTS host validation is loopback-only.
+- The CLI restricts script execution to reviewed `docs/tts` templates.
+- CLI/README wording now requires companion receipt verification before treating the proof as live.
+- Tests now cover unsafe URL inputs, unsafe receipts, non-loopback hosts, unreviewed templates, and
+  the reviewed-template CLI path.
+
+Re-review result:
+
+- PASS.

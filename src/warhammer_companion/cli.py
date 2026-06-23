@@ -6,6 +6,11 @@ from typing import Annotated
 import requests
 import typer
 
+from warhammer_companion.application.tts_external_editor import (
+    TtsExternalEditorClient,
+    render_lua_probe_template,
+    resolve_reviewed_lua_template,
+)
 from warhammer_companion.domain.packet_io import load_packet_directory
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.manifest import write_source_manifest
@@ -48,6 +53,41 @@ ClassifyFeaturesOption = Annotated[
             "Generate local catalog classifier results before packet projection. "
             "Use --skip-classifier to preserve hand-authored visual results."
         ),
+    ),
+]
+TtsScriptFileOption = Annotated[
+    Path,
+    typer.Option(
+        "--script-file",
+        help="Reviewed Lua template file to execute through the TTS External Editor API.",
+    ),
+]
+TtsReceiptOption = Annotated[
+    str,
+    typer.Option(
+        "--receipt",
+        help="Short sanitized receipt id used to distinguish the TTS-originated request.",
+    ),
+]
+CompanionBaseUrlOption = Annotated[
+    str,
+    typer.Option(
+        "--companion-base-url",
+        help="Local companion base URL substituted into the reviewed Lua template.",
+    ),
+]
+TtsExternalEditorHostOption = Annotated[
+    str,
+    typer.Option(
+        "--host",
+        help="TTS External Editor API host.",
+    ),
+]
+TtsExternalEditorPortOption = Annotated[
+    int,
+    typer.Option(
+        "--port",
+        help="TTS External Editor API port.",
     ),
 ]
 
@@ -131,6 +171,36 @@ def validate_packets(
             typer.echo(f"  - {error}")
     if has_errors:
         raise typer.Exit(1)
+
+
+@cli.command()
+def tts_execute_lua(
+    script_file: TtsScriptFileOption,
+    receipt: TtsReceiptOption,
+    companion_base_url: CompanionBaseUrlOption = "http://127.0.0.1:8000",
+    host: TtsExternalEditorHostOption = "127.0.0.1",
+    port: TtsExternalEditorPortOption = 39999,
+) -> None:
+    """Execute a reviewed Lua proof template through TTS's External Editor API."""
+    try:
+        reviewed_script_file = resolve_reviewed_lua_template(
+            script_file,
+            project_root=Path.cwd(),
+        )
+        script = render_lua_probe_template(
+            reviewed_script_file,
+            companion_base_url=companion_base_url,
+            receipt=receipt,
+        )
+        TtsExternalEditorClient(host=host, port=port).execute_lua(script)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"TTS External Editor proof failed: {exc}")
+        raise typer.Exit(1) from exc
+
+    typer.echo(
+        f"Sent TTS External Editor Execute Lua message to {host}:{port} with receipt {receipt}. "
+        "Verify the companion receipt before treating the proof as live."
+    )
 
 
 def main() -> None:

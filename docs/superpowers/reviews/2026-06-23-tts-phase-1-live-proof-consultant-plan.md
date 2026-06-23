@@ -33,3 +33,34 @@ Accepted fixes:
 Re-review result:
 
 - PASS.
+
+## Programmatic Helper Review
+
+Reviewer: consultant subagent `019ef3e7-e1a5-7fd1-83b4-61664f17ccfc`
+
+Initial result:
+
+- CHANGES_REQUIRED.
+
+P1 finding:
+
+- The companion base URL was substituted into Lua without strict local-origin canonicalization.
+
+P2 findings:
+
+- The TTS External Editor host option accepted non-loopback hosts despite the localhost-only proof
+  boundary.
+- The CLI could send arbitrary script files despite the reviewed-template policy.
+
+Accepted fixes:
+
+- Companion base URL validation now accepts only canonical local HTTP origins with no userinfo,
+  path, query, params, or fragment.
+- TTS External Editor host validation is loopback-only.
+- The CLI resolves `--script-file` through a reviewed `docs/tts` template allowlist.
+- README and CLI wording now say a sent message is not live proof until the companion receipt is
+  verified.
+
+Re-review result:
+
+- PASS.

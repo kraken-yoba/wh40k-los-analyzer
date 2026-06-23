@@ -14,8 +14,7 @@ schema labels, endpoint path, and a short receipt id. TTS may claim it sent a re
 readiness remains contracts-only until a later server-side observation gate is implemented.
 
 **Tech Stack:** Local FastAPI companion, Tabletop Simulator Global Lua, `WebRequest.custom`, scoped
-PowerShell HTTP checks, Computer Use when the TTS window can be safely captured, and factual QA
-logging.
+PowerShell HTTP checks, operator-assisted TTS steps, and factual QA logging.
 
 ---
 
@@ -24,8 +23,15 @@ logging.
 Allowed:
 
 - Launch the local companion and TTS.
-- Use Computer Use to inspect TTS only if window capture works.
-- If Computer Use capture is blocked, record the blocker and stop UI automation.
+- Prefer an operator-assisted proof path using repo-reviewed Lua from `docs/tts/global_lua_echo.lua`.
+- Prefer a programmatic TTS External Editor proof through
+  `warhammer-companion tts-execute-lua` when localhost port 39999 is available.
+- Use sanitized companion access-log receipt ids to distinguish TTS-originated traffic from shell
+  probes.
+- Use the External Editor API only through reviewed package code and reviewed Lua templates, not
+  ad hoc command-line payloads.
+- If TTS is visible to the operator but not visible to process/window/API tooling, record that as a
+  tooling blocker and switch to an operator-assisted proof path.
 - If a human/operator micro-step is needed, document the exact safe step rather than guessing.
 - Update QA/work-log/review docs with sanitized booleans and blocker labels.
 
@@ -34,6 +40,10 @@ Forbidden:
 - No raw TTS saves, screenshots, generated captures, Steam state, logs, rosters, local paths,
   Codex/OpenAI state, or credentials in committed artifacts.
 - No blind keyboard/mouse input into TTS after Computer Use capture fails.
+- No Computer Use for this TTS proof until the Windows Security false-positive path is understood
+  and the command-line payload shape has been reduced.
+- No temporary `bootexec.cfg`, long generated command-line Lua payloads, or unreviewed
+  paste-and-run automation artifacts for this proof path.
 - No claim of live TTS feasibility unless the companion receives a real request from TTS.
 - No change to server readiness semantics; Phase 1 remains contracts-only until a separate
   server-side observation gate exists.
@@ -45,7 +55,11 @@ Minimum proof for this loop:
 
 - Companion server is reachable on `127.0.0.1`.
 - Phase 1 contracts commit `887335c` is HEAD or an ancestor of HEAD before proof starts.
-- TTS launches and a usable TTS window is inspectable, or the capture blocker is recorded.
+- TTS is open on a controlled table according to the operator, or TTS exposes the External Editor
+  API on localhost port 39999.
+- The operator runs the reviewed Global Lua harness from `docs/tts/global_lua_echo.lua`, or the
+  reviewed CLI helper runs `docs/tts/external_editor_health_receipt.lua` through the TTS External
+  Editor API.
 - Global Lua harness can run `ttsHealth()` or `ttsSendSnapshot()` from TTS.
 - The companion receives a real request from TTS using `WebRequest.custom`.
 - Proof evidence distinguishes the TTS-originated request from PowerShell probes through a
@@ -55,7 +69,8 @@ Minimum proof for this loop:
   readiness label, and blocker labels.
 
 If the TTS UI path cannot be operated safely, close this loop as blocked or docs-only with
-`live_tts_round_trip_observed=false` and keep the next loop trigger focused on the UI blocker.
+`live_tts_round_trip_observed=false` and keep the next loop trigger focused on an operator-assisted
+or reviewed-helper proof path.
 
 ## File Map
 
@@ -69,6 +84,12 @@ If the TTS UI path cannot be operated safely, close this loop as blocked or docs
   - Append sanitized live-proof attempt evidence.
 - Modify: `docs/work-log/player-toolkit-implementation.md`
   - Append live-proof attempt result and next loop trigger.
+- Add: `src/warhammer_companion/application/tts_external_editor.py`
+  - Reviewed localhost External Editor API helper.
+- Add: `docs/tts/external_editor_health_receipt.lua`
+  - Reviewed transient Lua proof template.
+- Add: `tests/test_tts_external_editor.py`
+  - Helper and CLI contract tests.
 
 ## Task 1: Preflight
 
@@ -130,37 +151,45 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/tts/health' -UseBasicParsing -
 
 Expected: status 200 and `readiness=contracts-only`.
 
-- [ ] **Step 2: Launch TTS through Computer Use**
+- [ ] **Step 2: Operator opens controlled TTS table**
 
-Use Computer Use app discovery and launch `Tabletop Simulator`.
+Ask the operator to open a controlled local TTS table/save and keep it unsaved. The agent must not
+use Computer Use, temporary boot scripts, or generated command-line Lua payloads.
 
-Expected: TTS launches and exposes a targetable window.
+Expected: TTS is open on a controlled table according to the operator.
 
-- [ ] **Step 3: Capture TTS state**
+- [ ] **Step 3: Try reviewed External Editor helper**
 
-Use `get_window_state` on the TTS window.
+If TTS exposes localhost port 39999, run:
 
-Expected: a usable menu/table state is inspectable. If capture fails, stop UI automation and record
-the exact blocker.
+```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-execute-lua `
+  --script-file docs\tts\external_editor_health_receipt.lua `
+  --receipt <short-receipt>
+```
 
-- [ ] **Step 4: Run Lua proof if capture succeeds**
+Expected: the companion receives a `GET /api/tts/health?receipt=<short-receipt>` request from TTS.
+This proves programmatic TTS-to-companion transport through reviewed code and reviewed Lua without
+saving a TTS script.
 
-Only if TTS is inspectable and a throwaway/controlled development save is loaded, use the visible UI
-to load or paste `docs/tts/global_lua_echo.lua` and run `ttsHealth()` or `ttsSendSnapshot()`.
+- [ ] **Step 4: Operator runs repo-reviewed Lua if helper path is unavailable**
 
-Do not press Save, Save & Play, upload to Workshop, export, or otherwise persist the modified save.
-Record only `controlled_save_used=true/false`.
+Ask the operator to load or paste only the reviewed Lua in `docs/tts/global_lua_echo.lua` into
+Global for the controlled table and run `ttsHealth()` first. If the controlled table has the
+required tags (`tts-attacker`, `tts-target`, `tts-terrain`), run `ttsSendSnapshot()` second.
 
-Expected: companion receives a request from TTS and returns the typed bridge response.
+Do not press Save, Save & Play, Workshop upload, export, or any mutation control.
+
+Expected: the companion receives a request from TTS and returns the typed bridge response.
 Acceptable proof must include a sanitized server-side receipt that distinguishes the TTS-originated
 request from the PowerShell health probe.
 
 - [ ] **Step 5: Cleanup**
 
-Always stop the companion server and close TTS if this loop launched them, including failure paths.
-Track process ids/windows started by this loop and close only those.
+Always stop the companion server launched by this loop. The operator closes TTS or leaves it open by
+explicit choice; the agent must not force-close an operator-owned TTS session.
 
-Expected: no port 8000 listener and no leftover TTS process.
+Expected: no port 8000 listener from this loop remains.
 
 ## Task 4: Verification And Closeout
 
@@ -239,8 +268,8 @@ git commit -m "Record TTS phase 1 live round trip"
 
 ## Next Loop Trigger
 
-If blocked: resolve TTS Computer Use/window-capture path or perform an operator-assisted TTS Lua
-round-trip proof.
+If blocked: perform an operator-assisted TTS Lua round-trip proof, or build a small reviewed helper
+that avoids Computer Use, temporary boot scripts, and generated command-line Lua payloads.
 
 If proven: start Phase 1.5 TTS bridge housekeeping.
 Success wording must remain narrow: `live_tts_round_trip_observed=true`,

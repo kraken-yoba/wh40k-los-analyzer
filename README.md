@@ -55,6 +55,19 @@ Desktop smoke:
 .\.venv\Scripts\python -m warhammer_companion.desktop.app --smoke-test
 ```
 
+TTS bridge proof helper:
+
+```powershell
+.\.venv\Scripts\warhammer-companion.exe tts-execute-lua `
+  --script-file docs\tts\external_editor_health_receipt.lua `
+  --receipt phase1-local-proof
+```
+
+Use this only with a controlled local Tabletop Simulator table where the External Editor API is
+listening on localhost port 39999. The helper sends reviewed Lua through TTS's documented localhost
+JSON API and uses only a short receipt id. Treat the proof as live only after the companion receives
+that receipt from TTS.
+
 ## Source Documents
 
 Official PDFs are not committed. Download them into `data/raw/`:
