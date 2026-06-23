@@ -252,10 +252,13 @@ def tts_manual_health(
     receipt: TtsOptionalReceiptOption = None,
     wait_seconds: TtsProofWaitSecondsOption = 60.0,
 ) -> None:
-    """Run an operator-assisted TTS Global Lua health receipt proof."""
+    """Run an operator-assisted TTS manual Lua health receipt proof."""
 
-    def print_manual_script(_base_url: str, _receipt: str, script: str) -> None:
-        typer.echo("Paste this reviewed Lua into TTS Global Lua and run it:")
+    def print_manual_script(base_url: str, receipt: str, script: str) -> None:
+        typer.echo("Paste this first line into the TTS System Console. Then press Enter:")
+        typer.echo(_build_tts_system_console_lua_command(base_url, receipt))
+        typer.echo("")
+        typer.echo("If using a Lua execution surface instead, run this reviewed Lua:")
         typer.echo(script)
         typer.echo("Waiting for the exact TTS receipt...")
 
@@ -273,6 +276,22 @@ def tts_manual_health(
     typer.echo(json.dumps(result.to_sanitized_dict(), sort_keys=True))
     if not result.live_tts_round_trip_observed:
         raise typer.Exit(1)
+
+
+def _build_tts_system_console_lua_command(base_url: str, receipt: str) -> str:
+    url = f"{base_url}/api/tts/health?receipt={receipt}"
+    return (
+        'lua WebRequest.custom("'
+        + url
+        + '", "GET", true, "", {["Content-Type"] = "application/json", '
+        + 'Accept = "application/json", ["X-Warhammer-TTS-Proof"] = "'
+        + receipt
+        + '"}, function(request) if request.is_error then '
+        + 'print("Warhammer companion manual proof failed: " .. tostring(request.error)); '
+        + "return end "
+        + 'print("Warhammer companion manual proof status: " .. '
+        + "tostring(request.response_code)) end)"
+    )
 
 
 def main() -> None:

@@ -344,6 +344,8 @@ Reference:
   port 39999: `https://api.tabletopsimulator.com/externaleditorapi/`.
 - Official TTS Atom integration documentation says TTS must be running with a game loaded for
   integration commands to work: `https://api.tabletopsimulator.com/atom/`.
+- Official TTS System Console documentation lists a `lua` command that executes Lua code as the
+  current mod: `https://api.tabletopsimulator.com/systemconsole/`.
 
 Result:
 
@@ -424,6 +426,8 @@ Implementation:
 - Added `docs/tts/manual_global_health_receipt.lua`.
 - Added `warhammer-companion tts-manual-health`.
 - The manual proof command owns a loopback-only ephemeral health server and prints only reviewed Lua.
+- The manual proof command now prints a TTS System Console `lua ...` command first, because the
+  official System Console documentation says `lua` executes Lua code as the current mod.
 - The runner accepts proof only when the request has both the exact receipt query parameter and the
   reviewed `X-Warhammer-TTS-Proof` header emitted by `WebRequest.custom`.
 - The evidence boundary remains narrow: this rejects browser/PowerShell/plain URL hits, but is still
@@ -437,6 +441,20 @@ Verification:
   returned 26 passed.
 - Zero-wait CLI check printed the reviewed Lua with `X-Warhammer-TTS-Proof` and exited nonzero with
   `blocker=companion-receipt-not-observed`.
+- Follow-up focused manual proof tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_manual_proof.py -q` returned 6 passed after
+  adding the System Console command output and safer `TTS manual Lua WebRequest.custom` source label.
+- Final focused manual proof tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_manual_proof.py -q` returned 7 passed after
+  locking the exact System Console command shape.
+- Final focused TTS/web regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_manual_proof.py tests\test_tts_external_editor.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 74 passed with the existing Starlette `TestClient` deprecation warning.
+- Final broad non-desktop regression passed:
+  `.\.venv\Scripts\python.exe -m pytest --ignore=tests\test_desktop_app.py -q` returned
+  507 passed with the existing Starlette `TestClient` deprecation warning.
+- Final adversarial re-review passed after the plan closeout was split so manual System Console
+  health proof cannot satisfy the Global-script objective or start Phase 1.5 by itself.
 - Static gates passed:
   `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
   `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
@@ -470,10 +488,13 @@ Manual live attempt:
 - Exit code: 1
 - Blocker: `companion-receipt-not-observed`
 - `live_tts_round_trip_observed=false`
+- Updated diagnosis: this timeout likely means the pasted Global Lua editor text was not executed.
+  The next operator attempt should use the first printed TTS System Console `lua ...` command and
+  press Enter.
 
 Next step:
 
 - With the active TTS table still open, run
   `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`, paste only the
-  printed Lua into TTS Global Lua, and record whether the sanitized result reports
-  `live_tts_round_trip_observed=true`.
+  first printed `lua ...` command into the TTS System Console, press Enter, and record whether the
+  sanitized result reports `live_tts_round_trip_observed=true`.

@@ -1,5 +1,6 @@
--- Phase 1 operator-assisted Global Lua health receipt proof.
--- Paste into TTS Global Lua or the scripting console for a controlled local table.
+-- Phase 1 operator-assisted TTS Lua health receipt proof.
+-- Prefer the first System Console command printed by tts-manual-health.
+-- Use this snippet only in a real Lua execution surface for a controlled local table.
 -- The script sends one GET request to the runner-owned local proof server.
 
 local COMPANION_BASE_URL = "__COMPANION_BASE_URL__"

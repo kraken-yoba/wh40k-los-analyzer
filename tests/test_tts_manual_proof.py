@@ -9,10 +9,10 @@ import pytest
 from typer.testing import CliRunner
 
 from warhammer_companion.application.tts_live_proof import run_tts_manual_health_proof
-from warhammer_companion.cli import cli
+from warhammer_companion.cli import _build_tts_system_console_lua_command, cli
 
 
-def test_tts_manual_health_proof_accepts_exact_global_lua_receipt() -> None:
+def test_tts_manual_health_proof_accepts_exact_manual_lua_receipt() -> None:
     scripts: list[str] = []
 
     def call_rendered_receipt(_base_url: str, _receipt: str, script: str) -> None:
@@ -31,7 +31,7 @@ def test_tts_manual_health_proof_accepts_exact_global_lua_receipt() -> None:
     assert result.proof_server_owned_listener is True
     assert result.companion_receipt_observed is True
     assert result.live_tts_round_trip_observed is True
-    assert result.source == "TTS Global Lua WebRequest.custom"
+    assert result.source == "TTS manual Lua WebRequest.custom"
     assert result.blocker is None
     assert result.receipt_endpoint_path == "/api/tts/health"
     assert result.receipt_status_code == 200
@@ -53,7 +53,7 @@ def test_tts_manual_health_proof_times_out_without_receipt() -> None:
     assert result.proof_server_owned_listener is True
     assert result.companion_receipt_observed is False
     assert result.live_tts_round_trip_observed is False
-    assert result.source == "TTS Global Lua WebRequest.custom"
+    assert result.source == "TTS manual Lua WebRequest.custom"
     assert result.blocker == "companion-receipt-not-observed"
     assert "manual-proof-2" in scripts[0]
 
@@ -112,15 +112,53 @@ def test_tts_manual_health_cli_prints_reviewed_snippet_and_sanitized_result() ->
     )
 
     assert result.exit_code == 1
-    assert "Paste this reviewed Lua into TTS Global Lua and run it:" in result.output
+    assert "Paste this first line into the TTS System Console" in result.output
+    assert "If using a Lua execution surface instead, run this reviewed Lua:" in result.output
     assert "manual-cli-1" in result.output
     assert "WebRequest.custom" in result.output
     assert "C:" not in result.output
 
     output = json.loads(result.output.strip().splitlines()[-1])
     assert output["live_tts_round_trip_observed"] is False
-    assert output["source"] == "TTS Global Lua WebRequest.custom"
+    assert output["source"] == "TTS manual Lua WebRequest.custom"
     assert output["blocker"] == "companion-receipt-not-observed"
+
+
+def test_tts_manual_health_cli_prints_system_console_command() -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "tts-manual-health",
+            "--receipt",
+            "manual-cli-console",
+            "--wait-seconds",
+            "0",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Paste this first line into the TTS System Console" in result.output
+    assert "lua WebRequest.custom(" in result.output
+    assert "manual-cli-console" in result.output
+    assert '["X-Warhammer-TTS-Proof"] = "manual-cli-console"' in result.output
+    assert "Then press Enter" in result.output
+
+
+def test_tts_system_console_command_shape_is_locked() -> None:
+    command = _build_tts_system_console_lua_command(
+        "http://127.0.0.1:51234",
+        "manual-cli-console",
+    )
+
+    assert command == (
+        'lua WebRequest.custom("'
+        "http://127.0.0.1:51234/api/tts/health?receipt=manual-cli-console"
+        '", "GET", true, "", {["Content-Type"] = "application/json", '
+        'Accept = "application/json", ["X-Warhammer-TTS-Proof"] = "manual-cli-console"}, '
+        'function(request) if request.is_error then print("Warhammer companion manual proof '
+        'failed: " .. tostring(request.error)); return end print("Warhammer companion manual '
+        'proof status: " .. tostring(request.response_code)) end)'
+    )
 
 
 def _build_tts_proof_request(script: str) -> urllib.request.Request:

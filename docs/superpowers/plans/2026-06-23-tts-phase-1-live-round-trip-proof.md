@@ -15,8 +15,9 @@ receipt query parameter and the reviewed `X-Warhammer-TTS-Proof` header so brows
 ordinary health probes do not count as proof. This is still an operator-assisted transport proof, not
 a cryptographic origin proof.
 
-**Tech Stack:** Local FastAPI companion, Tabletop Simulator Global Lua, `WebRequest.custom`, scoped
-PowerShell HTTP checks, operator-assisted TTS steps, and factual QA logging.
+**Tech Stack:** Local FastAPI companion, Tabletop Simulator External Editor API, TTS System Console
+`lua` command, Global Lua for later snapshot proof, `WebRequest.custom`, scoped PowerShell HTTP
+checks, operator-assisted TTS steps, and factual QA logging.
 
 ---
 
@@ -211,10 +212,12 @@ Run:
 .\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300
 ```
 
-Ask the operator to paste only the Lua printed by that command into the TTS Global Lua execution
-surface for the controlled table, without pressing Save, Save & Play, Workshop upload, export, or
-any mutation control. The printed snippet performs one `WebRequest.custom` GET to the runner-owned
-loopback server and includes `X-Warhammer-TTS-Proof=<receipt>`.
+Ask the operator to paste only the first printed `lua ...` line into the TTS System Console for the
+controlled table and press Enter. The official System Console documentation says the `lua` command
+executes Lua code as the current mod. Use the multiline Lua snippet only if the operator has a real
+Lua execution surface that runs the code without pressing Save, Save & Play, Workshop upload,
+export, or any mutation control. The printed code performs one `WebRequest.custom` GET to the
+runner-owned loopback server and includes `X-Warhammer-TTS-Proof=<receipt>`.
 
 If the health proof succeeds and the controlled table has the required tags (`tts-attacker`,
 `tts-target`, `tts-terrain`), use `docs/tts/global_lua_echo.lua` for the later snapshot proof.
@@ -222,8 +225,9 @@ If the health proof succeeds and the controlled table has the required tags (`tt
 Do not press Save, Save & Play, Workshop upload, export, or any mutation control.
 
 Expected: the runner prints sanitized JSON with `live_tts_round_trip_observed=true`,
-`source=TTS Global Lua WebRequest.custom`, and the receipt endpoint/status. The proof rejects
-plain URL hits without the reviewed proof header.
+`source=TTS manual Lua WebRequest.custom`, and the receipt endpoint/status. The proof rejects
+plain URL hits without the reviewed proof header. This is a manual TTS Lua transport proof; the
+later Global-script snapshot proof remains separate.
 
 - [ ] **Step 5: Cleanup**
 
@@ -312,9 +316,17 @@ git commit -m "Record TTS phase 1 live round trip"
 If blocked: perform `tts-manual-health` with the active TTS table, or debug why TTS is not exposing
 localhost port 39999 for the reviewed `tts-proof-health` command.
 
-If proven: start Phase 1.5 TTS bridge housekeeping.
+If only the System Console/manual health proof is observed: record
+`manual_tts_lua_health_observed=true`, keep `live_tts_round_trip_observed=true` only for that narrow
+health transport result, and keep this live-proof loop open for a stronger Global-script proof.
+
+If a reviewed Global-script proof is observed through the Tabletop-owned External Editor API
+(`guid=-1`) or through `docs/tts/global_lua_echo.lua` reaching the companion from the active table:
+record `global_script_webrequest_observed=true`, then start Phase 1.5 TTS bridge housekeeping.
+
 Success wording must remain narrow: `live_tts_round_trip_observed=true`,
 `readiness=contracts-only`, `source=TTS External Editor WebRequest.custom` for the programmatic
-health proof or `source=TTS Global Lua WebRequest.custom` for the operator-assisted Global Lua
-proof. Do not claim LOS correctness, production readiness, save automation reliability, or broader
-TTS feasibility.
+Global health proof or `source=TTS manual Lua WebRequest.custom` for the operator-assisted System
+Console health diagnostic. Do not claim LOS correctness, production readiness, save automation
+reliability, broad TTS feasibility, or Global-script readiness from the manual health diagnostic
+alone.

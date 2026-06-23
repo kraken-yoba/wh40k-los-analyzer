@@ -609,11 +609,13 @@ Fallback:
 
 - If a controlled table is active but port 39999 remains unavailable, run
   `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`.
-- Paste only the reviewed Lua printed by the command into the TTS Global Lua execution surface.
+- Paste only the first printed `lua ...` line into the TTS System Console and press Enter.
 - Success requires `live_tts_round_trip_observed=true`, `readiness=contracts-only`, and
-  `source=TTS Global Lua WebRequest.custom`.
+  `source=TTS manual Lua WebRequest.custom`.
 - The fallback proof accepts only the exact receipt plus the reviewed
   `X-Warhammer-TTS-Proof` header, so plain browser or PowerShell URL hits remain non-proof.
+- This fallback proves manual TTS Lua transport. The later Global-script snapshot proof remains
+  separate.
 
 Automation:
 

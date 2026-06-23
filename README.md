@@ -73,9 +73,10 @@ Operator-assisted fallback when TTS does not expose port 39999:
 .\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300
 ```
 
-Paste only the reviewed Lua printed by that command into TTS Global Lua. The fallback accepts proof
-only when the runner-owned server receives the exact receipt plus the reviewed
-`X-Warhammer-TTS-Proof` header from `WebRequest.custom`.
+Paste the first printed `lua ...` line into the TTS System Console and press Enter. The fallback
+accepts proof only when the runner-owned server receives the exact receipt plus the reviewed
+`X-Warhammer-TTS-Proof` header from `WebRequest.custom`. This proves manual TTS Lua transport, not
+the later Global-script snapshot path.
 
 Lower-level reviewed Lua sender:
 

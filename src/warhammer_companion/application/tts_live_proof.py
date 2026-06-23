@@ -382,7 +382,7 @@ def _manual_health_result(
         companion_receipt_observed=receipt_observed,
         live_tts_round_trip_observed=proof_server_owned_listener and receipt_observed,
         readiness="contracts-only",
-        source="TTS Global Lua WebRequest.custom",
+        source="TTS manual Lua WebRequest.custom",
         receipt_endpoint_path=observation.path if observation is not None else None,
         receipt_status_code=observation.status_code if observation is not None else None,
         blocker=blocker,
