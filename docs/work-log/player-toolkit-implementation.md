@@ -2129,6 +2129,66 @@ Next loop trigger:
 
 - Start Phase 0.5 TTS housekeeping semantics-preserving cleanup.
 
+## 2026-06-23 - TTS Phase 0.5 - Safety Baseline Housekeeping
+
+Purpose:
+
+- Run a semantics-preserving cleanup after TTS Phase 0.
+
+Artifacts:
+
+- `docs/superpowers/plans/2026-06-23-tts-phase-0-5-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-5-consultant-housekeeping.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-0-5-adversarial-housekeeping.md`
+- `docs/superpowers/plans/2026-06-23-tts-phase-0-safety-baseline.md`
+- `docs/superpowers/qa/2026-06-23-tts-phase-0-safety-baseline-qa.md`
+
+Decisions:
+
+- Phase 0.5 is documentation housekeeping only.
+- Phase 0.5 may mark completed Phase 0 plan checkboxes and wrap long commands, but must not change
+  the protected artifact policy, manual QA sanitization, or live TTS feasibility claims.
+- `AGENTS.md` remains user-owned and unstaged.
+
+Plan review:
+
+- 2026-06-23: consultant reviewer `019ef37a-bb51-7442-8608-48bc05b477b0` required preflight to
+  allow the untracked Phase 0.5 plan and docs scans to include the new Phase 0.5 review records.
+- 2026-06-23: adversarial reviewer `019ef37b-3d01-78e1-a547-50e212a6aca6` required preflight to
+  allow the untracked Phase 0.5 plan.
+- The plan was patched to allow user-owned `AGENTS.md` plus the Phase 0.5 plan before other edits,
+  name the Phase 0.5 plan in the file map, and scan both Phase 0.5 review records.
+- 2026-06-23: consultant re-reviewer `019ef37d-6a18-7761-ad2d-0e654b6571b7` approved.
+- 2026-06-23: adversarial re-reviewer `019ef37d-a0f6-7592-9393-c57b5742c929` approved.
+
+Verification:
+
+- Protected-path semantic drift check passed: all Phase 0 protected example paths remain present in
+  the Phase 0 plan and QA pathway after line wrapping.
+- Ignore verification passed: `git check-ignore @paths` printed every protected example path.
+- Placeholder and ASCII scan passed for the Phase 0 plan, Phase 0 QA pathway, Phase 0.5 plan, both
+  Phase 0.5 review records, and this work log.
+- Static checks passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Focused Codex backend regression passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_codex_backend.py -q` returned 14 passed.
+- Visible changed files were limited to Phase 0.5 docs plus user-owned untracked `AGENTS.md`.
+- CodeRabbit Windows check failed because `coderabbit` is not installed on the PowerShell PATH.
+- CodeRabbit WSL fallback failed with `Wsl/Service/CreateInstance/CreateVm/HCS/0x800705aa`
+  insufficient system resources. No manual review was presented as CodeRabbit output.
+- 2026-06-23: consultant closeout reviewer `019ef382-828a-7eb3-b028-60eeb2fa5307` approved with
+  no P0/P1 issues.
+- 2026-06-23: adversarial closeout reviewer `019ef382-e4ab-7600-8698-1d3a39da55f7` initially
+  required this verification evidence to replace the pending placeholder in the work log. This
+- 2026-06-23: adversarial closeout re-reviewer `019ef386-fbeb-7622-89c5-c996c751ca22` approved
+  after verifying the stale pending-verification language was removed and the Phase 0.5 evidence
+  remained clean.
+
+Next loop trigger:
+
+- Start Phase 1 TTS feasibility harness.
+
 ## Phase 9.5 - Mission Source Metadata Housekeeping
 
 Purpose:

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement
-> this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Prepare the repository for TTS bridge and supervised self-play implementation without
 changing runtime behavior.
@@ -57,7 +57,7 @@ saves, generated snapshots, generated replay logs, credentials, official PDF cop
 - Read: `docs/superpowers/specs/2026-06-23-tts-implementation-infrastructure-spec.md`
 - Verify: `.gitignore`
 
-- [ ] **Step 1: Confirm branch and visible worktree state**
+- [x] **Step 1: Confirm branch and visible worktree state**
 
 Run:
 
@@ -69,7 +69,7 @@ git rev-parse HEAD
 Expected: branch is `codex/assistant-companion-roadmap`; only user-owned untracked `AGENTS.md`
 and this Phase 0 plan may be visible before the rest of the Phase 0 edits.
 
-- [ ] **Step 2: Confirm Phase 0 boundaries**
+- [x] **Step 2: Confirm Phase 0 boundaries**
 
 Run:
 
@@ -84,7 +84,7 @@ Expected: Phase 0 is spec/fixtures/safety baseline only; live TTS bridge feasibi
 **Files:**
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Add explicit TTS local artifact paths**
+- [x] **Step 1: Add explicit TTS local artifact paths**
 
 Append these entries if they are not already present:
 
@@ -108,12 +108,28 @@ War Organ local exports, Codex/OpenAI state, and future harness artifacts. Exist
 entries already cover `.env`, `.env.*`, `data/codex-home*`, and `logs/`; Phase 0 keeps those
 guardrails.
 
-- [ ] **Step 2: Verify ignore behavior**
+- [x] **Step 2: Verify ignore behavior**
 
 Run:
 
 ```powershell
-git check-ignore data/tts/example.json data/tts-harness/example.json data/tts-saves/example.json data/tts-screenshots/example.png data/snapshots/example.json data/replays/example.json data/rosters/raw/example.rosz data/steam-state/example.json data/war-organ/example.json data/codex-state/auth.json data/openai-state/session.json logs/tts-harness.log data/codex-home/auth.json .env.local
+$paths = @(
+  'data/tts/example.json',
+  'data/tts-harness/example.json',
+  'data/tts-saves/example.json',
+  'data/tts-screenshots/example.png',
+  'data/snapshots/example.json',
+  'data/replays/example.json',
+  'data/rosters/raw/example.rosz',
+  'data/steam-state/example.json',
+  'data/war-organ/example.json',
+  'data/codex-state/auth.json',
+  'data/openai-state/session.json',
+  'logs/tts-harness.log',
+  'data/codex-home/auth.json',
+  '.env.local'
+)
+git check-ignore @paths
 ```
 
 Expected: each path is printed, proving the artifacts are ignored.
@@ -123,7 +139,7 @@ Expected: each path is printed, proving the artifacts are ignored.
 **Files:**
 - Create: `docs/tts-harness-safety-baseline.md`
 
-- [ ] **Step 1: Create the baseline document**
+- [x] **Step 1: Create the baseline document**
 
 Create `docs/tts-harness-safety-baseline.md` with these sections:
 
@@ -225,7 +241,7 @@ reviewed and committed. Phase 1 must not claim live bridge feasibility until TTS
 local companion through `WebRequest.custom`.
 ```
 
-- [ ] **Step 2: Verify no placeholders**
+- [x] **Step 2: Verify no placeholders**
 
 Run:
 
@@ -240,7 +256,7 @@ Expected: no matches.
 **Files:**
 - Create: `docs/superpowers/qa/2026-06-23-tts-phase-0-safety-baseline-qa.md`
 
-- [ ] **Step 1: Create QA pathway**
+- [x] **Step 1: Create QA pathway**
 
 Create a QA file with:
 
@@ -257,7 +273,7 @@ Create a QA file with:
   War Organ local data;
 - explicit note that Browser QA is not required because Phase 0 changes no web UI.
 
-- [ ] **Step 2: Include manual QA commands/checks**
+- [x] **Step 2: Include manual QA commands/checks**
 
 The manual QA section must instruct an independent reviewer to verify:
 
@@ -277,7 +293,7 @@ QA file or work log.
 **Files:**
 - Modify: `docs/work-log/player-toolkit-implementation.md`
 
-- [ ] **Step 1: Append a factual Phase 0 entry**
+- [x] **Step 1: Append a factual Phase 0 entry**
 
 Append a new section:
 
@@ -320,7 +336,7 @@ Next loop trigger:
 - Start Phase 0.5 TTS housekeeping semantics-preserving cleanup.
 ```
 
-- [ ] **Step 2: Update verification and review sections after reviews/checks**
+- [x] **Step 2: Update verification and review sections after reviews/checks**
 
 Record actual reviewer outcomes, accepted fixes, command outputs, manual QA result, CodeRabbit
 status, and commit id before closing the phase.
@@ -332,7 +348,7 @@ status, and commit id before closing the phase.
 - Create: `docs/superpowers/reviews/2026-06-23-tts-phase-0-adversarial-plan.md`
 - Review: all Phase 0 planned artifacts
 
-- [ ] **Step 1: Consultant review**
+- [x] **Step 1: Consultant review**
 
 Dispatch a consultant subagent to answer:
 
@@ -344,7 +360,7 @@ Expected: PASS or concrete P0/P1 issues.
 
 Record the outcome in `docs/superpowers/reviews/2026-06-23-tts-phase-0-consultant-plan.md`.
 
-- [ ] **Step 2: Adversarial review**
+- [x] **Step 2: Adversarial review**
 
 Dispatch an adversarial subagent to search for:
 
@@ -359,7 +375,7 @@ Expected: PASS or concrete P0/P1 issues.
 Record the outcome, P1s, fixes, and re-review status in
 `docs/superpowers/reviews/2026-06-23-tts-phase-0-adversarial-plan.md`.
 
-- [ ] **Step 3: Triage and re-review**
+- [x] **Step 3: Triage and re-review**
 
 For each P0/P1 issue:
 
@@ -373,7 +389,7 @@ For each P0/P1 issue:
 **Files:**
 - Verify: Phase 0 changed files
 
-- [ ] **Step 1: Run docs scans**
+- [x] **Step 1: Run docs scans**
 
 Run:
 
@@ -398,7 +414,7 @@ $results | ConvertTo-Json
 
 Expected: `NonAscii=0` and `Placeholders=0` for each file.
 
-- [ ] **Step 2: Run protected-path scan**
+- [x] **Step 2: Run protected-path scan**
 
 Run:
 
@@ -410,7 +426,7 @@ git diff --cached --name-only
 
 Expected: only Phase 0 files plus untracked user-owned `AGENTS.md` are visible.
 
-- [ ] **Step 3: Run standard checks**
+- [x] **Step 3: Run standard checks**
 
 Run:
 
@@ -424,7 +440,7 @@ Run:
 Expected: all pass. Full pytest is optional for docs-only Phase 0 if already fresh; if run, record
 the result.
 
-- [ ] **Step 4: Execute manual QA pathway**
+- [x] **Step 4: Execute manual QA pathway**
 
 Run the non-invasive shell checks from the QA file. Do not launch TTS or War Organ in Phase 0 unless
 the reviewer explicitly requests visible Computer Use verification. Record the result.
@@ -434,7 +450,7 @@ the reviewer explicitly requests visible Computer Use verification. Record the r
 **Files:**
 - Stage only Phase 0 files
 
-- [ ] **Step 1: Run CodeRabbit if available**
+- [x] **Step 1: Run CodeRabbit if available**
 
 Run:
 
@@ -447,7 +463,7 @@ coderabbit review --agent -t uncommitted
 Expected: CodeRabbit review completes or a precise install/auth blocker is recorded. Do not present
 manual review as CodeRabbit.
 
-- [ ] **Step 2: Stage exact files**
+- [x] **Step 2: Stage exact files**
 
 Run:
 
@@ -458,7 +474,7 @@ git diff --cached --name-only
 
 Expected: exactly those nine files. `AGENTS.md` is not staged.
 
-- [ ] **Step 3: Commit Phase 0**
+- [x] **Step 3: Commit Phase 0**
 
 Run:
 
@@ -468,7 +484,7 @@ git commit -m "Add TTS phase 0 safety baseline"
 
 Expected: one atomic Phase 0 commit.
 
-- [ ] **Step 4: Post-commit proof**
+- [x] **Step 4: Post-commit proof**
 
 Run:
 

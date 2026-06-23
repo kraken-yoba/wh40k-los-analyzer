@@ -29,7 +29,23 @@ Only these files may be changed or staged for Phase 0:
 Run:
 
 ```powershell
-git check-ignore data/tts/example.json data/tts-harness/example.json data/tts-saves/example.json data/tts-screenshots/example.png data/snapshots/example.json data/replays/example.json data/rosters/raw/example.rosz data/steam-state/example.json data/war-organ/example.json data/codex-state/auth.json data/openai-state/session.json logs/tts-harness.log data/codex-home/auth.json .env.local
+$paths = @(
+  'data/tts/example.json',
+  'data/tts-harness/example.json',
+  'data/tts-saves/example.json',
+  'data/tts-screenshots/example.png',
+  'data/snapshots/example.json',
+  'data/replays/example.json',
+  'data/rosters/raw/example.rosz',
+  'data/steam-state/example.json',
+  'data/war-organ/example.json',
+  'data/codex-state/auth.json',
+  'data/openai-state/session.json',
+  'logs/tts-harness.log',
+  'data/codex-home/auth.json',
+  '.env.local'
+)
+git check-ignore @paths
 ```
 
 Expected: every path is printed.
