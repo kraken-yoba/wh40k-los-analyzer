@@ -2849,3 +2849,100 @@ Manual QA status:
   - page 9 and page 52 deployment-zone threat source smoke routes;
   - POSTing deployment-zone source mode without `source_x`/`source_y`, with the redirect preserving
     source mode and zone while omitting point-source fields.
+
+## 2026-06-23 - TTS Phase 1 - Bridge Contracts Baseline
+
+Purpose:
+
+- Build the Phase 1 TTS bridge contracts, local companion JSON endpoints, sanitized fixture, and
+  Lua harness template.
+- Keep live TTS feasibility incomplete until a real TTS `WebRequest.custom` snapshot round trip is
+  observed from a controlled save.
+
+Artifacts:
+
+- `src/warhammer_companion/domain/tts.py`
+- `src/warhammer_companion/application/tts_bridge.py`
+- `src/warhammer_companion/web/server.py`
+- `tests/fixtures/tts/minimal_snapshot.json`
+- `docs/tts/global_lua_echo.lua`
+- `docs/superpowers/plans/2026-06-23-tts-phase-1-feasibility-harness.md`
+- `docs/superpowers/qa/2026-06-23-tts-phase-1-feasibility-harness-qa.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-1-consultant-plan.md`
+- `docs/superpowers/reviews/2026-06-23-tts-phase-1-adversarial-plan.md`
+
+Decisions:
+
+- Phase 1 transform maps TTS `x` to battlefield `x`, TTS `z` to battlefield `y`, and keeps TTS
+  `y` as height ignored by Phase 1 2D conversion.
+- Phase 1 calibration tolerance is `<= 0.25` inches.
+- Accepted snapshot responses summarize only schema/version, input hash, object counts, diagnostic
+  warning labels, and sanitized readiness metadata. They do not echo submitted snapshot bodies.
+- Invalid snapshot responses use `TtsBridgeResponse(ok=false, error={code,message,field_path})`
+  and avoid raw FastAPI/Pydantic validation payloads.
+- `Physics.cast` output is diagnostic only and not a gameplay LOS ruling.
+- This loop is contracts-only because no live TTS `WebRequest.custom` snapshot round trip was
+  observed.
+
+Plan review:
+
+- Consultant plan reviewer `019ef392-acb1-77f2-a06e-7b64c1dd3d27` initially required a typed API
+  error envelope and removal of unsupported beam/marker QA expectations. The plan was patched and
+  re-review passed.
+- Adversarial plan reviewer `019ef392-c135-7561-91b1-97564c14c211` initially required a
+  contracts-only closeout gate, sanitized invalid payload handling, and no accepted snapshot echo.
+  The plan was patched and re-review passed.
+
+Verification:
+
+- Domain red test failed first with missing `warhammer_companion.domain.tts`.
+- Bridge/API red test failed first with missing `warhammer_companion.application.tts_bridge`.
+- Targeted tests passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_domain.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 49 passed with the existing Starlette `TestClient` deprecation warning.
+- Static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 499 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Lua contract scan passed: `docs/tts/global_lua_echo.lua` contains `WebRequest.custom`,
+  `Content-Type`, diagnostic `Physics.cast`, and no `WebRequest.post` call.
+
+Manual QA:
+
+- Scoped local HTTP QA passed for `/api/tts/health` and `/api/tts/snapshot`: both returned 200,
+  `ok=true`, and contracts-only readiness.
+- In-app Browser QA was blocked because both `127.0.0.1` and `localhost` returned
+  `ERR_BLOCKED_BY_CLIENT`.
+- Computer Use launched Tabletop Simulator and found a targetable `Tabletop Simulator` window.
+- Computer Use could not inspect the TTS window because capture failed with
+  `SetIsBorderRequired failed: No such interface supported (0x80004002)`. Windows app input stopped
+  there.
+- TTS process and Python companion server were stopped after QA.
+- Consultant closeout reviewer `019ef3b1-29a9-79b1-a658-eec973833d46` found one P1: malformed JSON
+  still used FastAPI's default `detail` response instead of the typed TTS bridge error envelope.
+  Fixed by parsing JSON in the route and returning `code=invalid-json`; added a regression test.
+- Adversarial closeout reviewer `019ef3b1-3df9-74c3-9aae-54d464dda5d1` found one P1: live TTS
+  readiness was client-controlled through the submitted snapshot. Fixed by making accepted
+  responses server-authoritative and contracts-only until a later observed round trip; added a
+  regression test.
+- Post-fix focused Phase 1 checks passed:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_domain.py tests\test_tts_bridge.py tests\test_web_server.py -q`
+  returned 51 passed with the existing Starlette `TestClient` deprecation warning.
+- Post-fix static gates passed:
+  `.\.venv\Scripts\python.exe -m ruff format --check src tests`,
+  `.\.venv\Scripts\python.exe -m ruff check .`, and `.\.venv\Scripts\mypy.exe src`.
+- Post-fix full pytest passed:
+  `.\.venv\Scripts\python.exe -m pytest` returned 501 passed with the existing Starlette
+  `TestClient` deprecation warning.
+- Post-fix scoped HTTP QA for malformed JSON passed: `POST /api/tts/snapshot` returned 422 with
+  `TtsBridgeResponse(ok=false, error.code=invalid-json)` and no FastAPI `detail` body.
+- Consultant closeout re-review passed.
+- Adversarial closeout re-review passed and independently reran:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_tts_bridge.py tests\test_web_server.py -q`,
+  which returned 46 passed with the existing Starlette `TestClient` deprecation warning.
+
+Next loop trigger:
+
+- Prove Phase 1 live TTS round trip.

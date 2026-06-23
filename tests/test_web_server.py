@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -1755,6 +1756,77 @@ def test_settings_status_values_use_wrapping_layout() -> None:
     assert "tag-wrap" in css
     assert "white-space: normal" in css
     assert "overflow-wrap: anywhere" in css
+
+
+def test_tts_health_route_returns_json_without_html() -> None:
+    client = TestClient(server.app)
+
+    response = client.get("/api/tts/health")
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["ok"] is True
+    assert data["data"]["host_only"] is True
+    assert data["data"]["live_tts_round_trip_observed"] is False
+    assert "<script" not in response.text
+    assert "<html" not in response.text.lower()
+
+
+def test_tts_snapshot_route_accepts_sanitized_fixture_without_echoing_payload() -> None:
+    client = TestClient(server.app)
+    payload = json.loads(Path("tests/fixtures/tts/minimal_snapshot.json").read_text())
+
+    response = client.post("/api/tts/snapshot", json=payload)
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["ok"] is True
+    assert data["data"]["object_counts"] == {"attacker": 1, "target": 1, "terrain": 1}
+    assert data["data"]["diagnostic_warning_labels"] == ["diagnostic-physics-cast"]
+    assert "objects" not in data["data"]
+    assert "diagnostic_los" not in data["data"]
+    assert "Synthetic attacker" not in response.text
+
+
+def test_tts_snapshot_route_returns_sanitized_error_for_malformed_payload() -> None:
+    client = TestClient(server.app)
+    payload = {
+        "schema_version": "tts-board-snapshot/v0",
+        "snapshot_id": "bad",
+        "source": "C:/Users/example/Saved Objects/leak.tts",
+        "objects": [{"name": "SteamID sk-test .png"}],
+    }
+
+    response = client.post("/api/tts/snapshot", json=payload)
+    data = response.json()
+
+    assert response.status_code == 422
+    assert data["ok"] is False
+    assert data["error"]["code"] == "invalid-snapshot"
+    assert "Saved Objects" not in response.text
+    assert "SteamID" not in response.text
+    assert ".tts" not in response.text
+    assert ".png" not in response.text
+    assert "sk-test" not in response.text
+    assert "traceback" not in response.text.lower()
+
+
+def test_tts_snapshot_route_returns_bridge_error_for_invalid_json_body() -> None:
+    client = TestClient(server.app)
+
+    response = client.post(
+        "/api/tts/snapshot",
+        content='{"schema_version": "tts-board-snapshot/v0",',
+        headers={"content-type": "application/json"},
+    )
+    data = response.json()
+
+    assert response.status_code == 422
+    assert data["ok"] is False
+    assert data["error"]["code"] == "invalid-json"
+    assert data["error"]["field_path"] == []
+    assert "detail" not in data
+    assert "json_invalid" not in response.text
 
 
 def test_toolbar_packet_select_does_not_force_horizontal_overflow() -> None:

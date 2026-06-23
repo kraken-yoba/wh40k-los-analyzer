@@ -23,6 +23,7 @@ from warhammer_companion.application.mission_pack import build_mission_pack_tool
 from warhammer_companion.application.movement_reach import build_movement_reach_toolkit_result
 from warhammer_companion.application.threat_range import build_threat_range_toolkit_result
 from warhammer_companion.application.toolkit import ToolkitResult
+from warhammer_companion.application.tts_bridge import TtsBridgeService
 from warhammer_companion.application.view_models import (
     DamageProfileState,
     DeploymentExposureState,
@@ -70,6 +71,7 @@ from warhammer_companion.domain.movement import (
 )
 from warhammer_companion.domain.repository import MapRepository
 from warhammer_companion.domain.threat import THREAT_MODES, THREAT_SOURCE_MODES, ThreatRangePayload
+from warhammer_companion.domain.tts import TtsBoardSnapshot, TtsBridgeResponse
 from warhammer_companion.ingestion.artifacts import IngestionPaths
 from warhammer_companion.ingestion.packet_builder import IngestionReport, run_official_ingestion
 from warhammer_companion.ingestion.pipeline import PipelineStage, current_pipeline_status
@@ -118,6 +120,7 @@ class WarhammerCompanionService:
         ingestion_runner: IngestionRunner = run_official_ingestion,
         pipeline_status_provider: PipelineStatusProvider = current_pipeline_status,
         official_sources: Sequence[OfficialSource] = OFFICIAL_SOURCES,
+        tts_bridge: TtsBridgeService | None = None,
     ) -> None:
         self.paths = paths
         self.repository = repository
@@ -125,6 +128,7 @@ class WarhammerCompanionService:
         self.ingestion_runner = ingestion_runner
         self.pipeline_status_provider = pipeline_status_provider
         self.official_sources = official_sources
+        self.tts_bridge = tts_bridge or TtsBridgeService()
         self._heatmap_cache: OrderedDict[HeatmapCacheKey, str] = OrderedDict()
 
     def settings_state(self) -> SettingsState:
@@ -1179,6 +1183,15 @@ class WarhammerCompanionService:
 
     def logout_codex(self) -> None:
         self.codex_backend.logout()
+
+    def tts_health(self) -> TtsBridgeResponse:
+        return self.tts_bridge.health()
+
+    def accept_tts_snapshot(self, snapshot: TtsBoardSnapshot) -> TtsBridgeResponse:
+        return self.tts_bridge.accept_snapshot(snapshot)
+
+    def accept_tts_snapshot_payload(self, payload: object) -> TtsBridgeResponse:
+        return self.tts_bridge.accept_snapshot_payload(payload)
 
     def _selected_packet(self, packet_id: str | None) -> MapPacket:
         if packet_id:

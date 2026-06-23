@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from json import JSONDecodeError
 from math import isfinite
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from warhammer_companion.application.services import WarhammerCompanionService
+from warhammer_companion.application.tts_bridge import failure_response
 from warhammer_companion.domain.damage import (
     DEFAULT_DAMAGE_PROFILE_INPUT,
     DEFAULT_TARGET_PROFILE_INPUT,
@@ -37,6 +39,29 @@ service = WarhammerCompanionService(
 @app.get("/")
 def index() -> RedirectResponse:
     return RedirectResponse("/viewer", status_code=303)
+
+
+@app.get("/api/tts/health")
+def tts_health() -> JSONResponse:
+    return JSONResponse(content=service.tts_health().model_dump(mode="json"))
+
+
+@app.post("/api/tts/snapshot")
+async def accept_tts_snapshot(request: Request) -> JSONResponse:
+    try:
+        payload = await request.json()
+    except JSONDecodeError:
+        response = failure_response(
+            "invalid-json",
+            "Snapshot request body must be valid JSON.",
+            (),
+        )
+        return JSONResponse(content=response.model_dump(mode="json"), status_code=422)
+    response = service.accept_tts_snapshot_payload(payload)
+    return JSONResponse(
+        content=response.model_dump(mode="json"),
+        status_code=200 if response.ok else 422,
+    )
 
 
 @app.get("/settings", response_class=HTMLResponse)

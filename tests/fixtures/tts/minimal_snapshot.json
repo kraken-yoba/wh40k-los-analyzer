@@ -1,0 +1,150 @@
+{
+  "schema_version": "tts-board-snapshot/v0",
+  "snapshot_id": "synthetic-phase-1-minimal",
+  "captured_at_epoch": 0.0,
+  "source": "synthetic unit test fixture",
+  "host_context": {
+    "schema_version": "tts-host-context/v0",
+    "host_only": true,
+    "local_companion_required": true,
+    "live_tts_round_trip_observed": false,
+    "note": "Local host companion required. No live TTS round trip is encoded in this fixture."
+  },
+  "transform": {
+    "schema_version": "tts-board-transform/v0",
+    "tts_origin": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "battlefield_origin": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "board_rotation_degrees_clockwise": 0.0,
+    "tts_units_per_inch": 1.0,
+    "board_width_inches": 44.0,
+    "board_height_inches": 60.0,
+    "round_trip_tolerance_inches": 0.25,
+    "calibration_points": [
+      {
+        "label": "lower-left",
+        "world": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "battlefield": {
+          "x": 0.0,
+          "y": 0.0
+        }
+      },
+      {
+        "label": "upper-right",
+        "world": {
+          "x": 44.0,
+          "y": 0.0,
+          "z": 60.0
+        },
+        "battlefield": {
+          "x": 44.0,
+          "y": 60.0
+        }
+      }
+    ]
+  },
+  "objects": [
+    {
+      "guid": "attacker1",
+      "name": "Synthetic attacker",
+      "object_kind": "attacker",
+      "tags": [
+        "tts-attacker"
+      ],
+      "position": {
+        "x": 8.0,
+        "y": 0.0,
+        "z": 10.0
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "provenance": "tagged"
+    },
+    {
+      "guid": "target1",
+      "name": "Synthetic target",
+      "object_kind": "target",
+      "tags": [
+        "tts-target"
+      ],
+      "position": {
+        "x": 30.0,
+        "y": 0.0,
+        "z": 42.0
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "provenance": "tagged"
+    },
+    {
+      "guid": "terrain1",
+      "name": "Synthetic terrain",
+      "object_kind": "terrain",
+      "tags": [
+        "tts-terrain"
+      ],
+      "position": {
+        "x": 18.0,
+        "y": 0.0,
+        "z": 26.0
+      },
+      "rotation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0
+      },
+      "provenance": "tagged"
+    }
+  ],
+  "diagnostic_los": {
+    "schema_version": "tts-diagnostic-los-probe/v0",
+    "probe_id": "synthetic-physics-cast-1",
+    "source_guid": "attacker1",
+    "target_guid": "target1",
+    "start_world": {
+      "x": 8.0,
+      "y": 1.0,
+      "z": 10.0
+    },
+    "end_world": {
+      "x": 30.0,
+      "y": 1.0,
+      "z": 42.0
+    },
+    "hit": true,
+    "hit_guid": "terrain1",
+    "authoritative": false,
+    "label": "Diagnostic physics cast, not gameplay LOS"
+  }
+}
