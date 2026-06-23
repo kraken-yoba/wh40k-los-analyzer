@@ -99,3 +99,31 @@ If `ttsSendSnapshot()` is not observed reaching the companion from a real TTS ho
 - no live TTS feasibility claim;
 - commit message: `Add TTS phase 1 bridge contracts`;
 - next loop trigger: prove Phase 1 live TTS round trip.
+
+## Live Proof Attempt - 2026-06-23
+
+Plan:
+
+- `docs/superpowers/plans/2026-06-23-tts-phase-1-live-round-trip-proof.md`
+
+Result:
+
+- Status: blocked
+- Companion health before TTS launch: true
+- Companion readiness before TTS launch: `contracts-only`
+- TTS launch attempted through Computer Use: interrupted
+- Interruption: Computer Use reported that it was stopped by a physical Escape key.
+- TTS window inspected: false
+- Controlled save used: false
+- Lua pasted: false
+- Health round trip from TTS observed: false
+- Snapshot round trip from TTS observed: false
+- Server-side TTS receipt observed: false
+- Protected artifact staged: false
+- Cleanup: companion server stopped; no port 8000 listener remained; no TTS process remained.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`
+- No live TTS feasibility claim.
+- Next loop should resume with an operator-approved or operator-assisted TTS UI path.

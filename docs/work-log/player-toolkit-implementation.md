@@ -2946,3 +2946,40 @@ Manual QA:
 Next loop trigger:
 
 - Prove Phase 1 live TTS round trip.
+
+## 2026-06-23 - TTS Phase 1 Live Round Trip Proof Attempt
+
+Purpose:
+
+- Attempt a narrow proof that TTS Global Lua can call the local companion through
+  `WebRequest.custom`.
+
+Plan review:
+
+- Consultant plan reviewer `019ef3c2-eda1-7a61-bdad-79d37d0ea70f` initially required an
+  authoritative server-side receipt, Phase 1 contracts revision preflight, and review-file scan
+  coverage. The plan was patched and re-review passed.
+- Adversarial plan reviewer `019ef3c3-01f2-7880-bd0a-70a5e28da1e8` initially required a
+  server-side receipt, controlled-save/no-save-mutation guard, staged diff hygiene, failure-safe
+  cleanup, and narrow success wording. The plan was patched and re-review passed.
+
+Attempt result:
+
+- Phase 1 contracts commit `887335c` was confirmed as an ancestor of HEAD.
+- Preflight found no existing companion listener and no TTS process.
+- Companion server launched and `/api/tts/health` returned `ok=true` with
+  `readiness=contracts-only`.
+- Computer Use was stopped by a physical Escape key during the TTS launch step.
+- No TTS window was inspected, no controlled save was used, no Lua was pasted, and no real
+  `WebRequest.custom` round trip was observed.
+- Cleanup ran after interruption: the companion server was stopped, no port 8000 listener remained,
+  and no TTS process remained.
+
+Closeout:
+
+- `live_tts_round_trip_observed=false`.
+- No live TTS feasibility claim.
+
+Next loop trigger:
+
+- Resume live TTS round-trip proof with an operator-approved or operator-assisted TTS UI path.
