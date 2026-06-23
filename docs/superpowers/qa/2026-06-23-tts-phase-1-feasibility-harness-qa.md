@@ -512,9 +512,33 @@ System Console live attempt:
   next attempt needs confirmation that the TTS System Console accepted and executed the `lua`
   command, or the exact TTS console error text if it rejected it.
 
+Loaded-table retry for Mac handoff:
+
+- Platform: Windows
+- Operator manually loaded a TTS server/table with models, terrain, Hutber, and ForceOrg available.
+- TTS process responsive: true
+- External Editor listener after loaded table: unavailable on localhost ports 39999 and 39998
+- Programmatic proof receipt: `tts-proof-54f5eeeb206d`
+- Programmatic proof blocker: `tts-external-editor-unavailable`
+- Programmatic proof message sent: false
+- Programmatic proof receipt observed: false
+- Manual System Console receipt: `active-table-console-2`
+- Manual proof server owned listener: true
+- Manual proof server port: ephemeral loopback port 54750
+- Operator-visible TTS output after command submission: none reported
+- Manual proof receipt observed: false
+- Manual proof blocker: `companion-receipt-not-observed`
+- `live_tts_round_trip_observed=false`
+- Player log keyword scan found no `WebRequest`, receipt, port, Lua error, or companion proof clue.
+- Created Mac mini continuation plan:
+  `docs/superpowers/plans/2026-06-23-tts-phase-1-mac-mini-continuation.md`
+- Mac-specific caveat: `tts-proof-health` currently has a Windows-only process-owner verifier and
+  is expected to fail closed on macOS with `tts-external-editor-process-check-unsupported` until a
+  Darwin verifier or independently verified lower-level proof path is used.
+
 Next step:
 
-- With the active TTS table still open, run
-  `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`, paste only the
-  first printed `lua ...` command into the TTS System Console, press Enter, and record both the
-  TTS console output and whether the sanitized result reports `live_tts_round_trip_observed=true`.
+- Continue from the Mac mini plan. First verify whether Tabletop Simulator exposes localhost port
+  39999 on macOS after the controlled table is loaded. Then either add a Darwin process verifier
+  for `tts-proof-health` or run a lower-level proof only after independent `lsof` ownership
+  verification. Record the Mac result without broadening success beyond the observed receipt.

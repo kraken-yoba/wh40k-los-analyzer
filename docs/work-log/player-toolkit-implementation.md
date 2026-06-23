@@ -3369,8 +3369,32 @@ System Console live attempt:
 - Server-side TTS receipt observed from real TTS: false.
 - `live_tts_round_trip_observed=false`.
 
+Loaded-table retry for Mac handoff:
+
+- Operator manually loaded a TTS server/table with models, terrain, Hutber, and ForceOrg available.
+- TTS process was responsive, but localhost ports 39999 and 39998 still had no visible listener.
+- Programmatic External Editor health proof receipt `tts-proof-54f5eeeb206d` failed with
+  `tts-external-editor-unavailable`; no External Editor message was sent and no companion receipt
+  was observed.
+- Manual System Console health proof receipt `active-table-console-2` used a runner-owned listener
+  on ephemeral loopback port 54750, stayed open for the proof window, and timed out with
+  `companion-receipt-not-observed`.
+- Operator reported no visible TTS output after the manual command was supplied.
+- Player log keyword scan found no `WebRequest`, receipt, port, Lua error, or companion proof clue.
+- Created `docs/superpowers/plans/2026-06-23-tts-phase-1-mac-mini-continuation.md` so Mac Codex
+  can pick up with exact evidence, commands, proof boundaries, and the macOS-specific verifier
+  caveat.
+- Mac-specific caveat: `tts-proof-health` currently has a Windows-only process-owner verifier and
+  will fail closed on macOS until a Darwin verifier is added or a lower-level proof is guarded by
+  independent `lsof` ownership evidence.
+- Health round trip from real TTS observed: false.
+- Server-side TTS receipt observed from real TTS: false.
+- `live_tts_round_trip_observed=false`.
+
 Next step:
 
-- Run `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`, paste only
-  the first printed `lua ...` command into the active TTS table's System Console, press Enter, and
-  record both the TTS console output and the sanitized result.
+- Continue on the Mac mini with
+  `docs/superpowers/plans/2026-06-23-tts-phase-1-mac-mini-continuation.md`. First verify whether
+  TTS exposes localhost port 39999 after the controlled table is loaded. Then use the reviewed
+  External Editor proof path if available, or the manual System Console proof path while recording
+  the exact TTS console output and sanitized runner result.
