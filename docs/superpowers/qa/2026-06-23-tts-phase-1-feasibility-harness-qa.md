@@ -474,6 +474,8 @@ Verification:
 Live proof status:
 
 - Operator-assisted proof helper implemented: true
+- Operator confirmed an active TTS table with terrain and two armies was loaded during the latest
+  proof attempts, so table absence is not the current blocker.
 - Health round trip from real TTS observed: false
 - Server-side TTS receipt observed from real TTS: false
 - `live_tts_round_trip_observed=false`
@@ -492,9 +494,27 @@ Manual live attempt:
   The next operator attempt should use the first printed TTS System Console `lua ...` command and
   press Enter.
 
+System Console live attempt:
+
+- Receipt: `active-table-console-1`
+- Proof server owned listener: true
+- Proof server port: ephemeral loopback port 53243
+- Runner stayed open for the 300-second proof window through the persistent Node REPL.
+- Companion receipt observed: false
+- Exit code: 1
+- Blocker: `companion-receipt-not-observed`
+- `live_tts_round_trip_observed=false`
+- The command printed the System Console first-line form:
+  `lua WebRequest.custom("http://127.0.0.1:53243/api/tts/health?receipt=active-table-console-1", ...)`
+- No raw local TTS logs, save files, screenshots, workshop files, or command-line/startup artifacts
+  were committed.
+- Current blocker: the host side was ready, but no TTS-originated request reached the runner. The
+  next attempt needs confirmation that the TTS System Console accepted and executed the `lua`
+  command, or the exact TTS console error text if it rejected it.
+
 Next step:
 
 - With the active TTS table still open, run
   `.\.venv\Scripts\warhammer-companion.exe tts-manual-health --wait-seconds 300`, paste only the
-  first printed `lua ...` command into the TTS System Console, press Enter, and record whether the
-  sanitized result reports `live_tts_round_trip_observed=true`.
+  first printed `lua ...` command into the TTS System Console, press Enter, and record both the
+  TTS console output and whether the sanitized result reports `live_tts_round_trip_observed=true`.
